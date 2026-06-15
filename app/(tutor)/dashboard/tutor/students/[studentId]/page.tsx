@@ -1,24 +1,27 @@
-// app/(tutor)/dashboard/students/[studentId]/page.tsx
+// app/(tutor)/dashboard/tutor/students/[studentId]/page.tsx
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import StudentDetails from "@/components/tutor/StudentDetails";
 import { getStudentDetails } from "@/lib/actions/tutor";
+import { authOptions } from "@/lib/auth";
 
 export default async function StudentDetailPage({
   params,
 }: {
-  params: { studentId: string };
+  params: Promise<{ studentId: string }>;
 }) {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
     redirect("/auth/tutor/login");
   }
 
-  const studentData = await getStudentDetails(params.studentId);
+  const { studentId } = await params;
+
+  const studentData = await getStudentDetails(studentId);
 
   if (!studentData) {
-    redirect("/dashboard/students");
+    redirect("/dashboard/tutor/students");
   }
 
   return (

@@ -36,7 +36,7 @@ export default function DiscordIntegration({
 
   const handleConnect = () => {
     // Use NextAuth's built-in Discord OAuth flow
-    signIn("discord", { callbackUrl: "/dashboard?tab=discord" });
+    signIn("discord", { callbackUrl: "/dashboard/tutor/discord" });
   };
 
   const handleSaveServerId = async () => {
@@ -57,7 +57,11 @@ export default function DiscordIntegration({
         return;
       }
 
-      setDiscordInfo((prev) => ({ ...prev, discordServerId: data.serverId }));
+      setDiscordInfo((prev) => ({ 
+        ...prev, 
+        discordServerId: data.serverId,
+        isConnected: true 
+      }));
       setAvailableRoles(data.availableRoles || []);
     } catch (err: any) {
       setServerError(err.message || "Something went wrong");

@@ -16,53 +16,61 @@ import {
   PauseCircle,
   PlayCircle,
   Download,
+  User,
+  CreditCard,
 } from "lucide-react";
 
-interface Student {
+interface StudentDetailsProps {
   student: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    address?: string;
-    state?: string;
-    subscriptionStatus: string;
-    hasUsedFreeTrial: boolean;
-    createdAt: string;
-  };
-  enrollments: Array<{
-    _id: string;
-    courseId: {
-      name: string;
-      description?: string;
-    };
-    tutorId: {
+    student: {
+      _id: string;
       firstName: string;
       lastName: string;
+      email: string;
+      phone: string;
+      state?: string;
+      subscriptionStatus: string;
+      hasUsedFreeTrial: boolean;
+      createdAt: string | null; // Allow null
     };
-    plan: string;
-    status: string;
-    startDate: string;
-    endDate: string;
-  }>;
-  grades: Array<{
-    _id: string;
-    examId: {
-      title: string;
-    };
-    courseId: {
-      name: string;
-    };
-    score: number;
-    total: number;
-    percentage: number;
-    feedback?: string;
-    gradedAt: string;
-  }>;
+    enrollments: Array<{
+      _id: string;
+      courseId: {
+        _id: string;
+        name: string;
+        description?: string;
+      };
+      tutorId: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+      };
+      plan: string;
+      status: string;
+      startDate: string | null;
+      endDate: string | null;
+      amount: number;
+    }>;
+    grades: Array<{
+      _id: string;
+      examId: {
+        _id: string;
+        title: string;
+      };
+      courseId: {
+        _id: string;
+        name: string;
+      };
+      score: number;
+      total: number;
+      percentage: number;
+      feedback?: string;
+      gradedAt: string | null;
+    }>;
+  };
 }
 
-export default function StudentDetails({ student }: { student: Student }) {
+export default function StudentDetails({ student }: StudentDetailsProps) {
   const [activeTab, setActiveTab] = useState<"profile" | "enrollments" | "grades">("profile");
   const [loading, setLoading] = useState(false);
 
@@ -135,7 +143,7 @@ export default function StudentDetails({ student }: { student: Student }) {
       grade.total,
       `${grade.percentage}%`,
       grade.feedback || "-",
-      new Date(grade.gradedAt).toLocaleDateString(),
+      grade.gradedAt ? new Date(grade.gradedAt).toLocaleDateString() : "-",
     ]);
 
     const csvContent = [headers, ...rows].map((row) => row.join(",")).join("\n");
@@ -148,25 +156,33 @@ export default function StudentDetails({ student }: { student: Student }) {
     URL.revokeObjectURL(url);
   };
 
+  const studentData = student.student;
+
+  // Safe date formatting function
+  const formatDate = (date: string | null) => {
+    if (!date) return "N/A";
+    return new Date(date).toLocaleDateString();
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8">
+        <div className="bg-gradient-to-r from-tutor to-brand-primary px-6 py-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white">
-                {student.student.firstName} {student.student.lastName}
+                {studentData.firstName} {studentData.lastName}
               </h1>
-              <p className="text-blue-100 mt-1">Student ID: {student.student._id}</p>
+              <p className="text-white/80 mt-1">Student ID: {studentData._id}</p>
             </div>
             <div className="flex items-center gap-3">
               <span
                 className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                  student.student.subscriptionStatus
+                  studentData.subscriptionStatus
                 )}`}
               >
-                {student.student.subscriptionStatus.toUpperCase()}
+                {studentData.subscriptionStatus.toUpperCase()}
               </span>
             </div>
           </div>
@@ -178,14 +194,14 @@ export default function StudentDetails({ student }: { student: Student }) {
             <Mail className="w-5 h-5 text-gray-400" />
             <div>
               <p className="text-xs text-gray-500">Email</p>
-              <p className="text-sm font-medium text-gray-900">{student.student.email}</p>
+              <p className="text-sm font-medium text-gray-900">{studentData.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <Phone className="w-5 h-5 text-gray-400" />
             <div>
               <p className="text-xs text-gray-500">Phone</p>
-              <p className="text-sm font-medium text-gray-900">{student.student.phone}</p>
+              <p className="text-sm font-medium text-gray-900">{studentData.phone}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -193,7 +209,7 @@ export default function StudentDetails({ student }: { student: Student }) {
             <div>
               <p className="text-xs text-gray-500">Joined</p>
               <p className="text-sm font-medium text-gray-900">
-                {new Date(student.student.createdAt).toLocaleDateString()}
+                {formatDate(studentData.createdAt)}
               </p>
             </div>
           </div>
@@ -202,7 +218,7 @@ export default function StudentDetails({ student }: { student: Student }) {
             <div>
               <p className="text-xs text-gray-500">Free Trial Used</p>
               <p className="text-sm font-medium text-gray-900">
-                {student.student.hasUsedFreeTrial ? "Yes" : "No"}
+                {studentData.hasUsedFreeTrial ? "Yes" : "No"}
               </p>
             </div>
           </div>
@@ -214,7 +230,7 @@ export default function StudentDetails({ student }: { student: Student }) {
             onClick={() => setActiveTab("profile")}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
               activeTab === "profile"
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-tutor border-b-2 border-tutor"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -224,7 +240,7 @@ export default function StudentDetails({ student }: { student: Student }) {
             onClick={() => setActiveTab("enrollments")}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
               activeTab === "enrollments"
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-tutor border-b-2 border-tutor"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -234,7 +250,7 @@ export default function StudentDetails({ student }: { student: Student }) {
             onClick={() => setActiveTab("grades")}
             className={`px-4 py-3 font-medium text-sm transition-colors ${
               activeTab === "grades"
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-tutor border-b-2 border-tutor"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -246,15 +262,12 @@ export default function StudentDetails({ student }: { student: Student }) {
         <div className="p-6">
           {activeTab === "profile" && (
             <div className="space-y-6">
-              {student.student.address && (
+              {studentData.state && (
                 <div>
                   <h3 className="text-sm font-medium text-gray-500 mb-2">Address</h3>
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                    <p className="text-gray-900">
-                      {student.student.address}
-                      {student.student.state && `, ${student.student.state}`}
-                    </p>
+                    <p className="text-gray-900">{studentData.state}</p>
                   </div>
                 </div>
               )}
@@ -264,16 +277,14 @@ export default function StudentDetails({ student }: { student: Student }) {
                 <div className="flex items-center gap-2">
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      student.student.subscriptionStatus === "active"
+                      studentData.subscriptionStatus === "active"
                         ? "bg-green-500"
-                        : student.student.subscriptionStatus === "trial"
+                        : studentData.subscriptionStatus === "trial"
                         ? "bg-blue-500"
                         : "bg-red-500"
                     }`}
                   />
-                  <span className="text-gray-900 capitalize">
-                    {student.student.subscriptionStatus}
-                  </span>
+                  <span className="text-gray-900 capitalize">{studentData.subscriptionStatus}</span>
                 </div>
               </div>
             </div>
@@ -292,12 +303,15 @@ export default function StudentDetails({ student }: { student: Student }) {
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <BookOpen className="w-4 h-4 text-blue-600" />
+                          <BookOpen className="w-4 h-4 text-tutor" />
                           <h3 className="font-semibold text-gray-900">
                             {enrollment.courseId.name}
                           </h3>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                          <p className="text-gray-600">
+                            Tutor: {enrollment.tutorId.firstName} {enrollment.tutorId.lastName}
+                          </p>
                           <p className="text-gray-600">
                             Plan: <span className="font-medium">{getPlanLabel(enrollment.plan)}</span>
                           </p>
@@ -312,10 +326,13 @@ export default function StudentDetails({ student }: { student: Student }) {
                             </span>
                           </p>
                           <p className="text-gray-600">
-                            Start: {new Date(enrollment.startDate).toLocaleDateString()}
+                            Amount: ₦{enrollment.amount?.toLocaleString() || 0}
                           </p>
                           <p className="text-gray-600">
-                            End: {new Date(enrollment.endDate).toLocaleDateString()}
+                            Start: {formatDate(enrollment.startDate)}
+                          </p>
+                          <p className="text-gray-600">
+                            End: {formatDate(enrollment.endDate)}
                           </p>
                         </div>
                       </div>
@@ -354,7 +371,7 @@ export default function StudentDetails({ student }: { student: Student }) {
                 <div className="flex justify-end mb-4">
                   <button
                     onClick={exportGrades}
-                    className="px-3 py-1 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 flex items-center gap-1"
+                    className="px-3 py-1 text-sm text-tutor border border-tutor rounded-lg hover:bg-tutor/5 flex items-center gap-1"
                   >
                     <Download className="w-4 h-4" />
                     Export CSV
@@ -397,13 +414,13 @@ export default function StudentDetails({ student }: { student: Student }) {
                         <tr key={grade._id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {grade.examId.title}
-                          </td>
+                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">
                             {grade.courseId.name}
-                          </td>
+                           </td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">
                             {grade.score} / {grade.total}
-                          </td>
+                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 max-w-24 bg-gray-200 rounded-full h-2">
@@ -422,14 +439,14 @@ export default function StudentDetails({ student }: { student: Student }) {
                                 {grade.percentage}%
                               </span>
                             </div>
-                          </td>
+                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">
                             {grade.feedback || "-"}
-                          </td>
+                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">
-                            {new Date(grade.gradedAt).toLocaleDateString()}
-                          </td>
-                        </tr>
+                            {grade.gradedAt ? new Date(grade.gradedAt).toLocaleDateString() : "-"}
+                           </td>
+                         </tr>
                       ))
                     )}
                   </tbody>

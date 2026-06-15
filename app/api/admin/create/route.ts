@@ -10,56 +10,70 @@ export async function POST(req: NextRequest) {
   try {
     const token = await getToken({ req });
     
-    // Check if user is super admin
-    if (!token || token.role !== 'admin') {
+    // Check if user is authenticated
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Get current admin to check if they're super admin
     await connectDB();
     
+    // Check if current user is super admin
     const currentAdmin = await Admin.findOne({ userId: token.id });
     if (!currentAdmin || currentAdmin.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Only super admins can create new admins' }, { status: 403 });
+      return NextResponse.json({ 
+        error: 'Only super admins can create new admins' 
+      }, { status: 403 });
     }
     
     const { firstName, lastName, email, phone, password, role } = await req.json();
     
     // Validation
     if (!firstName || !lastName || !email || !phone || !password) {
-      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'All fields (first name, last name, email, phone, password) are required' 
+      }, { status: 400 });
     }
     
     if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Password must be at least 8 characters' 
+      }, { status: 400 });
     }
+    
+    // Validate role
+    const validRoles = ['admin', 'moderator'];
+    const assignedRole = validRoles.includes(role) ? role : 'admin';
     
     // Check if user exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return NextResponse.json({ error: 'User with this email already exists' }, { status: 409 });
+      return NextResponse.json({ 
+        error: 'User with this email already exists' 
+      }, { status: 409 });
     }
     
-    // Create user
+    // Create user (only User model fields)
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = await User.create({
       email: email.toLowerCase(),
       password: hashedPassword,
       role: 'admin',
       isActive: true,
-      firstName,
-      lastName,
     });
     
-    // Create admin profile
+    // Create admin profile (with Admin model fields)
+    const permissions = assignedRole === 'admin' 
+      ? ['view', 'create', 'edit', 'delete'] 
+      : ['view'];
+    
     const admin = await Admin.create({
       userId: user._id,
-      firstName,
-      lastName,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       email: email.toLowerCase(),
-      phone,
-      role: role || 'admin',
-      permissions: role === 'admin' ? ['view', 'create', 'edit', 'delete'] : ['view'],
+      phone: phone.trim(),
+      role: assignedRole,
+      permissions,
       createdBy: currentAdmin._id,
       isActive: true,
     });
@@ -70,13 +84,24 @@ export async function POST(req: NextRequest) {
       data: {
         id: admin._id,
         name: `${firstName} ${lastName}`,
-        email,
+        email: admin.email,
         role: admin.role,
+        permissions: admin.permissions,
       },
     }, { status: 201 });
     
   } catch (error: any) {
     console.error('Create admin error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      return NextResponse.json({ 
+        error: 'Email already exists' 
+      }, { status: 409 });
+    }
+    
+    return NextResponse.json({ 
+      error: error.message || 'Failed to create admin' 
+    }, { status: 500 });
   }
 }

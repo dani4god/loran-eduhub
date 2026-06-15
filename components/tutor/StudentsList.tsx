@@ -7,7 +7,7 @@ import {
   Search, Filter, ChevronLeft, ChevronRight, MoreVertical, 
   PauseCircle, PlayCircle, Eye, Mail, Phone, Calendar, 
   BookOpen, AlertCircle, Award, Clock, CheckCircle, XCircle,
-  Download, Printer, Send, Users  // Added Users here
+  Send, Users 
 } from "lucide-react";
 
 interface Student {
@@ -22,8 +22,8 @@ interface Student {
   };
   plan: string;
   status: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 export default function StudentsList({ initialStudents }: { initialStudents: Student[] }) {
@@ -141,12 +141,19 @@ export default function StudentsList({ initialStudents }: { initialStudents: Stu
     }
   };
 
-  const getDaysRemaining = (endDate: string) => {
+  const getDaysRemaining = (endDate: string | null) => {
+    if (!endDate) return 0;
     const end = new Date(endDate);
     const now = new Date();
     const diffTime = end.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
+  };
+
+  // Safe date formatting function
+  const formatDate = (date: string | null) => {
+    if (!date) return "N/A";
+    return new Date(date).toLocaleDateString();
   };
 
   return (
@@ -237,8 +244,8 @@ export default function StudentsList({ initialStudents }: { initialStudents: Stu
                     <p className="text-gray-500 font-medium text-lg">No students found</p>
                     <p className="text-sm text-gray-400">Try adjusting your search or filter criteria</p>
                   </div>
-                 </td>
-               </tr>
+                </td>
+              </tr>
             ) : (
               paginatedStudents.map((student) => {
                 const daysRemaining = getDaysRemaining(student.endDate);
@@ -258,7 +265,7 @@ export default function StudentsList({ initialStudents }: { initialStudents: Stu
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-tutor/10 to-brand-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
                           <span className="text-tutor font-semibold text-sm">
-                            {student.firstName[0]}{student.lastName[0]}
+                            {student.firstName?.[0] || ''}{student.lastName?.[0] || ''}
                           </span>
                         </div>
                         <div>
@@ -282,7 +289,7 @@ export default function StudentsList({ initialStudents }: { initialStudents: Stu
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <BookOpen className="w-4 h-4 text-tutor" />
-                        <span className="text-gray-900 font-medium">{student.course.name}</span>
+                        <span className="text-gray-900 font-medium">{student.course?.name || "N/A"}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -307,11 +314,11 @@ export default function StudentsList({ initialStudents }: { initialStudents: Stu
                       <div className="text-sm">
                         <div className="flex items-center gap-1 text-gray-600">
                           <Calendar className="w-3 h-3" />
-                          <span>Start: {new Date(student.startDate).toLocaleDateString()}</span>
+                          <span>Start: {formatDate(student.startDate)}</span>
                         </div>
                         <div className="flex items-center gap-1 text-gray-600 mt-1">
                           <Calendar className="w-3 h-3" />
-                          <span>End: {new Date(student.endDate).toLocaleDateString()}</span>
+                          <span>End: {formatDate(student.endDate)}</span>
                         </div>
                       </div>
                     </td>

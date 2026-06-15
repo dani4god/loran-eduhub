@@ -3,7 +3,9 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
 
 interface Enrollment {
   _id: string
@@ -16,20 +18,29 @@ interface Enrollment {
   amount: number
 }
 
-export default function SubscriptionPage() {
-  const { data: session } = useSession()
+// Separate component that uses useSession
+function SubscriptionContent() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchEnrollments()
-  }, [])
+    if (status === 'unauthenticated') {
+      router.push('/auth/student/login')
+      return
+    }
+
+    if (session?.user?.email) {
+      fetchEnrollments()
+    }
+  }, [session, status, router])
 
   const fetchEnrollments = async () => {
     try {
       const response = await fetch('/api/enrollments')
       const data = await response.json()
-      setEnrollments(data.enrollments)
+      setEnrollments(data.enrollments || [])
     } catch (error) {
       console.error('Error fetching enrollments:', error)
     } finally {
@@ -38,7 +49,6 @@ export default function SubscriptionPage() {
   }
 
   const handleRenew = async (enrollmentId: string, currentPlan: string) => {
-    // Suggest upgrade or same plan renewal
     const newPlan = prompt('Enter plan (3months, 6months, 1year):', currentPlan)
     if (newPlan) {
       const response = await fetch('/api/subscriptions/renew', {
@@ -61,8 +71,19 @@ export default function SubscriptionPage() {
     return diffDays
   }
 
-  if (loading) {
-    return <div className="flex justify-center py-12">Loading...</div>
+  if (status === 'loading' || loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-4 border-tutor border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-500 mt-3">Loading subscriptions...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return null
   }
 
   return (
@@ -148,5 +169,21 @@ export default function SubscriptionPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Main page component with Suspense
+export default function SubscriptionPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center py-12">
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-4 border-tutor border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-500 mt-3">Loading subscriptions...</p>
+        </div>
+      </div>
+    }>
+      <SubscriptionContent />
+    </Suspense>
   )
 }

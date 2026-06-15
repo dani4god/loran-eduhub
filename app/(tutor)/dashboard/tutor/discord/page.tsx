@@ -1,17 +1,25 @@
-// app/(tutor)/dashboard/discord/page.tsx
+// app/(tutor)/dashboard/tutor/discord/page.tsx
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import DiscordIntegration from "@/components/tutor/DiscordIntegration";
 import { getTutorDiscordInfo } from "@/lib/actions/tutor";
+import { authOptions } from "@/lib/auth";
 
 export default async function DiscordPage() {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
     redirect("/auth/tutor/login");
   }
 
   const discordInfo = await getTutorDiscordInfo(session.user.email);
+
+  // Ensure the data matches the expected type
+  const safeDiscordInfo = {
+    discordServerId: discordInfo.discordServerId,
+    discordInviteLink: discordInfo.discordInviteLink,
+    isConnected: discordInfo.isConnected,
+  };
 
   return (
     <div className="space-y-6">
@@ -24,7 +32,7 @@ export default async function DiscordPage() {
         </p>
       </div>
 
-      <DiscordIntegration initialData={discordInfo} />
+      <DiscordIntegration initialData={safeDiscordInfo} />
     </div>
   );
 }
