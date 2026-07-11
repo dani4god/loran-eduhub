@@ -1,21 +1,22 @@
-// app/api/payments/initiate/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import connectDB from '@/lib/mongodb'
-import Payment from '@/models/Payment'
-import Student from '@/models/Student'
-import User from '@/models/User'
-import Enrollment from '@/models/Enrollment'
-import mongoose from 'mongoose'
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY
 
 export async function POST(req: NextRequest) {
   try {
-    const { studentId, plan, enrollmentIds, amount, groupId } = await req.json()
+    const body = await req.json()
 
-    if (!studentId || !plan || !enrollmentIds?.length || !amount) {
+    const {
+      email,
+      amount,
+      plan,
+      selections, // [{ courseId, tutorId, courseName, tutorName }]
+      personalData, // { firstName, lastName, phone, state, dateOfBirth }
+    } = body
+
+    if (!email || !plan) {
       return NextResponse.json(
-        { error: 'Missing required fields: studentId, plan, enrollmentIds, amount' },
+        { error: 'Email and plan are required' },
         { status: 400 }
       )
     }
@@ -27,51 +28,32 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    await connectDB()
-
-    // ── Get student ──
-    const student = await Student.findById(studentId)
-    if (!student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    // Trial needs no payment — signal that to the client
+    if (plan === 'trial') {
+      return NextResponse.json({
+        success: true,
+        isTrial: true,
+        requiresPayment: false,
+      })
     }
 
-    // ── Get user (for email) ──
-    const user = await User.findById(student.userId)
-    if (!user) {
-      return NextResponse.json({ error: 'User account not found' }, { status: 404 })
+    if (!amount || amount <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid amount' },
+        { status: 400 }
+      )
     }
 
-    // ── Resolve groupId ──
-    const resolvedGroupId = groupId
-      ? new mongoose.Types.ObjectId(groupId)
-      : new mongoose.Types.ObjectId()
+    if (!selections?.length) {
+      return NextResponse.json(
+        { error: 'No courses selected' },
+        { status: 400 }
+      )
+    }
 
-    // ── Generate reference BEFORE creating payment ──
-    const reference = `LORAN-${resolvedGroupId.toString()}-${Date.now()}`
+    // Generate a unique reference for this transaction
+    const reference = `LORAN-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
 
-    // ── Count distinct tutors from enrollments ──
-    const enrollments = await Enrollment.find({
-      _id: { $in: enrollmentIds },
-    }).select('tutorId plan')
-
-    const courseCount = enrollmentIds.length
-    const basePlanAmount = Math.round(amount / courseCount)
-
-    // ── Create payment record with reference already set ──
-    const payment = await Payment.create({
-      studentId,
-      enrollmentIds,
-      groupId: resolvedGroupId,
-      amount,
-      currency: 'NGN',
-      plan,
-      tutorCount: courseCount,
-      basePlanAmount,
-      paystackReference: reference,
-      status: 'pending',
-    })
-
-    // ── Initialize Paystack transaction ──
     const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -79,17 +61,16 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        email: user.email,
-        amount: Math.round(amount * 100), // convert NGN to kobo
+        email,
+        amount: Math.round(amount * 100), // kobo
         reference,
-        callback_url: `${process.env.NEXTAUTH_URL}/payment/verify`,
         currency: 'NGN',
+        callback_url: `${process.env.NEXTAUTH_URL}/payment/verify`,
         metadata: {
-          studentId: student._id.toString(),
-          paymentId: payment._id.toString(),
-          groupId: resolvedGroupId.toString(),
+          // Store everything needed to create the account after payment
           plan,
-          courseCount,
+          courseCount: selections.length,
+          email,
         },
       }),
     })
@@ -97,8 +78,6 @@ export async function POST(req: NextRequest) {
     const paystackData = await paystackRes.json()
 
     if (!paystackData.status) {
-      // Roll back payment record since Paystack rejected it
-      await Payment.findByIdAndDelete(payment._id)
       return NextResponse.json(
         { error: paystackData.message || 'Paystack initialization failed' },
         { status: 400 }
@@ -107,13 +86,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      paymentId: payment._id.toString(),
-      authorizationUrl: paystackData.data.authorization_url,
+      requiresPayment: true,
+      isTrial: false,
       accessCode: paystackData.data.access_code,
       reference: paystackData.data.reference,
+      authorizationUrl: paystackData.data.authorization_url,
       publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       amount,
-      email: user.email,
+      email,
     })
   } catch (error: any) {
     console.error('Payment initiation error:', error)

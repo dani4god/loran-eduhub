@@ -76,50 +76,70 @@ export default function RegisterDetailsPage() {
       const selectedPlan = PLANS.find(p => p.id === plan)
       const totalAmount = (selectedPlan?.price ?? 0) * selectedCourses.length
 
-      const response = await fetch('/api/students', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // ── Check if email is already registered ──
+      const emailCheck = await fetch(
+        `/api/students?email=${encodeURIComponent(formData.email.trim())}`
+      )
+      const emailData = await emailCheck.json()
+      if (emailData.exists) {
+        setErrors({ email: 'This email is already registered. Try logging in.' })
+        setLoading(false)
+        return
+      }
+
+      if (plan === 'trial') {
+        // ── Trial: store registration data and create account directly ──
+        const res = await fetch('/api/payments/verify/trial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email.trim(),
+            password: formData.password,
+            firstName: formData.firstName.trim(),
+            lastName: formData.lastName.trim(),
+            phone: formData.phone.trim(),
+            state: formData.state,
+            dateOfBirth: formData.dateOfBirth,
+            plan: 'trial',
+            selections: selectedCourses.map(s => ({
+              courseId: s.courseId,
+              tutorId: s.tutorId,
+            })),
+          }),
+        })
+
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Registration failed')
+
+        sessionStorage.removeItem('courseTutorSelections')
+        router.push('/dashboard?welcome=true')
+        return
+      }
+
+      // ── Paid plan: store ALL registration data in sessionStorage ──
+      // Password is stored temporarily — cleared immediately after account creation
+      sessionStorage.setItem(
+        'registrationIntent',
+        JSON.stringify({
+          email: formData.email.trim(),
+          password: formData.password,
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
-          email: formData.email.trim(),
           phone: formData.phone.trim(),
           state: formData.state,
           dateOfBirth: formData.dateOfBirth,
-          password: formData.password,
           plan,
           selections: selectedCourses.map(s => ({
             courseId: s.courseId,
             tutorId: s.tutorId,
+            courseName: s.courseName,
+            tutorName: s.tutorName,
           })),
-        }),
-      })
+          amount: totalAmount,
+        })
+      )
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Registration failed')
-      }
-
-      if (data.requiresPayment) {
-        // Store payment data in sessionStorage — avoids URL length issues
-        // and keeps the shape consistent for the payment page
-        sessionStorage.setItem(
-          'paymentData',
-          JSON.stringify({
-            studentId: data.studentId,
-            plan,
-            enrollmentIds: data.enrollmentIds,
-            amount: totalAmount,
-            groupId: data.groupId ?? null,
-          })
-        )
-        router.push('/payment')
-      } else {
-        // Trial — clean up and go to dashboard
-        sessionStorage.removeItem('courseTutorSelections')
-        router.push('/dashboard?welcome=true')
-      }
+      router.push('/payment')
     } catch (error: any) {
       setErrors({ submit: error.message })
     } finally {
@@ -140,7 +160,6 @@ export default function RegisterDetailsPage() {
             <p className="text-gray-500 text-sm mb-6">Enter your details to create your account</p>
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
@@ -164,7 +183,6 @@ export default function RegisterDetailsPage() {
                 </div>
               </div>
 
-              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                 <input
@@ -176,7 +194,6 @@ export default function RegisterDetailsPage() {
                 {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
 
-              {/* Phone */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
                 <input
@@ -189,13 +206,12 @@ export default function RegisterDetailsPage() {
                 {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
               </div>
 
-              {/* State */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">State of Residence *</label>
                 <select
                   value={formData.state}
                   onChange={e => setFormData(f => ({ ...f, state: e.target.value }))}
-                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${errors.state ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${errors.state ? 'border-red-300' : 'border-gray-200'}`}
                 >
                   <option value="">Select state...</option>
                   {NIGERIAN_STATES.map(s => (
@@ -205,7 +221,6 @@ export default function RegisterDetailsPage() {
                 {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state}</p>}
               </div>
 
-              {/* Date of birth */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                 <input
@@ -217,7 +232,6 @@ export default function RegisterDetailsPage() {
                 {errors.dateOfBirth && <p className="text-red-500 text-xs mt-1">{errors.dateOfBirth}</p>}
               </div>
 
-              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
                 <div className="relative">
@@ -226,12 +240,12 @@ export default function RegisterDetailsPage() {
                     value={formData.password}
                     onChange={e => setFormData(f => ({ ...f, password: e.target.value }))}
                     placeholder="Minimum 6 characters"
-                    className={`w-full px-3 py-2.5 pr-10 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+                    className={`w-full px-3 py-2.5 pr-16 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(s => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
@@ -239,7 +253,6 @@ export default function RegisterDetailsPage() {
                 {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
               </div>
 
-              {/* Confirm password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
                 <div className="relative">
@@ -248,12 +261,12 @@ export default function RegisterDetailsPage() {
                     value={formData.confirmPassword}
                     onChange={e => setFormData(f => ({ ...f, confirmPassword: e.target.value }))}
                     placeholder="Re-enter your password"
-                    className={`w-full px-3 py-2.5 pr-10 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+                    className={`w-full px-3 py-2.5 pr-16 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirm(s => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
                   >
                     {showConfirm ? 'Hide' : 'Show'}
                   </button>
@@ -293,13 +306,14 @@ export default function RegisterDetailsPage() {
                 </div>
               </div>
 
-              {/* Order summary */}
+              {/* Summary */}
               <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                 <p className="font-semibold text-gray-900 text-sm">Order Summary</p>
                 <div className="space-y-1">
                   {selectedCourses.map(course => (
                     <p key={course.courseId} className="text-xs text-gray-500">
-                      • {course.courseName} <span className="text-gray-400">with {course.tutorName}</span>
+                      • {course.courseName}{' '}
+                      <span className="text-gray-400">with {course.tutorName}</span>
                     </p>
                   ))}
                 </div>
@@ -311,7 +325,6 @@ export default function RegisterDetailsPage() {
                 </div>
               </div>
 
-              {/* Submit error */}
               {errors.submit && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-600 text-sm">
                   {errors.submit}

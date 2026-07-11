@@ -8,9 +8,7 @@ import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 
 declare global {
-  interface Window {
-    PaystackPop: any
-  }
+  interface Window { PaystackPop: any }
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -20,60 +18,60 @@ const PLAN_LABELS: Record<string, string> = {
   '1year': '1 Year Diploma',
 }
 
-interface PaymentData {
-  studentId: string
+interface RegistrationIntent {
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+  phone: string
+  state: string
+  dateOfBirth: string
   plan: string
-  enrollmentIds: string[]
+  selections: { courseId: string; tutorId: string; courseName: string; tutorName: string }[]
   amount: number
-  groupId?: string | null
 }
 
 export default function PaymentClient() {
   const router = useRouter()
 
-  const [paymentData, setPaymentData] = useState<PaymentData | null>(null)
+  const [intent, setIntent] = useState<RegistrationIntent | null>(null)
   const [initData, setInitData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [initializing, setInitializing] = useState(true)
   const [error, setError] = useState('')
   const [scriptLoaded, setScriptLoaded] = useState(false)
 
-  // ── Step 1: Read payment data from sessionStorage ──
+  // ── Step 1: Read registration intent from sessionStorage ──
   useEffect(() => {
-    const raw = sessionStorage.getItem('paymentData')
+    const raw = sessionStorage.getItem('registrationIntent')
 
     if (!raw) {
-      setError('No payment data found. Please register again.')
+      setError('No registration data found. Please register again.')
       setInitializing(false)
       return
     }
 
-    let parsed: PaymentData
+    let parsed: RegistrationIntent
     try {
       parsed = JSON.parse(raw)
     } catch {
-      setError('Invalid payment data. Please register again.')
+      setError('Invalid registration data. Please register again.')
       setInitializing(false)
       return
     }
 
-    if (
-      !parsed.studentId ||
-      !parsed.plan ||
-      !parsed.enrollmentIds?.length ||
-      !parsed.amount
-    ) {
-      setError('Incomplete payment data. Please register again.')
+    if (!parsed.email || !parsed.plan || !parsed.selections?.length || !parsed.amount) {
+      setError('Incomplete registration data. Please register again.')
       setInitializing(false)
       return
     }
 
-    setPaymentData(parsed)
+    setIntent(parsed)
   }, [])
 
-  // ── Step 2: Initialize payment with backend once we have paymentData ──
+  // ── Step 2: Initialize Paystack transaction ──
   useEffect(() => {
-    if (!paymentData) return
+    if (!intent) return
 
     setInitializing(true)
     setError('')
@@ -82,11 +80,10 @@ export default function PaymentClient() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        studentId: paymentData.studentId,
-        plan: paymentData.plan,
-        enrollmentIds: paymentData.enrollmentIds,
-        amount: paymentData.amount,
-        groupId: paymentData.groupId ?? null,
+        email: intent.email,
+        amount: intent.amount,
+        plan: intent.plan,
+        selections: intent.selections,
       }),
     })
       .then(r => r.json())
@@ -99,17 +96,12 @@ export default function PaymentClient() {
       })
       .catch(() => setError('Could not initialize payment. Please try again.'))
       .finally(() => setInitializing(false))
-  }, [paymentData])
+  }, [intent])
 
   // ── Step 3: Open Paystack popup ──
   const handlePay = () => {
-    if (!initData || !scriptLoaded) {
-      setError('Payment system not ready. Please wait a moment and try again.')
-      return
-    }
-
-    if (!window.PaystackPop) {
-      setError('Paystack failed to load. Please refresh the page.')
+    if (!initData || !scriptLoaded || !window.PaystackPop) {
+      setError('Payment system not ready. Please wait and try again.')
       return
     }
 
@@ -119,31 +111,53 @@ export default function PaymentClient() {
     const handler = window.PaystackPop.setup({
       key: initData.publicKey,
       email: initData.email,
-      amount: Math.round(initData.amount * 100), // kobo
+      amount: Math.round(initData.amount * 100),
       ref: initData.reference,
       currency: 'NGN',
-      callback: function (response: any) {
-        // Verify on backend
-        fetch(`/api/payments/verify?reference=${encodeURIComponent(response.reference)}`)
+      callback: (response: any) => {
+        if (!intent) return
+
+        // Pass registration data to verify endpoint so it can create the account
+        const registrationData = encodeURIComponent(
+          JSON.stringify({
+            email: intent.email,
+            password: intent.password,
+            firstName: intent.firstName,
+            lastName: intent.lastName,
+            phone: intent.phone,
+            state: intent.state,
+            dateOfBirth: intent.dateOfBirth,
+            plan: intent.plan,
+            selections: intent.selections.map(s => ({
+              courseId: s.courseId,
+              tutorId: s.tutorId,
+            })),
+          })
+        )
+
+        fetch(
+          `/api/payments/verify?reference=${encodeURIComponent(response.reference)}&data=${registrationData}`
+        )
           .then(r => r.json())
           .then(d => {
             if (d.success) {
-              sessionStorage.removeItem('paymentData')
+              // Clear all registration data from sessionStorage
+              sessionStorage.removeItem('registrationIntent')
               sessionStorage.removeItem('courseTutorSelections')
               router.push(`/payment/success?groupId=${d.groupId}`)
             } else {
-              setError(d.error || 'Payment verification failed. Please contact support.')
+              setError(d.error || 'Verification failed. Please contact support.')
               setLoading(false)
             }
           })
           .catch(() => {
             setError(
-              `Payment received but verification failed. Please contact support with reference: ${response.reference}`
+              `Payment received but verification failed. Contact support with reference: ${response.reference}`
             )
             setLoading(false)
           })
       },
-      onClose: function () {
+      onClose: () => {
         setLoading(false)
       },
     })
@@ -162,35 +176,40 @@ export default function PaymentClient() {
       <div className="min-h-screen bg-gray-50 pt-24 pb-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
-
             <h1 className="font-bold text-xl text-gray-900 mb-1">Complete Your Payment</h1>
-            <p className="text-gray-400 text-sm mb-6">Secure checkout powered by Paystack</p>
+            <p className="text-gray-400 text-sm mb-6">
+              Your account will be created after payment is confirmed.
+            </p>
 
             {/* Order summary */}
-            {paymentData && (
+            {intent && (
               <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-2.5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Plan</span>
                   <span className="font-semibold text-gray-900">
-                    {PLAN_LABELS[paymentData.plan] ?? paymentData.plan}
+                    {PLAN_LABELS[intent.plan] ?? intent.plan}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Courses</span>
-                  <span className="font-semibold text-gray-900">
-                    {paymentData.enrollmentIds.length}
-                  </span>
+                  <span className="font-semibold text-gray-900">{intent.selections.length}</span>
                 </div>
-                <div className="flex justify-between text-sm pt-2.5 border-t border-gray-200">
+                <div className="space-y-1 pt-1">
+                  {intent.selections.map(s => (
+                    <p key={s.courseId} className="text-xs text-gray-400">
+                      • {s.courseName} <span className="text-gray-300">with {s.tutorName}</span>
+                    </p>
+                  ))}
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
                   <span className="text-gray-600 font-medium">Total</span>
                   <span className="font-bold text-blue-600 text-lg">
-                    ₦{Number(paymentData.amount).toLocaleString('en-NG')}
+                    ₦{Number(intent.amount).toLocaleString('en-NG')}
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Error */}
             {error && (
               <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                 <p>{error}</p>
@@ -205,7 +224,6 @@ export default function PaymentClient() {
               </div>
             )}
 
-            {/* Pay button */}
             <button
               onClick={handlePay}
               disabled={loading || initializing || !initData || !!error}
@@ -225,12 +243,10 @@ export default function PaymentClient() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Processing...
+                  Creating your account...
                 </>
               ) : (
-                <>
-                  Pay ₦{Number(paymentData?.amount ?? 0).toLocaleString('en-NG')} with Paystack
-                </>
+                `Pay ₦${Number(intent?.amount ?? 0).toLocaleString('en-NG')} with Paystack`
               )}
             </button>
 
