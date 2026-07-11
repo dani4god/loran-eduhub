@@ -1,54 +1,55 @@
 // app/api/auth/verify-reset-token/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { resetTokens } from '../forgot-password/route';
+import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
+import connectDB from '@/lib/mongodb'
+import User from '@/models/User'
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const token = searchParams.get('token');
-    const role = searchParams.get('role');
-    
+    await connectDB()
+
+    const { searchParams } = new URL(req.url)
+    const token = searchParams.get('token')
+    const role = searchParams.get('role')
+
     if (!token) {
-      return NextResponse.json(
-        { error: 'Token is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Token is required' }, { status: 400 })
     }
-    
-    const tokenData = resetTokens.get(token);
-    
-    if (!tokenData) {
+
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex')
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+    })
+
+    if (!user) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 400 }
-      );
+      )
     }
-    
-    if (Date.now() > tokenData.expires) {
-      resetTokens.delete(token);
+
+    if (role && user.role !== role) {
       return NextResponse.json(
-        { error: 'Token has expired' },
+        { error: 'Invalid token for this account type' },
         { status: 400 }
-      );
+      )
     }
-    
-    if (role && tokenData.role !== role) {
-      return NextResponse.json(
-        { error: 'Invalid token for this role' },
-        { status: 400 }
-      );
-    }
-    
+
     return NextResponse.json({
       valid: true,
-      email: tokenData.email,
-    });
-    
+      email: user.email,
+      role: user.role,
+    })
   } catch (error: any) {
-    console.error('Verify token error:', error);
+    console.error('Verify token error:', error)
     return NextResponse.json(
       { error: 'An error occurred' },
       { status: 500 }
-    );
+    )
   }
 }
