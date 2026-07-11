@@ -1,7 +1,5 @@
 // lib/discordRoleMap.ts
 
-// Maps Course.category -> Discord role group name
-// Discord roles should be: `Tutor - {group}` and `{group} Student`
 export const CATEGORY_TO_ROLE_GROUP: Record<string, string> = {
   tech: 'Tech Innovations',
   igcse: 'IGCSE',
@@ -21,7 +19,10 @@ export function getStudentRoleName(category: string): string {
   return `${group} Student`
 }
 
-// Subscription plan -> Discord tier role name
+export function getTutorRoleNames(categories: string[]): string[] {
+  return Array.from(new Set(categories.map(getTutorRoleName)))
+}
+
 export const PLAN_ROLE_MAP: Record<string, string> = {
   trial: 'Trial(7 days)',
   '3months': '3 months',
@@ -34,3 +35,6 @@ export const EXPIRED_ROLE_NAME = 'Expired'
 export const SUSPENDED_ROLE_NAME = 'Suspended'
 export const MEMBER_ROLE_NAME = 'member'
 export const ADMIN_ROLE_NAME = 'Admin'
+
+// The single fixed Loran EduHub Discord guild ID
+export const LORAN_GUILD_ID = process.env.DISCORD_GUILD_ID!

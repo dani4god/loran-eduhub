@@ -1,294 +1,304 @@
-"use client";
 
-import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
+'use client'
+
+import { useState } from 'react'
+import { signIn } from 'next-auth/react'
 import {
   MessageSquare,
-  Copy,
-  Check,
   RefreshCw,
-  Link as LinkIcon,
   Users,
-  Settings,
-  Plus,
-} from "lucide-react";
+  ExternalLink,
+  CheckCircle,
+} from 'lucide-react'
 
 interface DiscordInfo {
-  discordServerId?: string;
-  discordInviteLink?: string;
-  isConnected: boolean;
+  discordId?: string | null
+  discordUsername?: string | null
+  discordRoles?: string[]
+  isConnected: boolean
 }
 
 export default function DiscordIntegration({
   initialData,
 }: {
-  initialData: DiscordInfo;
+  initialData: DiscordInfo
 }) {
-  const [discordInfo, setDiscordInfo] = useState(initialData);
-  const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [serverIdInput, setServerIdInput] = useState(
-    initialData.discordServerId || ""
-  );
-  const [savingServer, setSavingServer] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+  const [discordInfo, setDiscordInfo] = useState(initialData)
+  const [syncing, setSyncing] = useState(false)
+  const [syncingStudents, setSyncingStudents] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
+
+  const INVITE_LINK =
+    process.env.NEXT_PUBLIC_DISCORD_INVITE_LINK ||
+    'https://discord.gg/S57mKuNRA'
 
   const handleConnect = () => {
-    // Use NextAuth's built-in Discord OAuth flow
-    signIn("discord", { callbackUrl: "/dashboard/tutor/discord" });
-  };
+    signIn('discord', {
+      callbackUrl: '/dashboard/tutor?tab=discord',
+    })
+  }
 
-  const handleSaveServerId = async () => {
-    if (!serverIdInput.trim()) return;
-    setSavingServer(true);
-    setServerError(null);
+  const handleReSyncTutor = async () => {
+    setSyncing(true)
+    setSyncResult(null)
 
     try {
-      const res = await fetch("/api/tutors/discord", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serverId: serverIdInput.trim() }),
-      });
-      const data = await res.json();
+      const res = await fetch('/api/discord/sync-tutor', {
+        method: 'POST',
+      })
 
-      if (!res.ok) {
-        setServerError(data.error || "Failed to connect server");
-        return;
-      }
+      const data = await res.json()
 
-      setDiscordInfo((prev) => ({ 
-        ...prev, 
-        discordServerId: data.serverId,
-        isConnected: true 
-      }));
-      setAvailableRoles(data.availableRoles || []);
-    } catch (err: any) {
-      setServerError(err.message || "Something went wrong");
-    } finally {
-      setSavingServer(false);
-    }
-  };
+      if (res.ok) {
+        setSyncResult(
+          `✅ Roles synced: ${data.assignedRoles?.join(', ') || 'none'}${
+            data.missingRoles?.length > 0
+              ? `\n⚠️ Missing roles in server: ${data.missingRoles.join(', ')}`
+              : ''
+          }`
+        )
 
-  const handleSync = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/discord/sync", { method: "POST" });
-      const data = await response.json();
-      if (response.ok) {
-        const synced = data.results?.filter((r: any) => r.status === "synced").length || 0;
-        const errors = data.results?.filter((r: any) => r.status === "error").length || 0;
-        alert(`Sync complete: ${synced} synced, ${errors} errors.`);
+        setDiscordInfo((prev) => ({
+          ...prev,
+          discordRoles: data.assignedRoles || [],
+        }))
       } else {
-        alert(data.error || "Failed to sync roles");
+        setSyncResult(`❌ ${data.error || 'Sync failed'}`)
       }
     } catch (err: any) {
-      alert(err.message || "Failed to sync roles");
+      setSyncResult(`❌ ${err.message || 'Something went wrong'}`)
     } finally {
-      setLoading(false);
+      setSyncing(false)
     }
-  };
+  }
 
-  const copyInviteLink = () => {
-    if (discordInfo.discordInviteLink) {
-      navigator.clipboard.writeText(discordInfo.discordInviteLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleSyncStudents = async () => {
+    setSyncingStudents(true)
+    setSyncResult(null)
+
+    try {
+      const res = await fetch('/api/discord/sync', {
+        method: 'POST',
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        const synced =
+          data.results?.filter(
+            (r: any) => r.status === 'synced'
+          ).length || 0
+
+        const errors =
+          data.results?.filter(
+            (r: any) => r.status === 'error'
+          ).length || 0
+
+        const noDiscord =
+          data.results?.filter(
+            (r: any) => r.status === 'no_discord_linked'
+          ).length || 0
+
+        setSyncResult(
+          `✅ Students synced: ${synced}${
+            errors > 0 ? ` | ❌ Errors: ${errors}` : ''
+          }${
+            noDiscord > 0
+              ? ` | ⚠️ No Discord: ${noDiscord}`
+              : ''
+          }`
+        )
+      } else {
+        setSyncResult(`❌ ${data.error || 'Sync failed'}`)
+      }
+    } catch (err: any) {
+      setSyncResult(`❌ ${err.message || 'Something went wrong'}`)
+    } finally {
+      setSyncingStudents(false)
     }
-  };
+  }
 
-  const getBotInviteUrl = () => {
-    const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
-    const permissions = process.env.NEXT_PUBLIC_DISCORD_PERMISSIONS || "2415929347";
-    return `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=bot`;
-  };
+  // Not connected
+  if (!discordInfo.isConnected) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#5865F2] to-[#404EED] p-8 text-center">
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle, white 1px, transparent 1px)',
+              backgroundSize: '20px 20px',
+            }}
+          />
 
-  return (
-    <div className="space-y-6 animate-fade-in">
-      {!discordInfo.isConnected ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="relative overflow-hidden bg-gradient-to-br from-[#5865F2] to-[#404EED] p-8 text-center">
-            <div className="absolute inset-0 bg-grid-white/10 bg-[size:20px_20px]" />
-            <div className="relative">
-              <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <MessageSquare className="w-10 h-10 text-white" />
+          <div className="relative">
+            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="w-10 h-10 text-white" />
+            </div>
+
+            <h2 className="text-2xl font-bold text-white mb-2">
+              Connect Your Discord
+            </h2>
+
+            <p className="text-white/80 max-w-md mx-auto text-sm">
+              Link your Discord account to automatically receive your
+              tutor roles on the Loran EduHub server.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-8 text-center space-y-6">
+          <div className="flex items-center justify-center gap-6 text-sm text-gray-600 flex-wrap">
+            {[
+              'Auto-role assignment',
+              'Course channel access',
+              'Student management',
+            ].map((feature) => (
+              <div
+                key={feature}
+                className="flex items-center gap-1.5"
+              >
+                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                <span>{feature}</span>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2 font-heading">
-                Connect Your Discord Account
-              </h2>
-              <p className="text-white/80 max-w-md mx-auto">
-                Link your Discord account so we can manage your server roles
-                automatically based on student enrollment.
+            ))}
+          </div>
+
+          <div className="space-y-3 max-w-sm mx-auto">
+            <p className="text-sm text-gray-500 font-medium">
+              Step 1 — Connect your Discord account
+            </p>
+
+            <button
+              onClick={handleConnect}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#5865F2] text-white rounded-xl hover:bg-[#4752C4] transition-all font-semibold shadow-lg"
+            >
+              <MessageSquare className="w-5 h-5" />
+              Connect Discord
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Connected
+  return (
+    <div className="space-y-5">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-[#5865F2]/10 flex items-center justify-center">
+            <MessageSquare className="w-5 h-5 text-[#5865F2]" />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Discord Connected
+            </h2>
+
+            <p className="text-sm text-gray-500">
+              @{discordInfo.discordUsername || 'unknown'}
+            </p>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1.5 text-green-600 text-sm font-medium">
+            <CheckCircle className="w-4 h-4" />
+            Active
+          </div>
+        </div>
+
+        {discordInfo.discordRoles &&
+          discordInfo.discordRoles.length > 0 && (
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Your Server Roles
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {discordInfo.discordRoles.map((role) => (
+                  <span
+                    key={role}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium bg-[#5865F2]/10 text-[#5865F2] px-3 py-1.5 rounded-full"
+                  >
+                    <div className="w-1.5 h-1.5 bg-[#5865F2] rounded-full" />
+                    {role}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+        <div className="bg-gradient-to-r from-[#5865F2]/5 to-[#404EED]/5 border border-[#5865F2]/15 rounded-xl p-4 mb-5">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p className="font-medium text-gray-900 text-sm">
+                Loran EduHub Server
+              </p>
+
+              <p className="text-xs text-gray-500 mt-0.5">
+                Join to access your course channels. Your roles will
+                be assigned automatically.
               </p>
             </div>
-          </div>
-          <div className="p-8 text-center">
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="flex items-center justify-center gap-2 text-sm text-gray-600 flex-wrap">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  <span>Auto-role assignment</span>
-                </div>
-                <span>•</span>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  <span>Sync enrollment status</span>
-                </div>
-                <span>•</span>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  <span>Real-time updates</span>
-                </div>
-              </div>
-              <button
-                onClick={handleConnect}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#5865F2] text-white rounded-xl hover:bg-[#4752C4] transition-all font-semibold shadow-lg"
-              >
-                <MessageSquare className="w-5 h-5" />
-                Connect Discord
-              </button>
-            </div>
+
+            <a
+              href={INVITE_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-[#5865F2] text-white rounded-lg hover:bg-[#4752C4] transition text-sm font-semibold"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Join Server
+            </a>
           </div>
         </div>
-      ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#5865F2]/10 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-[#5865F2]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Discord Integration</h2>
-                <p className="text-sm text-gray-500">Manage your Discord server settings</p>
-              </div>
-            </div>
+
+        {syncResult && (
+          <div
+            className={`text-xs rounded-xl p-3 mb-4 whitespace-pre-line ${
+              syncResult.startsWith('✅')
+                ? 'bg-green-50 text-green-700 border border-green-100'
+                : 'bg-red-50 text-red-700 border border-red-100'
+            }`}
+          >
+            {syncResult}
           </div>
+        )}
 
-          <div className="p-6 space-y-6">
-            {/* Server ID input */}
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <Users className="w-5 h-5 text-gray-500" />
-                <h3 className="font-medium text-gray-900">Your Discord Server</h3>
-              </div>
+        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+          <button
+            onClick={handleReSyncTutor}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#5865F2] text-white rounded-xl text-sm font-semibold hover:bg-[#4752C4] transition disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${
+                syncing ? 'animate-spin' : ''
+              }`}
+            />
 
-              {!discordInfo.discordServerId ? (
-                <>
-                  <p className="text-sm text-gray-600">
-                    Paste your Discord server (guild) ID below. Make sure the
-                    Loran bot has already been invited to that server.
-                  </p>
-                  <div className="flex gap-2 flex-wrap">
-                    <input
-                      type="text"
-                      value={serverIdInput}
-                      onChange={(e) => setServerIdInput(e.target.value)}
-                      placeholder="e.g. 123456789012345678"
-                      className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-tutor/40"
-                    />
-                    <button
-                      onClick={handleSaveServerId}
-                      disabled={savingServer}
-                      className="px-4 py-2 bg-tutor text-white rounded-lg text-sm font-semibold disabled:opacity-50"
-                    >
-                      {savingServer ? "Checking..." : "Connect Server"}
-                    </button>
-                  </div>
-                  {serverError && (
-                    <p className="text-sm text-red-600">{serverError}</p>
-                  )}
-                  {availableRoles.length > 0 && (
-                    <div className="text-xs text-gray-500">
-                      Roles found: {availableRoles.join(", ")}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Server ID</p>
-                    <p className="font-mono text-sm text-gray-900 mt-1">
-                      {discordInfo.discordServerId}
-                    </p>
-                  </div>
-                  {discordInfo.discordInviteLink && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={copyInviteLink}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-tutor hover:bg-tutor/5 rounded-lg transition"
-                      >
-                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {copied ? "Copied!" : "Copy Invite"}
-                      </button>
-                      <a
-                        href={discordInfo.discordInviteLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#5865F2] text-white rounded-lg hover:bg-[#4752C4] transition"
-                      >
-                        <LinkIcon className="w-4 h-4" />
-                        Join Server
-                      </a>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {syncing ? 'Syncing...' : 'Re-sync My Roles'}
+          </button>
 
-            {/* Bot Integration Guide */}
-            <div className="bg-gradient-to-br from-[#5865F2]/5 to-[#404EED]/5 rounded-xl p-6 border border-[#5865F2]/20">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-[#5865F2]" />
-                Bot Integration Guide
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 text-[#5865F2] flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
-                  <p className="text-sm text-gray-700">Invite the Loran bot to your server using the link below</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 text-[#5865F2] flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
-                  <p className="text-sm text-gray-700">
-                    Make sure your server has roles named exactly: <strong>Tutor - [Subject]</strong>,{" "}
-                    <strong>[Subject] Student</strong>, plan roles (Trial, 3 Months, 6 Months, 1 Year Diploma), and Expired
-                  </p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 text-[#5865F2] flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
-                  <p className="text-sm text-gray-700">Paste your server ID above and click Connect Server</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-[#5865F2]/20 text-[#5865F2] flex items-center justify-center text-xs font-bold flex-shrink-0">4</div>
-                  <p className="text-sm text-gray-700">Click "Sync Student Roles Now" to assign roles to enrolled students</p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <a
-                  href={getBotInviteUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#5865F2] text-white rounded-lg hover:bg-[#4752C4] transition text-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Invite Bot to Server
-                </a>
-              </div>
-            </div>
+          <button
+            onClick={handleSyncStudents}
+            disabled={syncingStudents}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            <Users
+              className={`w-4 h-4 ${
+                syncingStudents ? 'animate-pulse' : ''
+              }`}
+            />
 
-            {/* Sync Button */}
-            <div className="flex justify-end pt-4 border-t border-gray-100">
-              <button
-                onClick={handleSync}
-                disabled={loading || !discordInfo.discordServerId}
-                className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-tutor to-brand-primary text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                {loading ? "Syncing..." : "Sync Student Roles Now"}
-              </button>
-            </div>
-          </div>
+            {syncingStudents
+              ? 'Syncing Students...'
+              : 'Sync Student Roles'}
+          </button>
         </div>
-      )}
+      </div>
     </div>
-  );
+  )
 }
+

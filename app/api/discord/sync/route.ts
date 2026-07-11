@@ -22,6 +22,7 @@ import {
   EXPIRED_ROLE_NAME,
   SUSPENDED_ROLE_NAME,
   MEMBER_ROLE_NAME,
+  LORAN_GUILD_ID,
 } from '@/lib/discordRoleMap'
 
 export async function POST(req: NextRequest) {
@@ -30,14 +31,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  if (!LORAN_GUILD_ID) {
+    return NextResponse.json({ error: 'Discord server not configured' }, { status: 500 })
+  }
+
   await connectDB()
 
   const tutor = await Tutor.findOne({ userId: session.user.id })
-  if (!tutor?.discordServerId) {
-    return NextResponse.json({ error: 'No Discord server connected' }, { status: 400 })
+  if (!tutor) {
+    return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
   }
 
-  const guildId = tutor.discordServerId
+  const guildId = LORAN_GUILD_ID
 
   let roles: any[]
   try {
@@ -50,9 +55,7 @@ export async function POST(req: NextRequest) {
   }
 
   const roleByName = new Map<string, string>(roles.map((r: any) => [r.name, r.id]))
-
   const enrollments = await Enrollment.find({ tutorId: tutor._id })
-
   const results: any[] = []
 
   for (const enrollment of enrollments) {
@@ -88,7 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      let member = await getGuildMember(guildId, user.discordId)
+      const member = await getGuildMember(guildId, user.discordId)
       if (!member) {
         await addMemberToGuild(guildId, user.discordId, user.discordAccessToken)
       }
@@ -103,12 +106,9 @@ export async function POST(req: NextRequest) {
         await addRoleToMember(guildId, user.discordId, studentRoleId)
         if (planRoleId) await addRoleToMember(guildId, user.discordId, planRoleId)
         if (memberRoleId) await addRoleToMember(guildId, user.discordId, memberRoleId)
-
-        // Paid = active and not on the trial plan
         if (!isTrial && paidRoleId) {
           await addRoleToMember(guildId, user.discordId, paidRoleId)
         }
-
         if (expiredRoleId) {
           await removeRoleFromMember(guildId, user.discordId, expiredRoleId).catch(() => {})
         }
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
           await removeRoleFromMember(guildId, user.discordId, planRoleId).catch(() => {})
         }
       }
-      // status === 'pending': enrollment not yet active — no Discord role changes
+      // status === 'pending': no Discord changes
 
       results.push({
         student: `${student.firstName} ${student.lastName}`,

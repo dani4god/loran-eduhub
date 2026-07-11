@@ -25,6 +25,7 @@ export interface ITutor extends Document {
   discordUsername?: string
   discordServerId?: string
   discordInviteLink?: string
+  discordRoles?: string[]  // ← ADDED: Track assigned Discord roles
   createdAt: Date
   updatedAt: Date
 }
@@ -119,6 +120,7 @@ const TutorSchema = new Schema<ITutor>(
     discordId: {
       type: String,
       default: null,
+      sparse: true,
     },
 
     discordUsername: {
@@ -129,11 +131,18 @@ const TutorSchema = new Schema<ITutor>(
     discordServerId: {
       type: String,
       default: null,
+      sparse: true,
     },
 
     discordInviteLink: {
       type: String,
       default: null,
+    },
+
+    // ← ADDED: Store assigned Discord roles
+    discordRoles: {
+      type: [String],
+      default: [],
     },
   },
   {

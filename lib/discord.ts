@@ -50,6 +50,27 @@ export async function getGuildMember(guildId: string, userId: string) {
   }
 }
 
+// Add to existing lib/discord.ts
+
+// Assign multiple roles to a member at once
+export async function assignRolesToMember(
+  guildId: string,
+  userId: string,
+  roleIds: string[]
+) {
+  const results = []
+  for (const roleId of roleIds) {
+    try {
+      await addRoleToMember(guildId, userId, roleId)
+      results.push({ roleId, success: true })
+    } catch (err: any) {
+      results.push({ roleId, success: false, error: err.message })
+    }
+  }
+  return results
+}
+
+
 // --- Role management ---
 export async function addRoleToMember(
   guildId: string,

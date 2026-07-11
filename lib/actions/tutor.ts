@@ -1,10 +1,9 @@
 // lib/actions/tutor.ts
-
 "use server";
 
 import dbConnect from "@/lib/mongodb";
-
 import Tutor from "@/models/Tutor";
+import User from "@/models/User"; // ← Make sure this is imported
 import Student from "@/models/Student";
 import Enrollment from "@/models/Enrollment";
 import Exam from "@/models/Exam";
@@ -114,11 +113,121 @@ export async function getTutorDashboardData(email: string) {
 // ALL TUTOR STUDENTS
 // -------------------------------------
 
+export async function getAllTutorStudents(email: string) {
+  await dbConnect();
+
+  const tutor = await Tutor.findOne({ email }).lean();
+
+  if (!tutor) {
+    throw new Error("Tutor not found");
+  }
+
+  const enrollments = await Enrollment.find({
+    tutorId: tutor._id,
+  })
+    .populate("studentId")
+    .populate("courseId")
+    .lean();
+
+  return enrollments.map((enrollment: any) => ({
+    _id: serializeId(enrollment.studentId?._id),
+    firstName: enrollment.studentId?.firstName || '',
+    lastName: enrollment.studentId?.lastName || '',
+    email: enrollment.studentId?.email || '',
+    phone: enrollment.studentId?.phone || '',
+    course: enrollment.courseId
+      ? {
+          _id: serializeId(enrollment.courseId._id),
+          name: enrollment.courseId.name || 'Unknown Course',
+        }
+      : { _id: '', name: 'No Course Assigned' },
+    plan: enrollment.plan || '',
+    status: enrollment.status || 'pending',
+    startDate: serializeDate(enrollment.startDate),
+    endDate: serializeDate(enrollment.endDate),
+  }));
+}
 
 // -------------------------------------
 // STUDENT DETAILS
 // -------------------------------------
 
+export async function getStudentDetails(studentId: string) {
+  await dbConnect();
+
+  const student = await Student.findById(studentId)
+    .populate('userId', 'email')
+    .lean();
+
+  if (!student) {
+    return null;
+  }
+
+  const enrollments = await Enrollment.find({
+    studentId,
+  })
+    .populate("tutorId")
+    .populate("courseId")
+    .lean();
+
+  const grades = await Grade.find({
+    studentId,
+  })
+    .populate("examId")
+    .populate("courseId")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const userEmail = (student.userId as any)?.email || '';
+
+  return {
+    student: {
+      _id: serializeId(student._id),
+      firstName: student.firstName,
+      lastName: student.lastName,
+      email: userEmail,
+      phone: student.phone,
+      state: student.state || '',
+      subscriptionStatus: (student as any).subscriptionStatus || 'active',
+      hasUsedFreeTrial: (student as any).hasUsedFreeTrial || false,
+      createdAt: serializeDate(student.createdAt),
+    },
+    enrollments: enrollments.map((e: any) => ({
+      _id: serializeId(e._id),
+      courseId: {
+        _id: serializeId(e.courseId?._id),
+        name: e.courseId?.name || 'Unknown Course',
+        description: e.courseId?.description || '',
+      },
+      tutorId: {
+        _id: serializeId(e.tutorId?._id),
+        firstName: e.tutorId?.firstName || '',
+        lastName: e.tutorId?.lastName || '',
+      },
+      plan: e.plan,
+      status: e.status,
+      startDate: serializeDate(e.startDate),
+      endDate: serializeDate(e.endDate),
+      amount: e.amount || 0,
+    })),
+    grades: grades.map((g: any) => ({
+      _id: serializeId(g._id),
+      examId: {
+        _id: serializeId(g.examId?._id),
+        title: g.examId?.title || 'Unknown Exam',
+      },
+      courseId: {
+        _id: serializeId(g.courseId?._id),
+        name: g.courseId?.name || 'Unknown Course',
+      },
+      score: g.score,
+      total: g.total,
+      percentage: g.percentage,
+      feedback: g.feedback || '',
+      gradedAt: serializeDate(g.gradedAt),
+    })),
+  };
+}
 
 // -------------------------------------
 // TUTOR SETTINGS
@@ -229,6 +338,7 @@ export async function getAllTutorExams(email: string): Promise<ExamDTO[]> {
 
   return examsWithDetails;
 }
+
 // -------------------------------------
 // TUTOR COURSES
 // -------------------------------------
@@ -250,19 +360,12 @@ export async function getTutorCourses(email: string) {
 
   return courses.map((course: any) => ({
     _id: serializeId(course._id),
-
     name: course.name,
-
     description: course.description || "",
-
     category: course.category || "",
-
     syllabus: course.syllabus || "",
-
     isActive: course.isActive ?? true,
-
     createdAt: serializeDate(course.createdAt),
-
     updatedAt: serializeDate(course.updatedAt),
   }));
 }
@@ -297,21 +400,15 @@ export async function getTutorExamsForGrading(email: string) {
 
       return {
         _id: serializeId(exam._id),
-
         title: exam.title,
-
         course: {
           _id: serializeId(exam.courseId?._id),
           name: exam.courseId?.name,
         },
-
         submissions: submissions.map((grade: any) => ({
           studentId: serializeId(grade.studentId?._id),
-
           studentName: `${grade.studentId?.firstName} ${grade.studentId?.lastName}`,
-
           submittedAt: serializeDate(grade.createdAt),
-
           isGraded: grade.score > 0,
         })),
       };
@@ -324,17 +421,14 @@ export async function getTutorExamsForGrading(email: string) {
 }
 
 // -------------------------------------
-// DISCORD INFO
-// -------------------------------------
-
-// -------------------------------------
-// DISCORD INFO
+// DISCORD INFO - CORRECTED
 // -------------------------------------
 
 export async function getTutorDiscordInfo(email: string) {
   await dbConnect();
 
   const tutor = await Tutor.findOne({ email }).lean();
+  const user = await User.findOne({ email }).lean();
 
   if (!tutor) {
     return {
@@ -344,125 +438,13 @@ export async function getTutorDiscordInfo(email: string) {
     };
   }
 
+  // Check if user has discordId from OAuth AND tutor has serverId
+  const hasDiscordAccount = !!(user?.discordId);
+  const hasServerId = !!(tutor.discordServerId);
+
   return {
     discordServerId: tutor.discordServerId || undefined,
     discordInviteLink: tutor.discordInviteLink || undefined,
-    isConnected: !!(tutor.discordServerId && tutor.discordInviteLink),
+    isConnected: hasDiscordAccount && hasServerId,
   };
-}
-
-// lib/actions/tutor.ts - Replace the getStudentDetails function
-export async function getStudentDetails(studentId: string) {
-  await dbConnect();
-
-  const student = await Student.findById(studentId)
-    .populate('userId', 'email')
-    .lean();
-
-  if (!student) {
-    return null;
-  }
-
-  const enrollments = await Enrollment.find({
-    studentId,
-  })
-    .populate("tutorId")
-    .populate("courseId")
-    .lean();
-
-  const grades = await Grade.find({
-    studentId,
-  })
-    .populate("examId")
-    .populate("courseId")
-    .sort({ createdAt: -1 })
-    .lean();
-
-  // Get user email from the populated userId
-  const userEmail = (student.userId as any)?.email || '';
-
-  return {
-    student: {
-      _id: serializeId(student._id),
-      firstName: student.firstName,
-      lastName: student.lastName,
-      email: userEmail,
-      phone: student.phone,
-      state: student.state || '',
-      subscriptionStatus: (student as any).subscriptionStatus || 'active',
-      hasUsedFreeTrial: (student as any).hasUsedFreeTrial || false,
-      createdAt: serializeDate(student.createdAt),
-    },
-    enrollments: enrollments.map((e: any) => ({
-      _id: serializeId(e._id),
-      courseId: {
-        _id: serializeId(e.courseId?._id),
-        name: e.courseId?.name || 'Unknown Course',
-        description: e.courseId?.description || '',
-      },
-      tutorId: {
-        _id: serializeId(e.tutorId?._id),
-        firstName: e.tutorId?.firstName || '',
-        lastName: e.tutorId?.lastName || '',
-      },
-      plan: e.plan,
-      status: e.status,
-      startDate: serializeDate(e.startDate),
-      endDate: serializeDate(e.endDate),
-      amount: e.amount || 0,
-    })),
-    grades: grades.map((g: any) => ({
-      _id: serializeId(g._id),
-      examId: {
-        _id: serializeId(g.examId?._id),
-        title: g.examId?.title || 'Unknown Exam',
-      },
-      courseId: {
-        _id: serializeId(g.courseId?._id),
-        name: g.courseId?.name || 'Unknown Course',
-      },
-      score: g.score,
-      total: g.total,
-      percentage: g.percentage,
-      feedback: g.feedback || '',
-      gradedAt: serializeDate(g.gradedAt),
-    })),
-  };
-}
-
-
-// lib/actions/tutor.ts - Replace the getAllTutorStudents function
-export async function getAllTutorStudents(email: string) {
-  await dbConnect();
-
-  const tutor = await Tutor.findOne({ email }).lean();
-
-  if (!tutor) {
-    throw new Error("Tutor not found");
-  }
-
-  const enrollments = await Enrollment.find({
-    tutorId: tutor._id,
-  })
-    .populate("studentId")
-    .populate("courseId")
-    .lean();
-
-  return enrollments.map((enrollment: any) => ({
-    _id: serializeId(enrollment.studentId?._id),
-    firstName: enrollment.studentId?.firstName || '',
-    lastName: enrollment.studentId?.lastName || '',
-    email: enrollment.studentId?.email || '',
-    phone: enrollment.studentId?.phone || '',
-    course: enrollment.courseId
-      ? {
-          _id: serializeId(enrollment.courseId._id),
-          name: enrollment.courseId.name || 'Unknown Course',
-        }
-      : { _id: '', name: 'No Course Assigned' }, // Provide default instead of null
-    plan: enrollment.plan || '',
-    status: enrollment.status || 'pending',
-    startDate: serializeDate(enrollment.startDate),
-    endDate: serializeDate(enrollment.endDate),
-  }));
 }
