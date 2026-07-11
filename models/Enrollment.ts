@@ -5,6 +5,7 @@ export interface IEnrollment extends Document {
   studentId: mongoose.Types.ObjectId
   tutorId: mongoose.Types.ObjectId
   courseId: mongoose.Types.ObjectId
+  groupId: mongoose.Types.ObjectId
   plan: 'trial' | '3months' | '6months' | '1year'
   status: 'pending' | 'active' | 'paused' | 'expired' | 'suspended'
   startDate: Date
@@ -25,6 +26,10 @@ const EnrollmentSchema = new Schema<IEnrollment>(
     plan: {
       type: String,
       enum: ['trial', '3months', '6months', '1year'],
+      required: true,
+    },
+    groupId: {
+      type: Schema.Types.ObjectId,
       required: true,
     },
     status: {

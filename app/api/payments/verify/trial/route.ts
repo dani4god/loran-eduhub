@@ -78,10 +78,11 @@ export async function POST(req: NextRequest) {
         courseId,
         plan: 'trial',
         status: 'active',
+        amount: 0,
         groupId,
         startDate,
         endDate,
-      } as any)
+        } as any)
 
       enrollmentIds.push(enrollment._id)
     }

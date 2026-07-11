@@ -25,6 +25,7 @@ const PLAN_BASE_PRICES: Record<Plan, number> = {
   '1year': 150000,
 }
 
+
 async function verifyWithPaystack(reference: string) {
   const res = await fetch(
     `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
@@ -55,6 +56,8 @@ async function createAccountAfterPayment(
     plan,
     selections, // [{ courseId, tutorId }]
   } = registrationData
+
+  const enrollmentAmount = PLAN_BASE_PRICES[plan as Plan]
 
   // ── Check if account already exists (idempotency — webhook may fire twice) ──
   const existingUser = await User.findOne({ email: email.toLowerCase().trim() })
@@ -105,6 +108,7 @@ async function createAccountAfterPayment(
       status: 'active', // immediately active since payment confirmed
       groupId,
       startDate,
+      amount: enrollmentAmount,
       endDate,
     } as any)
 
