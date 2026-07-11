@@ -1,9 +1,7 @@
-// app/(public)/auth/student/register-details/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 
@@ -29,7 +27,7 @@ export default function RegisterDetailsPage() {
   const [plan, setPlan] = useState('trial')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -38,85 +36,88 @@ export default function RegisterDetailsPage() {
     state: '',
     dateOfBirth: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    // Get selections from sessionStorage
     const selections = sessionStorage.getItem('courseTutorSelections')
     if (!selections) {
       router.push('/auth/student/register')
       return
     }
     setSelectedCourses(JSON.parse(selections))
-    
-    // Get email from URL params if present
-    const urlParams = new URLSearchParams(window.location.search)
-    const email = urlParams.get('email')
-    if (email) {
-      setFormData(prev => ({ ...prev, email }))
-    }
   }, [router])
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-    
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required'
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required'
-    if (!formData.email.trim()) newErrors.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Enter a valid email'
-    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required'
-    if (!formData.state) newErrors.state = 'Please select your state'
-    if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required'
-    if (!formData.password) newErrors.password = 'Password is required'
-    else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters'
-    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match'
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    const e: Record<string, string> = {}
+    if (!formData.firstName.trim()) e.firstName = 'First name is required'
+    if (!formData.lastName.trim()) e.lastName = 'Last name is required'
+    if (!formData.email.trim()) e.email = 'Email is required'
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) e.email = 'Enter a valid email'
+    if (!formData.phone.trim()) e.phone = 'Phone number is required'
+    if (!formData.state) e.state = 'Please select your state'
+    if (!formData.dateOfBirth) e.dateOfBirth = 'Date of birth is required'
+    if (!formData.password) e.password = 'Password is required'
+    else if (formData.password.length < 6) e.password = 'Minimum 6 characters'
+    if (formData.password !== formData.confirmPassword) e.confirmPassword = 'Passwords do not match'
+    setErrors(e)
+    return Object.keys(e).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
     if (!validateForm()) return
-    
+
     setLoading(true)
-    
+
     try {
       const selectedPlan = PLANS.find(p => p.id === plan)
-      const totalAmount = (selectedPlan?.price || 0) * selectedCourses.length
-      
-      const response = await fetch('/api/auth/register/student', {
+      const totalAmount = (selectedPlan?.price ?? 0) * selectedCourses.length
+
+      const response = await fetch('/api/students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
           state: formData.state,
           dateOfBirth: formData.dateOfBirth,
           password: formData.password,
           plan,
           selections: selectedCourses.map(s => ({
             courseId: s.courseId,
-            tutorId: s.tutorId
-          }))
-        })
+            tutorId: s.tutorId,
+          })),
+        }),
       })
-      
+
       const data = await response.json()
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed')
       }
-      
+
       if (data.requiresPayment) {
-        router.push(`/payment?studentId=${data.studentId}&plan=${plan}&amount=${totalAmount}&enrollments=${data.enrollments.join(',')}&email=${encodeURIComponent(formData.email)}`)
+        // Store payment data in sessionStorage — avoids URL length issues
+        // and keeps the shape consistent for the payment page
+        sessionStorage.setItem(
+          'paymentData',
+          JSON.stringify({
+            studentId: data.studentId,
+            plan,
+            enrollmentIds: data.enrollmentIds,
+            amount: totalAmount,
+            groupId: data.groupId ?? null,
+          })
+        )
+        router.push('/payment')
       } else {
+        // Trial — clean up and go to dashboard
+        sessionStorage.removeItem('courseTutorSelections')
         router.push('/dashboard?welcome=true')
       }
     } catch (error: any) {
@@ -126,28 +127,28 @@ export default function RegisterDetailsPage() {
     }
   }
 
-  const totalAmount = (PLANS.find(p => p.id === plan)?.price || 0) * selectedCourses.length
   const selectedPlan = PLANS.find(p => p.id === plan)
+  const totalAmount = (selectedPlan?.price ?? 0) * selectedCourses.length
 
   return (
     <>
       <Navbar />
       <div className="min-h-screen bg-gray-50 pt-24 pb-16">
         <div className="max-w-2xl mx-auto px-4">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Complete Registration</h1>
-            <p className="text-gray-600 mb-6">Enter your personal details to create your account</p>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">Complete Registration</h1>
+            <p className="text-gray-500 text-sm mb-6">Enter your details to create your account</p>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                   <input
                     type="text"
-                    required
                     value={formData.firstName}
-                    onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={e => setFormData(f => ({ ...f, firstName: e.target.value }))}
+                    className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.firstName ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                   />
                   {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
                 </div>
@@ -155,110 +156,112 @@ export default function RegisterDetailsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
                   <input
                     type="text"
-                    required
                     value={formData.lastName}
-                    onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={e => setFormData(f => ({ ...f, lastName: e.target.value }))}
+                    className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.lastName ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                   />
                   {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
                 </div>
               </div>
 
+              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                 <input
                   type="email"
-                  required
                   value={formData.email}
-                  onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
+                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                 />
                 {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
 
+              {/* Phone */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
                 <input
                   type="tel"
-                  required
                   value={formData.phone}
-                  onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={e => setFormData(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="e.g. 08012345678"
+                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phone ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                 />
                 {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
               </div>
 
+              {/* State */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">State of Residence *</label>
                 <select
-                  required
                   value={formData.state}
-                  onChange={e => setFormData({ ...formData, state: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={e => setFormData(f => ({ ...f, state: e.target.value }))}
+                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white ${errors.state ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                 >
                   <option value="">Select state...</option>
-                  {NIGERIAN_STATES.map(state => (
-                    <option key={state} value={state}>{state}</option>
+                  {NIGERIAN_STATES.map(s => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
                 {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state}</p>}
               </div>
 
+              {/* Date of birth */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                 <input
                   type="date"
-                  required
                   value={formData.dateOfBirth}
-                  onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={e => setFormData(f => ({ ...f, dateOfBirth: e.target.value }))}
+                  className={`w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.dateOfBirth ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                 />
                 {errors.dateOfBirth && <p className="text-red-500 text-xs mt-1">{errors.dateOfBirth}</p>}
               </div>
 
+              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
                     value={formData.password}
-                    onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={e => setFormData(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Minimum 6 characters"
+                    className={`w-full px-3 py-2.5 pr-10 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    onClick={() => setShowPassword(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"
                   >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
+                    {showPassword ? 'Hide' : 'Show'}
                   </button>
                 </div>
                 {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-                <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
               </div>
 
+              {/* Confirm password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
                 <div className="relative">
                   <input
                     type={showConfirm ? 'text' : 'password'}
-                    required
                     value={formData.confirmPassword}
-                    onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={e => setFormData(f => ({ ...f, confirmPassword: e.target.value }))}
+                    placeholder="Re-enter your password"
+                    className={`w-full px-3 py-2.5 pr-10 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    onClick={() => setShowConfirm(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"
                   >
-                    {showConfirm ? '👁️' : '👁️‍🗨️'}
+                    {showConfirm ? 'Hide' : 'Show'}
                   </button>
                 </div>
                 {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
               </div>
 
+              {/* Plan selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Plan *</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -267,44 +270,50 @@ export default function RegisterDetailsPage() {
                       key={p.id}
                       type="button"
                       onClick={() => setPlan(p.id)}
-                      className={`p-3 rounded-lg border-2 text-center transition-all ${
+                      className={`p-3 rounded-xl border-2 text-center transition-all ${
                         plan === p.id
                           ? 'border-blue-500 bg-blue-50'
                           : 'border-gray-200 hover:border-blue-300'
                       }`}
                     >
-                      <div className="font-semibold">{p.label}</div>
-                      <div className="text-sm text-gray-600">{p.priceDisplay}</div>
+                      <div className="font-semibold text-sm text-gray-900">{p.label}</div>
+                      <div className="text-sm font-bold text-blue-600 mt-0.5">
+                        {p.id === 'trial'
+                          ? '₦0'
+                          : `₦${(p.price * selectedCourses.length).toLocaleString('en-NG')}`}
+                      </div>
                       <div className="text-xs text-gray-400">{p.duration}</div>
+                      {p.id !== 'trial' && selectedCourses.length > 1 && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          ₦{p.price.toLocaleString('en-NG')} × {selectedCourses.length}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="font-medium text-gray-900">Summary</p>
-                <p className="text-sm text-gray-600 mt-1">
-                  {selectedCourses.length} course{selectedCourses.length !== 1 ? 's' : ''} selected
-                </p>
-                <div className="mt-2 space-y-1">
+              {/* Order summary */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <p className="font-semibold text-gray-900 text-sm">Order Summary</p>
+                <div className="space-y-1">
                   {selectedCourses.map(course => (
                     <p key={course.courseId} className="text-xs text-gray-500">
-                      • {course.courseName} with {course.tutorName}
+                      • {course.courseName} <span className="text-gray-400">with {course.tutorName}</span>
                     </p>
                   ))}
                 </div>
-                {selectedCourses.length > 1 && (
-                  <p className="text-sm text-gray-600 mt-2">
-                    Plan: {selectedPlan?.label} × {selectedCourses.length} courses
-                  </p>
-                )}
-                <p className="text-lg font-bold text-blue-600 mt-2">
-                  Total: ₦{totalAmount.toLocaleString()}
-                </p>
+                <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-sm text-gray-600">{selectedPlan?.label}</span>
+                  <span className="font-bold text-blue-600 text-lg">
+                    ₦{totalAmount.toLocaleString('en-NG')}
+                  </span>
+                </div>
               </div>
 
+              {/* Submit error */}
               {errors.submit && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-600 text-sm">
                   {errors.submit}
                 </div>
               )}
@@ -312,9 +321,13 @@ export default function RegisterDetailsPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Processing...' : plan === 'trial' ? 'Start Free Trial' : `Pay ₦${totalAmount.toLocaleString()}`}
+                {loading
+                  ? 'Processing...'
+                  : plan === 'trial'
+                  ? 'Start Free Trial'
+                  : `Continue to Payment — ₦${totalAmount.toLocaleString('en-NG')}`}
               </button>
             </form>
           </div>
