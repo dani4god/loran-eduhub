@@ -1,5 +1,5 @@
 'use client'
-
+import { ClipboardList } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -35,9 +35,10 @@ const NAV_ITEMS = [
   { href: '/dashboard/student/exams', label: 'Exams', icon: FileText },
   { href: '/dashboard/student/scores', label: 'Scores', icon: Award },
   { href: '/dashboard/student/discord', label: 'Discord', icon: MessageSquare },
-  { href: '/dashboard/student/withdraw', label: 'Withdraw', icon: Wallet },
+  { href: '/dashboard/student/withdraw', label: 'Enroll and Withdraw', icon: Wallet },
   { href: '/dashboard/student/support', label: 'Contact Support', icon: HeadphonesIcon },
   { href: '/dashboard/student/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/student/assignments', label: 'Assignments', icon: ClipboardList },
 ]
 
 function getInitials(name: string) {

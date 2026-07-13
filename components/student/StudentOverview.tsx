@@ -227,7 +227,7 @@ export default function StudentOverview() {
               </p>
             </div>
             <Link
-              href="/dashboard/renew"
+              href="/dashboard/student/renew"
               className="shrink-0 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition-colors"
             >
               Renew Now
@@ -340,7 +340,7 @@ export default function StudentOverview() {
                       : 'Subscription has ended'}
                   </p>
                   <Link
-                    href="/dashboard/renew"
+                    href="/dashboard/student/renew"
                     className="inline-block mt-2 px-4 py-2 bg-white text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors"
                   >
                     Renew Subscription
@@ -359,14 +359,14 @@ export default function StudentOverview() {
               value: data.stats.totalCourses,
               icon: BookOpen,
               color: 'bg-blue-50 text-blue-600',
-              href: '/dashboard/courses',
+              href: '/dashboard/student/courses',
             },
             {
               label: 'Available Exams',
               value: data.stats.totalExams,
               icon: FileText,
               color: 'bg-purple-50 text-purple-600',
-              href: '/dashboard/exams',
+              href: '/dashboard/student/exams',
             },
             {
               label: 'Average Score',
@@ -376,14 +376,14 @@ export default function StudentOverview() {
                   : '—',
               icon: TrendingUp,
               color: 'bg-green-50 text-green-600',
-              href: '/dashboard/scores',
+              href: '/dashboard/student/scores',
             },
             {
               label: 'Days Left',
               value: data.subscription.daysLeft,
               icon: Clock,
               color: 'bg-orange-50 text-orange-600',
-              href: '/dashboard/settings',
+              href: '/dashboard/student/settings',
             },
           ].map(stat => (
             <Link
@@ -410,7 +410,7 @@ export default function StudentOverview() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900 text-base">My Courses</h3>
               <Link
-                href="/dashboard/courses"
+                href="/dashboard/student/courses"
                 className="text-blue-600 text-xs font-semibold hover:underline flex items-center gap-1"
               >
                 View all <ChevronRight size={14} />
@@ -479,7 +479,7 @@ export default function StudentOverview() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900 text-base">Available Exams</h3>
               <Link
-                href="/dashboard/exams"
+                href="/dashboard/student/exams"
                 className="text-blue-600 text-xs font-semibold hover:underline flex items-center gap-1"
               >
                 View all <ChevronRight size={14} />
@@ -510,7 +510,7 @@ export default function StudentOverview() {
                       </p>
                     </div>
                     <Link
-                      href={`/dashboard/exams/${exam._id}`}
+                      href={`/dashboard/student/exams/${exam._id}`}
                       className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                         isExpiredOrPaused
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed pointer-events-none'
@@ -534,7 +534,7 @@ export default function StudentOverview() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900 text-base">Recent Scores</h3>
               <Link
-                href="/dashboard/scores"
+                href="/dashboard/student/scores"
                 className="text-blue-600 text-xs font-semibold hover:underline flex items-center gap-1"
               >
                 View all <ChevronRight size={14} />
@@ -594,7 +594,7 @@ export default function StudentOverview() {
                 {
                   label: 'My Scores',
                   desc: 'Track your progress',
-                  href: '/dashboard/scores',
+                  href: '/dashboard/student/scores',
                   icon: Award,
                   color: 'text-green-600 bg-green-50',
                 },

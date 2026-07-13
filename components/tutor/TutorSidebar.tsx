@@ -1,6 +1,6 @@
 // components/tutor/TutorSidebar.tsx
 "use client";
-
+import { ClipboardList } from 'lucide-react'
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -28,6 +28,7 @@ const navItems = [
   { name: "Grades", href: "/dashboard/tutor/grades", icon: BarChart3 },
   { name: "Discord", href: "/dashboard/tutor/discord", icon: MessageSquare },
   { name: "Settings", href: "/dashboard/tutor/settings", icon: Settings },
+  { name: 'Assignments', href: '/dashboard/tutor/assignments', icon: ClipboardList },
 ];
 
 export default function TutorSidebar() {
