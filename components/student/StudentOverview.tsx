@@ -580,14 +580,14 @@ export default function StudentOverview() {
                 {
                   label: 'Join Discord Server',
                   desc: 'Connect with tutors',
-                  href: '/dashboard/discord',
+                  href: '/dashboard/student/discord',
                   icon: Wifi,
                   color: 'text-indigo-600 bg-indigo-50',
                 },
                 {
                   label: 'View All Exams',
                   desc: 'Take available exams',
-                  href: '/dashboard/exams',
+                  href: '/dashboard/student/exams',
                   icon: FileText,
                   color: 'text-purple-600 bg-purple-50',
                 },
@@ -601,7 +601,7 @@ export default function StudentOverview() {
                 {
                   label: 'Contact Support',
                   desc: 'Get help from our team',
-                  href: '/dashboard/support',
+                  href: '/dashboard/student/support',
                   icon: CheckCircle,
                   color: 'text-blue-600 bg-blue-50',
                 },

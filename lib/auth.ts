@@ -7,14 +7,24 @@ import Tutor from '@/models/Tutor'
 import Student from '@/models/Student'
 import Admin from '@/models/Admin'
 import bcrypt from 'bcryptjs'
+import { cookies } from 'next/headers'
+import { decode } from 'next-auth/jwt'
 import {
   getGuildRoles,
   addMemberToGuild,
   getGuildMember,
   assignRolesToMember,
 } from '@/lib/discord'
-import { getTutorRoleNames, MEMBER_ROLE_NAME, LORAN_GUILD_ID } from '@/lib/discordRoleMap'
+import {
+  getTutorRoleNames,
+  getStudentRoleName,
+  PLAN_ROLE_MAP,
+  PAID_ROLE_NAME,
+  MEMBER_ROLE_NAME,
+  LORAN_GUILD_ID,
+} from '@/lib/discordRoleMap'
 import Course from '@/models/Course'
+import Enrollment from '@/models/Enrollment'
 
 declare module 'next-auth' {
   interface Session {
@@ -45,6 +55,31 @@ declare module 'next-auth/jwt' {
   }
 }
 
+// ── Read the CURRENTLY logged-in Loran user from the existing session
+// cookie, without touching Discord's profile/email at all. This is what
+// lets "Connect Discord" work regardless of which email the Discord
+// account uses.
+async function getLoggedInUserIdFromCookies(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies()
+    const raw =
+      cookieStore.get('__Secure-next-auth.session-token')?.value ||
+      cookieStore.get('next-auth.session-token')?.value
+
+    if (!raw) return null
+
+    const token = await decode({
+      token: raw,
+      secret: process.env.NEXTAUTH_SECRET!,
+    })
+
+    return (token?.id as string) || null
+  } catch (err) {
+    console.error('Failed to decode existing session cookie:', err)
+    return null
+  }
+}
+
 async function syncTutorToDiscord(
   tutor: any,
   discordId: string,
@@ -54,7 +89,6 @@ async function syncTutorToDiscord(
     const guildId = LORAN_GUILD_ID
     if (!guildId) return
 
-    // Get course categories for this tutor
     const courses = await Course.find({
       _id: { $in: tutor.courses },
       isActive: true,
@@ -64,7 +98,6 @@ async function syncTutorToDiscord(
     const targetRoleNames = getTutorRoleNames(categories)
     targetRoleNames.push(MEMBER_ROLE_NAME)
 
-    // Fetch all roles from the guild
     const guildRoles = await getGuildRoles(guildId)
     const roleByName = new Map<string, string>(
       guildRoles.map((r: any) => [r.name, r.id])
@@ -74,24 +107,88 @@ async function syncTutorToDiscord(
       .map(name => roleByName.get(name))
       .filter(Boolean) as string[]
 
-    // Add tutor to the guild if not already a member
     const member = await getGuildMember(guildId, discordId)
     if (!member) {
       await addMemberToGuild(guildId, discordId, accessToken)
     }
 
-    // Assign roles
     await assignRolesToMember(guildId, discordId, roleIds)
 
-    // Store assigned role names on the tutor record
     await Tutor.findByIdAndUpdate(tutor._id, {
       discordRoles: targetRoleNames,
     })
 
     console.log(`✅ Tutor ${tutor.firstName} synced to Discord with roles: ${targetRoleNames.join(', ')}`)
   } catch (err: any) {
-    // Non-fatal — log but don't block the sign-in
     console.error('Discord tutor sync error:', err.message)
+  }
+}
+
+// ── Student sync: role set is derived live from active enrollments'
+// course categories, so newly added courses/enrollments just work on
+// the next sync — nothing hardcoded.
+async function syncStudentToDiscord(
+  student: any,
+  discordId: string,
+  accessToken: string
+) {
+  try {
+    const guildId = LORAN_GUILD_ID
+    if (!guildId) return
+
+    const enrollments = await Enrollment.find({
+      studentId: student._id,
+      status: 'active',
+    })
+
+    if (enrollments.length === 0) {
+      await Student.findByIdAndUpdate(student._id, { discordRoles: [MEMBER_ROLE_NAME] })
+      return
+    }
+
+    const courseIds = enrollments.map((e: any) => e.courseId)
+    const courses = await Course.find({ _id: { $in: courseIds } }).select('category')
+    const courseById = new Map(courses.map((c: any) => [c._id.toString(), c]))
+
+    const targetRoleNames = new Set<string>([MEMBER_ROLE_NAME])
+
+    for (const enrollment of enrollments) {
+      const course = courseById.get(enrollment.courseId.toString())
+      if (!course) continue
+
+      targetRoleNames.add(getStudentRoleName(course.category))
+
+      const planRoleName = PLAN_ROLE_MAP[enrollment.plan]
+      if (planRoleName) targetRoleNames.add(planRoleName)
+
+      if (enrollment.plan !== 'trial') targetRoleNames.add(PAID_ROLE_NAME)
+    }
+
+    const roleNamesArr = Array.from(targetRoleNames)
+
+    const guildRoles = await getGuildRoles(guildId)
+    const roleByName = new Map<string, string>(
+      guildRoles.map((r: any) => [r.name, r.id])
+    )
+
+    const roleIds = roleNamesArr
+      .map(name => roleByName.get(name))
+      .filter(Boolean) as string[]
+
+    const member = await getGuildMember(guildId, discordId)
+    if (!member) {
+      await addMemberToGuild(guildId, discordId, accessToken)
+    }
+
+    await assignRolesToMember(guildId, discordId, roleIds)
+
+    await Student.findByIdAndUpdate(student._id, {
+      discordRoles: roleNamesArr,
+    })
+
+    console.log(`✅ Student ${student.firstName} synced to Discord with roles: ${roleNamesArr.join(', ')}`)
+  } catch (err: any) {
+    console.error('Discord student sync error:', err.message)
   }
 }
 
@@ -121,7 +218,6 @@ export const authOptions: NextAuthOptions = {
         await connectDB()
 
         const user = await User.findOne({ email: credentials.email.toLowerCase() })
-
         if (!user) throw new Error('No account found with this email')
 
         if (credentials.role && user.role !== credentials.role) {
@@ -186,15 +282,20 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, account }) {
-      if (user) {
+      // Only credentials sign-in is allowed to set the base identity.
+      // Discord's OAuth profile must never overwrite token.id/role —
+      // that's what corrupted sessions when linking Discord.
+      if (user && account?.provider === 'credentials') {
         token.id = user.id
         token.role = user.role
         token.email = user.email
       }
-      if (account && account.provider === 'discord') {
+
+      if (account?.provider === 'discord') {
         token.discordId = account.providerAccountId
         token.discordAccessToken = account.access_token
       }
+
       return token
     },
     async session({ session, token }) {
@@ -206,22 +307,30 @@ export const authOptions: NextAuthOptions = {
       }
       return session
     },
-    async signIn({ user, account, profile }) {
+    async signIn({ account, profile }) {
       if (account?.provider === 'discord') {
         try {
           await connectDB()
 
-          const existingUser = await User.findOne({ email: user.email })
-          if (!existingUser) return true // new user via Discord — let NextAuth handle it
+          // Link by the CURRENTLY logged-in Loran user, never by email.
+          const currentUserId = await getLoggedInUserIdFromCookies()
+          if (!currentUserId) {
+            console.error('Discord connect attempted with no active Loran session')
+            return true
+          }
+
+          const existingUser = await User.findById(currentUserId)
+          if (!existingUser) return true
 
           const expiresAt = account.expires_at
             ? new Date(account.expires_at * 1000)
             : null
 
-          // Save Discord tokens to User
+          const discordUsername = (profile as any)?.username
+
           await User.findByIdAndUpdate(existingUser._id, {
             discordId: account.providerAccountId,
-            discordUsername: (profile as any)?.username,
+            discordUsername,
             discordAccessToken: account.access_token,
             discordRefreshToken: account.refresh_token,
             discordTokenExpiresAt: expiresAt,
@@ -230,13 +339,11 @@ export const authOptions: NextAuthOptions = {
           if (existingUser.role === 'tutor') {
             const tutor = await Tutor.findOne({ userId: existingUser._id })
             if (tutor) {
-              // Update tutor's Discord identity
               await Tutor.findByIdAndUpdate(tutor._id, {
                 discordId: account.providerAccountId,
-                discordUsername: (profile as any)?.username,
+                discordUsername,
               })
 
-              // Only sync approved tutors
               if (tutor.status === 'approved' && account.access_token) {
                 await syncTutorToDiscord(
                   tutor,
@@ -247,12 +354,23 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
-          // Student Discord sync will be added here in a follow-up
-          // (same pattern — add to guild, assign student roles based on active enrollments)
+          if (existingUser.role === 'student') {
+            const student = await Student.findOne({ userId: existingUser._id })
+            if (student && account.access_token) {
+              await Student.findByIdAndUpdate(student._id, {
+                discordId: account.providerAccountId,
+                discordUsername,
+              })
 
+              await syncStudentToDiscord(
+                student,
+                account.providerAccountId,
+                account.access_token
+              )
+            }
+          }
         } catch (error) {
           console.error('Discord sign in error:', error)
-          // Return true anyway — don't block sign-in just because Discord sync failed
           return true
         }
       }
