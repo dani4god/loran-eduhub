@@ -112,7 +112,7 @@ export default function RegisterDetailsPage() {
         if (!res.ok) throw new Error(data.error || 'Registration failed')
 
         sessionStorage.removeItem('courseTutorSelections')
-        router.push('/dashboard?welcome=true')
+        router.push('/dashboard/student?welcome=true')
         return
       }
 
