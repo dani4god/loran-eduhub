@@ -25,6 +25,7 @@ export function getTutorRoleNames(categories: string[]): string[] {
 
 export const PLAN_ROLE_MAP: Record<string, string> = {
   trial: 'Trial(7 days)',
+  monthly: 'Monthly',  
   '3months': '3 months',
   '6months': '6 months',
   '1year': '1 year diploma',

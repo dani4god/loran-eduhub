@@ -1,3 +1,6 @@
+//payments/verify/route.ts
+import Course from '@/models/Course'
+import Tutor from '@/models/Tutor'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import connectDB from '@/lib/mongodb'
@@ -7,24 +10,8 @@ import Student from '@/models/Student'
 import Enrollment from '@/models/Enrollment'
 import Payment from '@/models/Payment'
 import { addDays } from 'date-fns'
-
-
-type Plan = 'trial' | '3months' | '6months' | '1year'
-
-const PLAN_DURATIONS: Record<Plan, number> = {
-  trial: 7,
-  '3months': 90,
-  '6months': 180,
-  '1year': 365,
-}
-
-const PLAN_BASE_PRICES: Record<Plan, number> = {
-  trial: 0,
-  '3months': 45000,
-  '6months': 80000,
-  '1year': 150000,
-}
-
+import { PLAN_DURATIONS, PlanType } from '@/lib/constants'
+import { buildCourseDetails, createPaymentRecord, computeSelectionsAmount } from '@/lib/pricing'
 
 async function verifyWithPaystack(reference: string) {
   const res = await fetch(
@@ -57,8 +44,6 @@ async function createAccountAfterPayment(
     selections, // [{ courseId, tutorId }]
   } = registrationData
 
-  const enrollmentAmount = PLAN_BASE_PRICES[plan as Plan]
-
   // ── Check if account already exists (idempotency — webhook may fire twice) ──
   const existingUser = await User.findOne({ email: email.toLowerCase().trim() })
   if (existingUser) {
@@ -70,6 +55,24 @@ async function createAccountAfterPayment(
       groupId: existingPayment?.groupId?.toString() ?? '',
       studentId: existingStudent?._id?.toString() ?? '',
     }
+  }
+
+  // ── Recompute pricing from each tutor's own rates — never trust a
+  // client-supplied amount. This determines each Enrollment's locked-in
+  // price at the moment of creation. ──
+  const { total: expectedTotal, amounts } = await computeSelectionsAmount(
+    selections,
+    plan as PlanType
+  )
+
+  // Defense-in-depth: what Paystack actually confirmed should match what we
+  // independently compute from current tutor pricing. Small variance allowed
+  // for rounding only — anything larger means tampering or a pricing change
+  // mid-flow, and we refuse to silently proceed.
+  if (Math.abs(expectedTotal - amountPaid) > 1) {
+    throw new Error(
+      `Payment amount mismatch: expected ₦${expectedTotal}, received ₦${amountPaid}`
+    )
   }
 
   // ── Create User ──
@@ -90,25 +93,22 @@ async function createAccountAfterPayment(
     hasUsedFreeTrial: false,
   })
 
-  // ── Create Enrollments ──
+  // ── Create Enrollments — each locked in at its own tutor's price ──
   const groupId = new mongoose.Types.ObjectId()
   const startDate = new Date()
-  const endDate = addDays(startDate, PLAN_DURATIONS[plan as Plan])
+  const endDate = addDays(startDate, PLAN_DURATIONS[plan as PlanType])
   const enrollmentIds: mongoose.Types.ObjectId[] = []
 
-  for (const sel of selections) {
-    const { courseId, tutorId } = sel
-    if (!courseId || !tutorId) continue
-
+  for (const priced of amounts) {
     const enrollment = await Enrollment.create({
       studentId: student._id,
-      tutorId,
-      courseId,
+      tutorId: priced.tutorId,
+      courseId: priced.courseId,
       plan,
       status: 'active', // immediately active since payment confirmed
       groupId,
       startDate,
-      amount: enrollmentAmount,
+      amount: priced.amount,
       endDate,
     } as any)
 
@@ -121,23 +121,70 @@ async function createAccountAfterPayment(
   })
 
   // ── Create Payment record ──
-  const courseCount = selections.length
-  const basePlanAmount = PLAN_BASE_PRICES[plan as Plan]
+  // Build course details for the payment
+  const courseDetails = await Promise.all(
+    amounts.map(async (priced) => {
+      const [course, tutor] = await Promise.all([
+        Course.findById(priced.courseId).select('title name'),
+        Tutor.findById(priced.tutorId).select('firstName lastName'),
+      ])
+
+      return {
+        courseId: priced.courseId,
+        courseName: course?.name ?? 'Unknown Course',
+
+        tutorId: priced.tutorId,
+        tutorName: tutor
+          ? `${tutor.firstName ?? ''} ${tutor.lastName ?? ''}`.trim()
+          : 'Unknown Tutor',
+
+        planPrice: priced.amount,
+
+        planKey: plan as 'monthly' | '3months' | '6months' | '1year',
+      }
+    })
+  )
+
+  const durationMap = {
+    trial: 7,
+    monthly: 30,
+    '3months': 90,
+    '6months': 180,
+    '1year': 365,
+  }
+
+  const amount = courseDetails.reduce(
+    (sum, item) => sum + item.planPrice,
+    0
+  )
+
+  const tutorCount = new Set(
+    courseDetails.map(item => item.tutorId.toString())
+  ).size
 
   await Payment.create({
     studentId: student._id,
     enrollmentIds,
     groupId,
-    amount: amountPaid,
+
+    courseDetails,
+
+    amount,
+
     currency: 'NGN',
+
     plan,
-    tutorCount: courseCount,
-    basePlanAmount,
+
+    planDurationDays: durationMap[plan as keyof typeof durationMap],
+
+    tutorCount,
+
     paystackReference: reference,
+
     status: 'success',
+
     paidAt: new Date(),
   })
-
   return {
     alreadyExists: false,
     groupId: groupId.toString(),
@@ -157,7 +204,6 @@ async function createTrialAccount(registrationData: any) {
     phone,
     state,
     dateOfBirth,
-    plan,
     selections,
   } = registrationData
 
@@ -203,7 +249,7 @@ async function createTrialAccount(registrationData: any) {
       courseId,
       plan: 'trial',
       status: 'active',
-      // cast to any to allow additional field not present in TS type defs
+      amount: 0,
       groupId,
       startDate,
       endDate,
@@ -302,17 +348,40 @@ export async function POST(req: NextRequest) {
 
     const event = JSON.parse(rawBody)
 
-    // We only handle charge.success here
-    // Note: webhook alone can't create accounts because it doesn't have
-    // the password — account creation happens via the GET route (client-side).
-    // The webhook is used as a backup to mark payments as confirmed.
+    // We only handle charge.success here.
+    // Note: for NEW REGISTRATIONS, the webhook alone can't create accounts
+    // because it doesn't have the password — that happens via the GET route
+    // (client-side). The webhook is a backup to mark payments as confirmed.
+    // For RENEWALS, the webhook is the one place that actually extends the
+    // enrollment if the client-side verify-renewal call never fires
+    // (e.g. user closes the tab right after paying).
     if (event.event === 'charge.success') {
       await connectDB()
       const reference = event.data.reference
+      const metadata = event.data.metadata || {}
 
-      // If account was already created (via GET route), just update payment status
       const existingPayment = await Payment.findOne({ paystackReference: reference })
+
       if (existingPayment && existingPayment.status !== 'success') {
+        if (metadata.type === 'renewal' && metadata.enrollmentId && metadata.newPlan) {
+          const enrollment = await Enrollment.findById(metadata.enrollmentId)
+          if (enrollment) {
+            const durationDays = PLAN_DURATIONS[metadata.newPlan as PlanType]
+            const now = new Date()
+            const stillActive =
+              enrollment.status === 'active' && enrollment.endDate && enrollment.endDate > now
+            const baseDate = stillActive ? enrollment.endDate : now
+
+            enrollment.plan = metadata.newPlan
+            enrollment.status = 'active'
+            enrollment.endDate = addDays(baseDate, durationDays)
+            enrollment.paymentId = existingPayment._id
+            if (enrollment.pausedAt) enrollment.pausedAt = undefined
+            if (enrollment.pausedBy) enrollment.pausedBy = undefined
+            await enrollment.save()
+          }
+        }
+
         await Payment.findByIdAndUpdate(existingPayment._id, {
           status: 'success',
           paidAt: new Date(),

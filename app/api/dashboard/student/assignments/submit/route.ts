@@ -26,24 +26,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'assignmentId is required' }, { status: 400 })
     }
 
-    // Check if already submitted
-    const existing = await AssignmentSubmission.findOne({
-      assignmentId,
-      studentId: student._id,
-    })
-    if (existing) {
-      return NextResponse.json(
-        { error: 'You have already submitted this assignment' },
-        { status: 400 }
-      )
-    }
-
     const assignment = await Assignment.findById(assignmentId)
     if (!assignment || !assignment.isPublished) {
       return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
     }
 
-    // Verify enrollment
+    // Resolve the CURRENT active enrollment first — everything downstream
+    // (duplicate check, the submission record itself) is scoped to it.
     const enrollment = await Enrollment.findOne({
       studentId: student._id,
       courseId: assignment.courseId,
@@ -56,9 +45,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Duplicate check now scoped to THIS enrollment — a submission tied to
+    // a previous, withdrawn enrollment no longer blocks a fresh one.
+    const existing = await AssignmentSubmission.findOne({
+      assignmentId,
+      enrollmentId: enrollment._id,
+    })
+    if (existing) {
+      return NextResponse.json(
+        { error: 'You have already submitted this assignment' },
+        { status: 400 }
+      )
+    }
+
     const submission = await AssignmentSubmission.create({
       assignmentId,
       studentId: student._id,
+      enrollmentId: enrollment._id,
       tutorId: assignment.tutorId,
       courseId: assignment.courseId,
       submittedAt: new Date(),

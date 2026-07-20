@@ -18,6 +18,8 @@ import {
   HeadphonesIcon,
   ChevronRight,
   GraduationCap,
+  ShoppingCart,
+  Star,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -35,10 +37,13 @@ const NAV_ITEMS = [
   { href: '/dashboard/student/exams', label: 'Exams', icon: FileText },
   { href: '/dashboard/student/scores', label: 'Scores', icon: Award },
   { href: '/dashboard/student/discord', label: 'Discord', icon: MessageSquare },
-  { href: '/dashboard/student/withdraw', label: 'Enroll and Withdraw', icon: Wallet },
+  { label: 'Enroll & Withdraw', href: '/dashboard/student/enroll', icon: ShoppingCart },
   { href: '/dashboard/student/support', label: 'Contact Support', icon: HeadphonesIcon },
-  { href: '/dashboard/student/settings', label: 'Settings', icon: Settings },
   { href: '/dashboard/student/assignments', label: 'Assignments', icon: ClipboardList },
+  { label: 'Course Library', href: '/dashboard/student/library', icon: BookOpen },
+  { label: 'My Certificates', href: '/dashboard/student/certificates', icon: Award },
+  { label: 'Reviews', href: '/dashboard/student/reviews', icon: Star },
+  { href: '/dashboard/student/settings', label: 'Settings', icon: Settings },
 ]
 
 function getInitials(name: string) {

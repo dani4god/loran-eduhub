@@ -19,7 +19,8 @@ import {
   Trash2,
   FileText,
   Video,
-  ExternalLink
+  ExternalLink,
+  DollarSign
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,6 +37,13 @@ const qualificationSchema = z.object({
   year: z.string().min(4, 'Valid year is required'),
 });
 
+const pricingSchema = z.object({
+  monthly: z.number().positive('Enter a price greater than 0'),
+  threeMonths: z.number().positive('Enter a price greater than 0'),
+  sixMonths: z.number().positive('Enter a price greater than 0'),
+  oneYear: z.number().positive('Enter a price greater than 0'),
+});
+
 const phase1Schema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
   lastName: z.string().min(2, 'Last name must be at least 2 characters'),
@@ -47,6 +55,7 @@ const phase1Schema = z.object({
   profileImage: z.string().optional(),
   resume: z.string().optional(),
   videoLink: z.string().url('Please enter a valid URL').optional(),
+  pricing: pricingSchema,
 });
 
 const phase2Schema = z.object({
@@ -60,6 +69,13 @@ const phase2Schema = z.object({
 
 type Phase1Data = z.infer<typeof phase1Schema>;
 type Phase2Data = z.infer<typeof phase2Schema>;
+
+// Helper to convert string to number for form inputs
+const parseNumber = (value: string | number): number => {
+  if (typeof value === 'number') return value;
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? 0 : parsed;
+};
 
 export default function TutorRegistration() {
   const router = useRouter();
@@ -80,10 +96,16 @@ export default function TutorRegistration() {
     setValue: setPhase1Value,
     watch: watchPhase1,
   } = useForm<Phase1Data>({
-    resolver: zodResolver(phase1Schema),
+    resolver: zodResolver(phase1Schema) as any, // Type assertion to fix the issue
     defaultValues: {
       qualifications: [{ degree: '', institution: '', year: '' }],
       courses: [],
+      pricing: {
+        monthly: 0,
+        threeMonths: 0,
+        sixMonths: 0,
+        oneYear: 0,
+      },
     },
   });
   
@@ -640,9 +662,9 @@ export default function TutorRegistration() {
                                 href={videoLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:text-blue-700"
+                                className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                               >
-                                Preview →
+                                Preview <ExternalLink className="w-3 h-3" />
                               </a>
                             </div>
                           </div>
@@ -732,6 +754,115 @@ export default function TutorRegistration() {
                         <p className="text-sm text-gray-500 mt-2">
                           Selected: {selectedCourses?.length || 0} courses
                         </p>
+                      </div>
+
+                      {/* Pricing */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Set Your Pricing *
+                        </label>
+                        <p className="text-sm text-gray-500 mb-4">
+                          This is what students will pay to enroll with you, per plan. You can update
+                          these later from your dashboard once approved.
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Monthly (₦) *
+                            </label>
+                            <div className="relative">
+                              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                                <DollarSign className="w-4 h-4 text-gray-400" />
+                              </div>
+                              <input
+                                {...registerPhase1('pricing.monthly', { 
+                                  setValueAs: (v) => v === '' ? 0 : parseFloat(v) 
+                                })}
+                                type="number"
+                                min={0}
+                                step="1000"
+                                placeholder="e.g. 15000"
+                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            {phase1Errors.pricing?.monthly && (
+                              <p className="mt-1 text-sm text-red-600">{phase1Errors.pricing.monthly.message}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              3 Months (₦) *
+                            </label>
+                            <div className="relative">
+                              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                                <DollarSign className="w-4 h-4 text-gray-400" />
+                              </div>
+                              <input
+                                {...registerPhase1('pricing.threeMonths', { 
+                                  setValueAs: (v) => v === '' ? 0 : parseFloat(v) 
+                                })}
+                                type="number"
+                                min={0}
+                                step="1000"
+                                placeholder="e.g. 40000"
+                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            {phase1Errors.pricing?.threeMonths && (
+                              <p className="mt-1 text-sm text-red-600">{phase1Errors.pricing.threeMonths.message}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              6 Months (₦) *
+                            </label>
+                            <div className="relative">
+                              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                                <DollarSign className="w-4 h-4 text-gray-400" />
+                              </div>
+                              <input
+                                {...registerPhase1('pricing.sixMonths', { 
+                                  setValueAs: (v) => v === '' ? 0 : parseFloat(v) 
+                                })}
+                                type="number"
+                                min={0}
+                                step="1000"
+                                placeholder="e.g. 75000"
+                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            {phase1Errors.pricing?.sixMonths && (
+                              <p className="mt-1 text-sm text-red-600">{phase1Errors.pricing.sixMonths.message}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              1 Year (₦) *
+                            </label>
+                            <div className="relative">
+                              <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                                <DollarSign className="w-4 h-4 text-gray-400" />
+                              </div>
+                              <input
+                                {...registerPhase1('pricing.oneYear', { 
+                                  setValueAs: (v) => v === '' ? 0 : parseFloat(v) 
+                                })}
+                                type="number"
+                                min={0}
+                                step="1000"
+                                placeholder="e.g. 140000"
+                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            {phase1Errors.pricing?.oneYear && (
+                              <p className="mt-1 text-sm text-red-600">{phase1Errors.pricing.oneYear.message}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     

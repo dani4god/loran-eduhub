@@ -1,4 +1,4 @@
-
+// components/tutor/DiscordIntegration.tsx
 'use client'
 
 import { useState } from 'react'
@@ -34,7 +34,7 @@ export default function DiscordIntegration({
 
   const handleConnect = () => {
     signIn('discord', {
-      callbackUrl: '/dashboard/tutor?tab=discord',
+      callbackUrl: '/dashboard/tutor/discord',
     })
   }
 
@@ -43,10 +43,7 @@ export default function DiscordIntegration({
     setSyncResult(null)
 
     try {
-      const res = await fetch('/api/discord/sync-tutor', {
-        method: 'POST',
-      })
-
+      const res = await fetch('/api/discord/sync-tutor', { method: 'POST' })
       const data = await res.json()
 
       if (res.ok) {
@@ -57,11 +54,7 @@ export default function DiscordIntegration({
               : ''
           }`
         )
-
-        setDiscordInfo((prev) => ({
-          ...prev,
-          discordRoles: data.assignedRoles || [],
-        }))
+        setDiscordInfo((prev) => ({ ...prev, discordRoles: data.assignedRoles || [] }))
       } else {
         setSyncResult(`❌ ${data.error || 'Sync failed'}`)
       }
@@ -77,36 +70,18 @@ export default function DiscordIntegration({
     setSyncResult(null)
 
     try {
-      const res = await fetch('/api/discord/sync', {
-        method: 'POST',
-      })
-
+      const res = await fetch('/api/discord/sync', { method: 'POST' })
       const data = await res.json()
 
       if (res.ok) {
-        const synced =
-          data.results?.filter(
-            (r: any) => r.status === 'synced'
-          ).length || 0
-
-        const errors =
-          data.results?.filter(
-            (r: any) => r.status === 'error'
-          ).length || 0
-
-        const noDiscord =
-          data.results?.filter(
-            (r: any) => r.status === 'no_discord_linked'
-          ).length || 0
+        const synced = data.results?.filter((r: any) => r.status === 'synced').length || 0
+        const errors = data.results?.filter((r: any) => r.status === 'error').length || 0
+        const noDiscord = data.results?.filter((r: any) => r.status === 'no_discord_linked').length || 0
 
         setSyncResult(
           `✅ Students synced: ${synced}${
             errors > 0 ? ` | ❌ Errors: ${errors}` : ''
-          }${
-            noDiscord > 0
-              ? ` | ⚠️ No Discord: ${noDiscord}`
-              : ''
-          }`
+          }${noDiscord > 0 ? ` | ⚠️ No Discord: ${noDiscord}` : ''}`
         )
       } else {
         setSyncResult(`❌ ${data.error || 'Sync failed'}`)
@@ -122,22 +97,21 @@ export default function DiscordIntegration({
   if (!discordInfo.isConnected) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#5865F2] to-[#404EED] p-8 text-center">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#5865F2] to-[#404EED] p-6 sm:p-8 text-center">
           <div
             className="absolute inset-0 opacity-10"
             style={{
-              backgroundImage:
-                'radial-gradient(circle, white 1px, transparent 1px)',
+              backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
               backgroundSize: '20px 20px',
             }}
           />
 
           <div className="relative">
-            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <MessageSquare className="w-10 h-10 text-white" />
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <MessageSquare className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
               Connect Your Discord
             </h2>
 
@@ -148,18 +122,11 @@ export default function DiscordIntegration({
           </div>
         </div>
 
-        <div className="p-8 text-center space-y-6">
-          <div className="flex items-center justify-center gap-6 text-sm text-gray-600 flex-wrap">
-            {[
-              'Auto-role assignment',
-              'Course channel access',
-              'Student management',
-            ].map((feature) => (
-              <div
-                key={feature}
-                className="flex items-center gap-1.5"
-              >
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
+        <div className="p-6 sm:p-8 text-center space-y-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
+            {['Auto-role assignment', 'Course channel access', 'Student management'].map((feature) => (
+              <div key={feature} className="flex items-center gap-1.5">
+                <div className="w-2 h-2 bg-green-500 rounded-full shrink-0" />
                 <span>{feature}</span>
               </div>
             ))}
@@ -186,59 +153,52 @@ export default function DiscordIntegration({
   // Connected
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-[#5865F2]/10 flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6">
+        <div className="flex items-center gap-3 mb-5 flex-wrap">
+          <div className="w-10 h-10 rounded-xl bg-[#5865F2]/10 flex items-center justify-center shrink-0">
             <MessageSquare className="w-5 h-5 text-[#5865F2]" />
           </div>
 
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">
               Discord Connected
             </h2>
-
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 truncate">
               @{discordInfo.discordUsername || 'unknown'}
             </p>
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5 text-green-600 text-sm font-medium">
+          <div className="ml-auto flex items-center gap-1.5 text-green-600 text-sm font-medium shrink-0">
             <CheckCircle className="w-4 h-4" />
             Active
           </div>
         </div>
 
-        {discordInfo.discordRoles &&
-          discordInfo.discordRoles.length > 0 && (
-            <div className="mb-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Your Server Roles
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-                {discordInfo.discordRoles.map((role) => (
-                  <span
-                    key={role}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium bg-[#5865F2]/10 text-[#5865F2] px-3 py-1.5 rounded-full"
-                  >
-                    <div className="w-1.5 h-1.5 bg-[#5865F2] rounded-full" />
-                    {role}
-                  </span>
-                ))}
-              </div>
+        {discordInfo.discordRoles && discordInfo.discordRoles.length > 0 && (
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Your Server Roles
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {discordInfo.discordRoles.map((role) => (
+                <span
+                  key={role}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium bg-[#5865F2]/10 text-[#5865F2] px-3 py-1.5 rounded-full"
+                >
+                  <div className="w-1.5 h-1.5 bg-[#5865F2] rounded-full shrink-0" />
+                  {role}
+                </span>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
         <div className="bg-gradient-to-r from-[#5865F2]/5 to-[#404EED]/5 border border-[#5865F2]/15 rounded-xl p-4 mb-5">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className="font-medium text-gray-900 text-sm">
-                Loran EduHub Server
-              </p>
-
+              <p className="font-medium text-gray-900 text-sm">Loran EduHub Server</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Join to access your course channels. Your roles will
-                be assigned automatically.
+                Join to access your course channels. Your roles will be assigned automatically.
               </p>
             </div>
 
@@ -246,9 +206,9 @@ export default function DiscordIntegration({
               href={INVITE_LINK}
               target="_blank"
               rel="noopener noreferrer"
-              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-[#5865F2] text-white rounded-lg hover:bg-[#4752C4] transition text-sm font-semibold"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold hover:bg-gray-50 transition"
             >
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4 text-gray-600" />
               Join Server
             </a>
           </div>
@@ -266,39 +226,26 @@ export default function DiscordIntegration({
           </div>
         )}
 
-        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
           <button
             onClick={handleReSyncTutor}
             disabled={syncing}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#5865F2] text-white rounded-xl text-sm font-semibold hover:bg-[#4752C4] transition disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#5865F2] text-white rounded-xl text-sm font-semibold hover:bg-[#4752C4] transition disabled:opacity-50"
           >
-            <RefreshCw
-              className={`w-4 h-4 ${
-                syncing ? 'animate-spin' : ''
-              }`}
-            />
-
+            <RefreshCw className={`w-4 h-4 shrink-0 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Syncing...' : 'Re-sync My Roles'}
           </button>
 
           <button
             onClick={handleSyncStudents}
             disabled={syncingStudents}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition disabled:opacity-50"
           >
-            <Users
-              className={`w-4 h-4 ${
-                syncingStudents ? 'animate-pulse' : ''
-              }`}
-            />
-
-            {syncingStudents
-              ? 'Syncing Students...'
-              : 'Sync Student Roles'}
+            <Users className={`w-4 h-4 shrink-0 ${syncingStudents ? 'animate-pulse' : ''}`} />
+            {syncingStudents ? 'Syncing Students...' : 'Sync Student Roles'}
           </button>
         </div>
       </div>
     </div>
   )
 }
-

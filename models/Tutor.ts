@@ -7,6 +7,13 @@ export interface IQualification {
   year: string
 }
 
+export interface IPricing {
+  monthly: number
+  threeMonths: number
+  sixMonths: number
+  oneYear: number
+}
+
 export interface ITutor extends Document {
   userId: mongoose.Types.ObjectId
   firstName: string
@@ -18,6 +25,7 @@ export interface ITutor extends Document {
   profileImage?: string
   videoLink?: string
   resume?: string
+  pricing: IPricing 
   courses: mongoose.Types.ObjectId[]
   status: 'pending' | 'approved' | 'disapproved' | 'suspended'
   slug: string
@@ -28,6 +36,8 @@ export interface ITutor extends Document {
   discordRoles?: string[]  // ← ADDED: Track assigned Discord roles
   createdAt: Date
   updatedAt: Date
+  certificateSignatureUrl?: string
+  certificateLogoUrl?: string
 }
 
 const TutorSchema = new Schema<ITutor>(
@@ -137,6 +147,15 @@ const TutorSchema = new Schema<ITutor>(
     discordInviteLink: {
       type: String,
       default: null,
+    },
+    certificateSignatureUrl: { type: String, default: null },
+    certificateLogoUrl: { type: String, default: null },
+    // in TutorSchema, add alongside the other fields:
+    pricing: {
+      monthly: { type: Number, required: true, min: 1 },
+      threeMonths: { type: Number, required: true, min: 1 },
+      sixMonths: { type: Number, required: true, min: 1 },
+      oneYear: { type: Number, required: true, min: 1 },
     },
 
     // ← ADDED: Store assigned Discord roles

@@ -1,3 +1,5 @@
+// app/api/dashboard/student/exams/[examId]/submit/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -26,10 +28,31 @@ export async function POST(
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // Idempotency — prevent double submission
+    const exam = await Exam.findById(examId).lean() as any
+    if (!exam) {
+      return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
+    }
+
+    // Verify enrollment FIRST — everything below is scoped to this specific
+    // enrollment, so a grade from a withdrawn enrollment never blocks or
+    // gets confused with a grade from a fresh re-enrollment.
+    const enrollment = await Enrollment.findOne({
+      studentId: student._id,
+      courseId: exam.courseId,
+      status: 'active' as const,
+    })
+    if (!enrollment) {
+      return NextResponse.json(
+        { error: 'You are not enrolled in this course' },
+        { status: 403 }
+      )
+    }
+
+    // Idempotency — scoped to THIS enrollment, not just studentId+examId.
     const existingGrade = await Grade.findOne({
       studentId: student._id,
       examId,
+      enrollmentId: enrollment._id,
     })
     if (existingGrade) {
       return NextResponse.json(
@@ -48,24 +71,6 @@ export async function POST(
           },
         },
         { status: 400 }
-      )
-    }
-
-    const exam = await Exam.findById(examId).lean() as any
-    if (!exam) {
-      return NextResponse.json({ error: 'Exam not found' }, { status: 404 })
-    }
-
-    // Verify enrollment
-    const enrollment = await Enrollment.findOne({
-      studentId: student._id,
-      courseId: exam.courseId,
-      status: 'active' as const,
-    })
-    if (!enrollment) {
-      return NextResponse.json(
-        { error: 'You are not enrolled in this course' },
-        { status: 403 }
       )
     }
 
@@ -90,8 +95,6 @@ export async function POST(
       const marks = q.marks ?? 1
       total += marks
 
-      // MCQ and True/False — exact match
-      // Fill-in-the-gap — case-insensitive exact match
       const isCorrect =
         studentAnswer !== '' && studentAnswer === correctAnswer
 
@@ -111,18 +114,10 @@ export async function POST(
 
     const percentage = total > 0 ? Math.round((score / total) * 100) : 0
 
-    console.log("========== BREAKDOWN ==========");
-    console.log(JSON.stringify(breakdown, null, 2));
-
-    console.log("========== SCHEMA ==========");
-    console.log(Grade.schema.obj.breakdown);
-
-    console.log("========== PATH ==========");
-    console.log(Grade.schema.path("breakdown"));
-
     // Save grade
     const grade = await Grade.create({
       studentId: student._id,
+      enrollmentId: enrollment._id,
       examId,
       courseId: exam.courseId,
       tutorId: exam.tutorId,

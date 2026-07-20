@@ -13,6 +13,7 @@ declare global {
 
 const PLAN_LABELS: Record<string, string> = {
   trial: '1 Week Free Trial',
+  monthly: 'Monthly',
   '3months': '3 Months',
   '6months': '6 Months',
   '1year': '1 Year Diploma',

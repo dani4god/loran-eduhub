@@ -1,3 +1,4 @@
+//app/api/dashboard/student/scores/route.ts
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -33,16 +34,16 @@ export async function GET() {
 
     const result = await Promise.all(
       enrollments.map(async (e: any) => {
-        const courseId = e.courseId?._id
+        const enrollmentId = e._id
 
-        // Exam grades for this course
+        // Scoped to THIS enrollment specifically — a withdrawn enrollment's
+        // grades never bleed into a fresh re-enrollment's stats, and vice
+        // versa, even though both share the same courseId/tutorId.
         const grades = await Grade.find({
           studentId: student._id,
-          courseId,
-        })
-          .lean()
+          enrollmentId,
+        }).lean()
 
-        // Get exam titles
         const examIds = grades.map((g: any) => g.examId)
         const exams = await Exam.find({ _id: { $in: examIds } })
           .select('title')
@@ -51,13 +52,11 @@ export async function GET() {
           exams.map((ex: any) => [ex._id.toString(), ex])
         )
 
-        // Assignment scores for this course
         const submissions = await AssignmentSubmission.find({
           studentId: student._id,
-          courseId,
+          enrollmentId,
           status: 'graded',
-        })
-          .lean()
+        }).lean()
 
         const assignmentIds = submissions.map((s: any) => s.assignmentId)
         const assignments = await Assignment.find({
@@ -108,7 +107,8 @@ export async function GET() {
             : null
 
         return {
-          courseId: courseId?.toString(),
+          enrollmentId: enrollmentId.toString(),
+          courseId: e.courseId?._id?.toString(),
           courseName: e.courseId?.name ?? '',
           courseCategory: e.courseId?.category ?? '',
           tutorName: e.tutorId

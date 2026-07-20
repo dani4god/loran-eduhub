@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
+import { PLAN_LABELS, PLAN_DURATIONS, PLAN_PRICING_KEY, PlanType } from '@/lib/constants'
 
 const NIGERIAN_STATES = [
   'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
@@ -13,18 +14,14 @@ const NIGERIAN_STATES = [
   'Yobe', 'Zamfara',
 ]
 
-const PLANS = [
-  { id: 'trial', label: '1 Week Free Trial', price: 0, priceDisplay: '₦0', duration: '7 days' },
-  { id: '3months', label: '3 Months', price: 45000, priceDisplay: '₦45,000', duration: '90 days' },
-  { id: '6months', label: '6 Months', price: 80000, priceDisplay: '₦80,000', duration: '180 days' },
-  { id: '1year', label: '1 Year Diploma', price: 150000, priceDisplay: '₦150,000', duration: '365 days' },
-]
+// Define plan IDs in order
+const PLAN_IDS: PlanType[] = ['trial', 'monthly', '3months', '6months', '1year']
 
 export default function RegisterDetailsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [selectedCourses, setSelectedCourses] = useState<any[]>([])
-  const [plan, setPlan] = useState('trial')
+  const [plan, setPlan] = useState<PlanType>('trial')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
@@ -50,6 +47,15 @@ export default function RegisterDetailsPage() {
     setSelectedCourses(JSON.parse(selections))
   }, [router])
 
+  // Calculate total amount based on selected plan and courses
+  const amountForPlan = (courses: any[], planId: PlanType): number => {
+    if (planId === 'trial') return 0
+    const key = PLAN_PRICING_KEY[planId]
+    return courses.reduce((sum, c) => sum + (c.pricing?.[key] || 0), 0)
+  }
+
+  const totalAmount = amountForPlan(selectedCourses, plan)
+
   const validateForm = () => {
     const e: Record<string, string> = {}
     if (!formData.firstName.trim()) e.firstName = 'First name is required'
@@ -73,9 +79,6 @@ export default function RegisterDetailsPage() {
     setLoading(true)
 
     try {
-      const selectedPlan = PLANS.find(p => p.id === plan)
-      const totalAmount = (selectedPlan?.price ?? 0) * selectedCourses.length
-
       // ── Check if email is already registered ──
       const emailCheck = await fetch(
         `/api/students?email=${encodeURIComponent(formData.email.trim())}`
@@ -129,13 +132,15 @@ export default function RegisterDetailsPage() {
           state: formData.state,
           dateOfBirth: formData.dateOfBirth,
           plan,
+          // selections only need courseId/tutorId/courseName/tutorName
+          // Pricing is not forwarded per-item (backend recomputes independently)
           selections: selectedCourses.map(s => ({
             courseId: s.courseId,
             tutorId: s.tutorId,
             courseName: s.courseName,
             tutorName: s.tutorName,
           })),
-          amount: totalAmount,
+          amount: totalAmount, // sent for display purposes only — server recomputes independently
         })
       )
 
@@ -147,8 +152,8 @@ export default function RegisterDetailsPage() {
     }
   }
 
-  const selectedPlan = PLANS.find(p => p.id === plan)
-  const totalAmount = (selectedPlan?.price ?? 0) * selectedCourses.length
+  // Get selected plan label for display
+  const selectedPlanLabel = PLAN_LABELS[plan]
 
   return (
     <>
@@ -274,35 +279,31 @@ export default function RegisterDetailsPage() {
                 {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
               </div>
 
-              {/* Plan selection */}
+              {/* Plan selection - Using PLAN_IDS from constants */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Plan *</label>
                 <div className="grid grid-cols-2 gap-3">
-                  {PLANS.map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setPlan(p.id)}
-                      className={`p-3 rounded-xl border-2 text-center transition-all ${
-                        plan === p.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-300'
-                      }`}
-                    >
-                      <div className="font-semibold text-sm text-gray-900">{p.label}</div>
-                      <div className="text-sm font-bold text-blue-600 mt-0.5">
-                        {p.id === 'trial'
-                          ? '₦0'
-                          : `₦${(p.price * selectedCourses.length).toLocaleString('en-NG')}`}
-                      </div>
-                      <div className="text-xs text-gray-400">{p.duration}</div>
-                      {p.id !== 'trial' && selectedCourses.length > 1 && (
-                        <div className="text-xs text-gray-500 mt-0.5">
-                          ₦{p.price.toLocaleString('en-NG')} × {selectedCourses.length}
+                  {PLAN_IDS.map(id => {
+                    const amount = amountForPlan(selectedCourses, id)
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setPlan(id)}
+                        className={`p-3 rounded-xl border-2 text-center transition-all ${
+                          plan === id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-blue-300'
+                        }`}
+                      >
+                        <div className="font-semibold text-sm text-gray-900">{PLAN_LABELS[id]}</div>
+                        <div className="text-sm font-bold text-blue-600 mt-0.5">
+                          {id === 'trial' ? '₦0' : `₦${amount.toLocaleString('en-NG')}`}
                         </div>
-                      )}
-                    </button>
-                  ))}
+                        <div className="text-xs text-gray-400">{PLAN_DURATIONS[id]} days</div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -318,11 +319,16 @@ export default function RegisterDetailsPage() {
                   ))}
                 </div>
                 <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-sm text-gray-600">{selectedPlan?.label}</span>
+                  <span className="text-sm text-gray-600">{PLAN_LABELS[plan]}</span>
                   <span className="font-bold text-blue-600 text-lg">
                     ₦{totalAmount.toLocaleString('en-NG')}
                   </span>
                 </div>
+                {plan !== 'trial' && selectedCourses.length > 1 && (
+                  <div className="text-xs text-gray-500 text-right">
+                    Includes all selected courses
+                  </div>
+                )}
               </div>
 
               {errors.submit && (

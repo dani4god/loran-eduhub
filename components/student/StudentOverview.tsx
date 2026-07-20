@@ -315,9 +315,15 @@ export default function StudentOverview() {
 
               {data.subscription.endDate && secondsLeft > 0 ? (
                 <>
-                  <div className="bg-white/10 rounded-xl p-4 mb-3">
-                    <p className="text-blue-200 text-xs mb-1">Time remaining</p>
-                    <p className="font-mono font-bold text-2xl sm:text-3xl text-white tracking-wider">
+                  <div className={`rounded-xl p-4 mb-3 ${
+                    data.subscription.daysLeft <= 5 ? 'bg-red-500/20 animate-pulse' : 'bg-white/10'
+                  }`}>
+                    <p className={`text-xs mb-1 ${data.subscription.daysLeft <= 5 ? 'text-red-200' : 'text-blue-200'}`}>
+                      Time remaining
+                    </p>
+                    <p className={`font-mono font-bold text-2xl sm:text-3xl tracking-wider ${
+                      data.subscription.daysLeft <= 5 ? 'text-red-100' : 'text-white'
+                    }`}>
                       {formatTime(secondsLeft)}
                     </p>
                   </div>

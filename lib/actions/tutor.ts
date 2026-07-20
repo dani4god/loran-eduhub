@@ -3,7 +3,6 @@
 
 import dbConnect from "@/lib/mongodb";
 import Tutor from "@/models/Tutor";
-import User from "@/models/User"; // ← Make sure this is imported
 import Student from "@/models/Student";
 import Enrollment from "@/models/Enrollment";
 import Exam from "@/models/Exam";
@@ -28,6 +27,8 @@ function serializeDate(date: any) {
 // DASHBOARD DATA
 // -------------------------------------
 
+// lib/actions/tutor.ts — replace getTutorDashboardData with this
+
 export async function getTutorDashboardData(email: string) {
   await dbConnect();
 
@@ -39,15 +40,29 @@ export async function getTutorDashboardData(email: string) {
 
   const enrollments = await Enrollment.find({
     tutorId: tutor._id,
-  })
-    .populate("studentId")
-    .lean();
+  }).lean();
 
-  const totalStudents = enrollments.length;
+  // "Total Students" = unique students, not raw enrollment rows — a
+  // student with 2 active courses + 1 withdrawn one is still ONE student,
+  // not three. Withdrawn-only enrollments don't count them as a current
+  // student.
+  const currentEnrollments = enrollments.filter(
+    (e: any) => e.status !== "withdrawn"
+  );
+  const totalStudents = new Set(
+    currentEnrollments.map((e: any) => e.studentId.toString())
+  ).size;
 
   const activeEnrollments = enrollments.filter(
     (e: any) => e.status === "active"
   ).length;
+
+  // Earnings: sum of amounts actually paid. Withdrawn enrollments are
+  // included (no refund on withdrawal, so the tutor keeps that revenue).
+  // 'pending' is excluded since no payment has been confirmed yet.
+  const totalEarnings = enrollments
+    .filter((e: any) => e.status !== "pending")
+    .reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
 
   const exams = await Exam.find({
     tutorId: tutor._id,
@@ -60,14 +75,40 @@ export async function getTutorDashboardData(email: string) {
     score: 0,
   });
 
-  const recentStudents = await Enrollment.find({
+  // Group by student so a student with multiple enrollments under this
+  // tutor appears once, not once per enrollment — otherwise React sees
+  // duplicate keys (same student._id) when this list is rendered.
+  const recentEnrollments = await Enrollment.find({
     tutorId: tutor._id,
+    status: { $ne: "withdrawn" },
   })
     .populate("studentId")
     .populate("courseId")
     .sort({ createdAt: -1 })
-    .limit(5)
     .lean();
+
+  const recentByStudent = new Map<string, any>();
+
+  for (const e of recentEnrollments as any[]) {
+    const s = e.studentId;
+    if (!s?._id) continue;
+
+    const id = serializeId(s._id);
+    if (recentByStudent.has(id)) continue;
+
+    recentByStudent.set(id, {
+      id,
+      name: `${s.firstName} ${s.lastName}`,
+      email: s.email,
+      phone: s.phone,
+      course: e.courseId?.name,
+      status: e.status,
+    });
+
+    if (recentByStudent.size >= 5) break;
+  }
+
+  const recentStudents = Array.from(recentByStudent.values());
 
   const upcomingExams = await Exam.find({
     tutorId: tutor._id,
@@ -89,16 +130,10 @@ export async function getTutorDashboardData(email: string) {
       activeEnrollments,
       totalExams,
       pendingGrading,
+      totalEarnings,
     },
 
-    recentStudents: recentStudents.map((e: any) => ({
-      id: serializeId(e.studentId?._id),
-      name: `${e.studentId?.firstName} ${e.studentId?.lastName}`,
-      email: e.studentId?.email,
-      phone: e.studentId?.phone,
-      course: e.courseId?.name,
-      status: e.status,
-    })),
+    recentStudents,
 
     upcomingExams: upcomingExams.map((e: any) => ({
       _id: serializeId(e._id),
@@ -108,7 +143,6 @@ export async function getTutorDashboardData(email: string) {
     })),
   };
 }
-
 // -------------------------------------
 // ALL TUTOR STUDENTS
 // -------------------------------------
@@ -127,33 +161,67 @@ export async function getAllTutorStudents(email: string) {
   })
     .populate("studentId")
     .populate("courseId")
+    .sort({ createdAt: -1 })
     .lean();
 
-  return enrollments.map((enrollment: any) => ({
-    _id: serializeId(enrollment.studentId?._id),
-    firstName: enrollment.studentId?.firstName || '',
-    lastName: enrollment.studentId?.lastName || '',
-    email: enrollment.studentId?.email || '',
-    phone: enrollment.studentId?.phone || '',
-    course: enrollment.courseId
-      ? {
-          _id: serializeId(enrollment.courseId._id),
-          name: enrollment.courseId.name || 'Unknown Course',
-        }
-      : { _id: '', name: 'No Course Assigned' },
-    plan: enrollment.plan || '',
-    status: enrollment.status || 'pending',
-    startDate: serializeDate(enrollment.startDate),
-    endDate: serializeDate(enrollment.endDate),
-  }));
+  // Group enrollments by student — a student enrolled in multiple courses
+  // with this tutor must appear as ONE row, with each course/plan listed
+  // underneath them, not as duplicate rows sharing the same _id.
+  const byStudent = new Map<string, any>();
+
+  for (const enrollment of enrollments as any[]) {
+    const student = enrollment.studentId;
+    if (!student?._id) continue; // orphaned enrollment — skip
+
+    const studentId = serializeId(student._id);
+
+    const courseEntry = {
+      enrollmentId: serializeId(enrollment._id),
+      course: enrollment.courseId
+        ? {
+            _id: serializeId(enrollment.courseId._id),
+            name: enrollment.courseId.name || "Unknown Course",
+          }
+        : { _id: "", name: "No Course Assigned" },
+      plan: enrollment.plan || "",
+      status: enrollment.status || "pending",
+      startDate: serializeDate(enrollment.startDate),
+      endDate: serializeDate(enrollment.endDate),
+      amount: enrollment.amount || 0,
+    };
+
+    if (byStudent.has(studentId)) {
+      byStudent.get(studentId).courses.push(courseEntry);
+    } else {
+      byStudent.set(studentId, {
+        _id: studentId,
+        firstName: student.firstName || "",
+        lastName: student.lastName || "",
+        email: student.email || "",
+        phone: student.phone || "",
+        courses: [courseEntry],
+      });
+    }
+  }
+
+  return Array.from(byStudent.values());
 }
 
 // -------------------------------------
 // STUDENT DETAILS
 // -------------------------------------
 
-export async function getStudentDetails(studentId: string) {
+// -------------------------------------
+// STUDENT DETAILS
+// -------------------------------------
+
+export async function getStudentDetails(studentId: string, tutorEmail: string) {
   await dbConnect();
+
+  const tutor = await Tutor.findOne({ email: tutorEmail }).lean();
+  if (!tutor) {
+    throw new Error("Tutor not found");
+  }
 
   const student = await Student.findById(studentId)
     .populate('userId', 'email')
@@ -163,15 +231,25 @@ export async function getStudentDetails(studentId: string) {
     return null;
   }
 
+  // Scoped to THIS tutor only — a tutor should never see a student's
+  // enrollments or grades from a course taught by a different tutor.
   const enrollments = await Enrollment.find({
     studentId,
+    tutorId: tutor._id,
   })
     .populate("tutorId")
     .populate("courseId")
+    .sort({ createdAt: -1 })
     .lean();
 
+  const enrollmentIds = enrollments.map((e: any) => e._id);
+
+  // Scoped to THIS tutor's enrollments specifically — a withdrawn
+  // enrollment's grades never bleed into a fresh re-enrollment's history,
+  // and grades from a different tutor's course never show up here at all.
   const grades = await Grade.find({
     studentId,
+    enrollmentId: { $in: enrollmentIds },
   })
     .populate("examId")
     .populate("courseId")
@@ -190,6 +268,8 @@ export async function getStudentDetails(studentId: string) {
       state: student.state || '',
       subscriptionStatus: (student as any).subscriptionStatus || 'active',
       hasUsedFreeTrial: (student as any).hasUsedFreeTrial || false,
+      discordUsername: (student as any).discordUsername || null,
+      discordRoles: (student as any).discordRoles || [],
       createdAt: serializeDate(student.createdAt),
     },
     enrollments: enrollments.map((e: any) => ({
@@ -228,7 +308,6 @@ export async function getStudentDetails(studentId: string) {
     })),
   };
 }
-
 // -------------------------------------
 // TUTOR SETTINGS
 // -------------------------------------
@@ -374,6 +453,10 @@ export async function getTutorCourses(email: string) {
 // EXAMS FOR GRADING
 // -------------------------------------
 
+// -------------------------------------
+// EXAMS FOR GRADING
+// -------------------------------------
+
 export async function getTutorExamsForGrading(email: string) {
   await dbConnect();
 
@@ -409,7 +492,12 @@ export async function getTutorExamsForGrading(email: string) {
           studentId: serializeId(grade.studentId?._id),
           studentName: `${grade.studentId?.firstName} ${grade.studentId?.lastName}`,
           submittedAt: serializeDate(grade.createdAt),
-          isGraded: grade.score > 0,
+          // Exams are auto-graded the instant a student submits, so the
+          // mere existence of a Grade document means it's graded — a
+          // legitimate 0% score is still "graded," not "pending." The
+          // previous `grade.score > 0` check incorrectly stuck genuine
+          // zero-score submissions in the pending bucket forever.
+          isGraded: true,
         })),
       };
     })
@@ -419,32 +507,28 @@ export async function getTutorExamsForGrading(email: string) {
     (exam) => exam.submissions.length > 0
   );
 }
-
 // -------------------------------------
-// DISCORD INFO - CORRECTED
+// DISCORD INFO
 // -------------------------------------
 
 export async function getTutorDiscordInfo(email: string) {
   await dbConnect();
 
   const tutor = await Tutor.findOne({ email }).lean();
-  const user = await User.findOne({ email }).lean();
 
   if (!tutor) {
     return {
-      discordServerId: undefined,
-      discordInviteLink: undefined,
+      discordId: null,
+      discordUsername: null,
+      discordRoles: [],
       isConnected: false,
     };
   }
 
-  // Check if user has discordId from OAuth AND tutor has serverId
-  const hasDiscordAccount = !!(user?.discordId);
-  const hasServerId = !!(tutor.discordServerId);
-
   return {
-    discordServerId: tutor.discordServerId || undefined,
-    discordInviteLink: tutor.discordInviteLink || undefined,
-    isConnected: hasDiscordAccount && hasServerId,
+    discordId: tutor.discordId || null,
+    discordUsername: tutor.discordUsername || null,
+    discordRoles: tutor.discordRoles || [],
+    isConnected: !!tutor.discordId,
   };
 }

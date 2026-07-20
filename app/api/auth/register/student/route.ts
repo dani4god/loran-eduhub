@@ -5,9 +5,8 @@ import connectDB from '@/lib/mongodb'
 import User from '@/models/User'
 import Student from '@/models/Student'
 import Enrollment from '@/models/Enrollment'
-import Course from '@/models/Course'
-import Tutor from '@/models/Tutor'
-import { PLAN_PRICES, PLAN_DURATIONS } from '@/lib/constants'
+import { PLAN_DURATIONS, PlanType } from '@/lib/constants'
+import { computeSelectionsAmount } from '@/lib/pricing'
 import mongoose from 'mongoose'
 
 export async function POST(req: NextRequest) {
@@ -44,18 +43,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check free trial eligibility
-    if (plan === 'trial') {
-      const existingTrial = await Student.findOne({ hasUsedFreeTrial: true })
-      if (existingTrial) {
-        // This check needs to be per student, will be set after creation
-      }
-    }
+    // Recompute pricing server-side from each tutor's own rates — this also
+    // validates that every selected tutor/course exists and has pricing set
+    // for the chosen plan, throwing a clear error if not.
+    let totalAmount = 0
+    let pricedSelections: { courseId: string; tutorId: string; amount: number }[] = []
 
-    // Calculate total amount based on number of courses
-    const courseCount = selections.length
-    const basePrice = PLAN_PRICES[plan as keyof typeof PLAN_PRICES]
-    const totalAmount = basePrice * courseCount
+    if (plan !== 'trial') {
+      try {
+        const result = await computeSelectionsAmount(selections, plan as PlanType)
+        totalAmount = result.total
+        pricedSelections = result.amounts
+      } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 400 })
+      }
+    } else {
+      pricedSelections = selections.map((s: any) => ({ ...s, amount: 0 }))
+    }
 
     // Start a session for transaction
     const session = await mongoose.startSession()
@@ -90,30 +94,24 @@ export async function POST(req: NextRequest) {
       const studentResult = await Student.create([studentDoc], { session })
       const student = studentResult as any
 
-      // Create enrollments for each selected course
+      // Create enrollments — each locked in at its own tutor's price
       const enrollments = []
-      for (const selection of selections) {
-        const course = await Course.findById(selection.courseId).session(session)
-        const tutor = await Tutor.findById(selection.tutorId).session(session)
+      const durationDays = PLAN_DURATIONS[plan as PlanType]
 
-        if (!course || !tutor) {
-          throw new Error(`Invalid course or tutor for selection: ${selection.courseId}`)
-        }
-
+      for (const priced of pricedSelections) {
         const startDate = new Date()
-        const durationDays = PLAN_DURATIONS[plan as keyof typeof PLAN_DURATIONS]
         const endDate = new Date()
         endDate.setDate(endDate.getDate() + durationDays)
 
         const enrollment = await Enrollment.create([{
           studentId: student[0]._id,
-          tutorId: selection.tutorId,
-          courseId: selection.courseId,
+          tutorId: priced.tutorId,
+          courseId: priced.courseId,
           plan,
           status: plan === 'trial' ? 'active' : 'pending',
           startDate,
           endDate,
-          amount: basePrice,
+          amount: priced.amount,
         }], { session })
 
         enrollments.push(enrollment[0])

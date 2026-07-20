@@ -1,5 +1,5 @@
 // lib/paystack.ts
-import { PLAN_PRICES } from './constants'
+
 
 // Paystack configuration
 export const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
@@ -9,11 +9,6 @@ export const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY
 export type PaystackStatus = 'success' | 'failed' | 'pending'
 
 // Calculate total amount based on selected courses and plan
-export function calculateTotalAmount(courseCount: number, plan: keyof typeof PLAN_PRICES): number {
-  const basePrice = PLAN_PRICES[plan]
-  return basePrice * courseCount
-}
-
 // Format amount for Paystack (converts to kobo/cent)
 export function formatPaystackAmount(amount: number): number {
   return amount * 100
@@ -106,3 +101,4 @@ export function openPaystackPopup(options: PaystackOptions) {
 export function generateTransactionReference(prefix: string = 'LORAN'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 }
+

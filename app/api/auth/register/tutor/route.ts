@@ -1,6 +1,5 @@
 // app/api/auth/register/tutor/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/mongodb';
 import User from '@/models/User';
 import Tutor from '@/models/Tutor';
@@ -25,6 +24,7 @@ export async function POST(req: NextRequest) {
       videoLink,
       password,
       confirmPassword,
+      pricing, // { monthly, threeMonths, sixMonths, oneYear }
     } = body;
 
     // Validation
@@ -91,6 +91,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate pricing — all four plans required, each must be a positive number
+    if (
+      !pricing ||
+      typeof pricing.monthly !== 'number' || pricing.monthly <= 0 ||
+      typeof pricing.threeMonths !== 'number' || pricing.threeMonths <= 0 ||
+      typeof pricing.sixMonths !== 'number' || pricing.sixMonths <= 0 ||
+      typeof pricing.oneYear !== 'number' || pricing.oneYear <= 0
+    ) {
+      return NextResponse.json(
+        { error: 'Please set a price greater than 0 for all four plans (monthly, 3 months, 6 months, 1 year)' },
+        { status: 400 }
+      );
+    }
+
     // Generate unique slug
     const slug = `${firstName.toLowerCase()}-${lastName.toLowerCase()}-${Date.now()}`;
 
@@ -118,6 +132,12 @@ export async function POST(req: NextRequest) {
       videoLink: videoLink || null,
       status: 'pending',
       slug,
+      pricing: {
+        monthly: pricing.monthly,
+        threeMonths: pricing.threeMonths,
+        sixMonths: pricing.sixMonths,
+        oneYear: pricing.oneYear,
+      },
     });
 
     // Send email notification to admin

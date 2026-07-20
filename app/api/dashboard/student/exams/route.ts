@@ -1,3 +1,4 @@
+// app/api/dashboard/student/exams/route.ts
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -28,6 +29,12 @@ export async function GET() {
       .select('courseId tutorId')
       .lean()
 
+    // Map courseId -> current enrollmentId, so each exam's "taken" check
+    // below only matches a grade from THIS active enrollment.
+    const enrollmentIdByCourse = new Map(
+      enrollments.map((e: any) => [e.courseId.toString(), e._id.toString()])
+    )
+
     const courseIds = enrollments.map((e: any) => e.courseId)
     const now = new Date()
 
@@ -45,10 +52,10 @@ export async function GET() {
       .select('title courseId tutorId duration instructions scheduledDate questions')
       .lean()
 
-    // Check which exams have been taken
     const grades = await Grade.find({
       studentId: student._id,
       examId: { $in: exams.map((ex: any) => ex._id) },
+      enrollmentId: { $in: enrollments.map((e: any) => e._id) },
     })
       .select('examId score total percentage gradedAt')
       .lean()

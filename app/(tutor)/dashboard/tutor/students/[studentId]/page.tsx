@@ -18,9 +18,14 @@ export default async function StudentDetailPage({
 
   const { studentId } = await params;
 
-  const studentData = await getStudentDetails(studentId);
+  const studentData = await getStudentDetails(studentId, session.user.email);
 
-  if (!studentData) {
+  // Redirects both when the student doesn't exist AND when this tutor has
+  // no enrollment relationship with them — getStudentDetails now scopes
+  // enrollments/grades to the requesting tutor, so a student with zero
+  // matching enrollments here means "not this tutor's student," not just
+  // "no data yet."
+  if (!studentData || studentData.enrollments.length === 0) {
     redirect("/dashboard/tutor/students");
   }
 

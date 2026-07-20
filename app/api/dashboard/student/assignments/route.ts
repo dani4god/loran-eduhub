@@ -3,9 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import connectDB from '@/lib/mongodb'
 import Student from '@/models/Student'
-import Enrollment from '@/models/Enrollment'
 import Assignment from '@/models/Assignment'
 import AssignmentSubmission from '@/models/AssignmentSubmission'
+import Enrollment from '@/models/Enrollment'
 
 export async function GET() {
   try {
@@ -28,6 +28,13 @@ export async function GET() {
       .select('courseId tutorId')
       .lean()
 
+    // Map courseId -> enrollmentId so each assignment's submission lookup
+    // below is scoped to the CURRENT enrollment for that course, not any
+    // historical one.
+    const enrollmentByCourseId = new Map(
+      enrollments.map((e: any) => [e.courseId.toString(), e._id.toString()])
+    )
+
     const courseIds = enrollments.map((e: any) => e.courseId)
 
     const assignments = await Assignment.find({
@@ -39,10 +46,10 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean()
 
-    // Check submission status for each
     const submissions = await AssignmentSubmission.find({
       studentId: student._id,
       assignmentId: { $in: assignments.map((a: any) => a._id) },
+      enrollmentId: { $in: enrollments.map((e: any) => e._id) },
     }).lean()
 
     const submissionByAssignment = new Map(

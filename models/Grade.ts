@@ -15,6 +15,7 @@ export interface IGradeBreakdown {
 
 export interface IGrade extends Document {
   studentId: mongoose.Types.ObjectId
+  enrollmentId: mongoose.Types.ObjectId
   examId: mongoose.Types.ObjectId
   courseId: mongoose.Types.ObjectId
   tutorId: mongoose.Types.ObjectId
@@ -76,6 +77,13 @@ const GradeSchema = new Schema<IGrade>(
       type: Schema.Types.ObjectId,
       ref: 'Student',
       required: true,
+    },
+
+    enrollmentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Enrollment',
+      required: true,
+      index: true,
     },
 
     examId: {

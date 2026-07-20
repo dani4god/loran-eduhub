@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import StudentSidebar from '@/components/student/StudentSidebar'
+import CertificateNotificationModal from '@/components/student/CertificateNotificationModal'
 
 export default async function StudentDashboardLayout({
   children,
@@ -19,6 +20,7 @@ export default async function StudentDashboardLayout({
       <StudentSidebar user={session.user} />
       <main className="flex-1 min-w-0 lg:ml-64">
         {children}
+        <CertificateNotificationModal />
       </main>
     </div>
   )

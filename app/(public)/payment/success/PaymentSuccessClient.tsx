@@ -73,10 +73,10 @@ export default function PaymentSuccessClient() {
         </p>
 
         <Link
-          href="/dashboard"
+          href="/auth/student/login"
           className="inline-block px-6 py-3 bg-gradient-to-r from-tutor to-brand-primary text-white rounded-xl font-semibold hover:shadow-lg transition relative z-10"
         >
-          Go to Dashboard
+          Login to Dashboard
         </Link>
 
         <p className="text-xs text-gray-500 mt-4 relative z-10">

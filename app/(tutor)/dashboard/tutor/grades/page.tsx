@@ -1,11 +1,9 @@
 // app/(tutor)/dashboard/grades/page.tsx
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import GradesList from "@/components/tutor/GradesList";
 import { getTutorExamsForGrading } from "@/lib/actions/tutor";
 import { authOptions } from "@/lib/auth";
-
 
 export default async function GradesPage() {
   const session = await getServerSession(authOptions);
@@ -17,26 +15,17 @@ export default async function GradesPage() {
   const examsToGrade = await getTutorExamsForGrading(session.user.email);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="pt-16 lg:pt-0 min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-5">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Manage Grades
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Grade student submissions and upload grades
+          <h1 className="text-xl font-bold text-gray-900">Grading Center</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Student performance and pending grading, across exams and assignments.
           </p>
         </div>
 
-        <Link
-          href="/dashboard/grades/upload"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-center"
-        >
-          Bulk Upload Grades
-        </Link>
+        <GradesList exams={examsToGrade ?? []} />
       </div>
-
-      <GradesList exams={examsToGrade ?? []} />
     </div>
   );
 }
