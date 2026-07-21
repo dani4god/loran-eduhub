@@ -103,9 +103,13 @@ export default function RenewSubscription() {
               </div>
               {e.daysLeft !== null && (
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
-                  isUrgent ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-blue-50 text-blue-600'
+                  e.daysLeft <= 0
+                    ? 'bg-red-100 text-red-600'
+                    : e.daysLeft <= 5
+                    ? 'bg-red-100 text-red-600 animate-pulse'
+                    : 'bg-blue-50 text-blue-600'
                 }`}>
-                  {e.daysLeft}d left
+                  {e.daysLeft <= 0 ? 'Expired' : `${e.daysLeft}d left`}
                 </span>
               )}
             </div>

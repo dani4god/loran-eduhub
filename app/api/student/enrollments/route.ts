@@ -19,9 +19,12 @@ export async function GET() {
     return NextResponse.json({ error: 'Student not found' }, { status: 404 })
   }
 
+  // Added 'expired' — a student needs to see and renew a lapsed course,
+  // not just an active/paused one. Withdrawn enrollments are intentionally
+  // still excluded (leaving is a deliberate exit, not something to renew).
   const enrollments = await Enrollment.find({
     studentId: student._id,
-    status: { $in: ['active', 'paused'] },
+    status: { $in: ['active', 'paused', 'expired'] },
   })
     .populate('courseId', 'name category')
     .populate('tutorId', 'firstName lastName')
