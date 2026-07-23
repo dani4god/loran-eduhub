@@ -21,6 +21,7 @@ import {
   Bell,
   Menu,
   X,
+  Megaphone,
   ScrollText,
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ const navItems = [
   { name: 'Course Library', href: '/dashboard/tutor/library', icon: BookOpen },
   { name: "Feedback", href: "/dashboard/tutor/feedback", icon: Inbox },
   { name: "Create Certificate", href: "/dashboard/tutor/certificates", icon: ScrollText },
+  { name: "Announcements", href: "/dashboard/tutor/announcements", icon: Megaphone },
   { name: "Settings", href: "/dashboard/tutor/settings", icon: Settings },
 ];
 

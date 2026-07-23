@@ -4,14 +4,13 @@ import { authOptions } from '@/lib/auth'
 import connectDB from '@/lib/mongodb'
 import Student from '@/models/Student'
 import Enrollment from '@/models/Enrollment'
-import Course from '@/models/Course'
-import Tutor from '@/models/Tutor'
 import Exam from '@/models/Exam'
 import Grade from '@/models/Grade'
 
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
+
     if (!session || session.user.role !== 'student') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -19,34 +18,72 @@ export async function GET() {
     await connectDB()
 
     const student = await Student.findOne({ userId: session.user.id })
+
     if (!student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Student not found' },
+        { status: 404 }
+      )
     }
 
-    // ── Active enrollments ──
+    // ─────────────────────────────────────────────
+    // Enrollments
+    // ─────────────────────────────────────────────
+
     const enrollments = await Enrollment.find({
-        studentId: student._id,
-        status: { $in: ['active', 'paused', 'expired'] as const },
+      studentId: student._id,
+      status: { $in: ['active', 'paused', 'expired'] },
     })
-    .populate({ path: 'courseId', select: 'name category description' })
-    .populate({ path: 'tutorId', select: 'firstName lastName profileImage' })
-    .sort({ createdAt: -1 })
-    .lean()
+      .populate({
+        path: 'courseId',
+        select: 'name category description',
+      })
+      .populate({
+        path: 'tutorId',
+        select: 'firstName lastName profileImage',
+      })
+      .sort({ createdAt: -1 })
+      .lean()
 
-    // ── Subscription summary ──
-    const activeEnrollment = enrollments.find(
-        e => e.status === 'active'
-    )
-
-    const subscriptionEndDate = activeEnrollment?.endDate ? new Date(activeEnrollment.endDate) : null
     const now = new Date()
-    const secondsLeft = subscriptionEndDate
-      ? Math.max(0, Math.floor((subscriptionEndDate.getTime() - now.getTime()) / 1000))
-      : null
-    const daysLeft = secondsLeft !== null ? Math.floor(secondsLeft / 86400) : null
 
-    // ── Available exams ──
-    const courseIds = enrollments.map(e => (e.courseId as any)?._id)
+    // ─────────────────────────────────────────────
+    // Subscriptions (ONE PER ENROLLMENT)
+    // ─────────────────────────────────────────────
+
+    const subscriptions = enrollments.map((e: any) => {
+      const endDate = e.endDate ? new Date(e.endDate) : null
+
+      const daysLeft = endDate
+        ? Math.max(
+            0,
+            Math.floor(
+              (endDate.getTime() - now.getTime()) /
+                (1000 * 60 * 60 * 24)
+            )
+          )
+        : 0
+
+      return {
+        enrollmentId: e._id.toString(),
+        courseName: e.courseId?.name ?? 'Unknown Course',
+        tutorName: e.tutorId
+          ? `${e.tutorId.firstName} ${e.tutorId.lastName}`
+          : 'Unknown Tutor',
+        plan: e.plan,
+        status: e.status,
+        endDate: e.endDate ?? null,
+        daysLeft,
+      }
+    })
+
+    // ─────────────────────────────────────────────
+    // Exams
+    // ─────────────────────────────────────────────
+
+    const courseIds = enrollments
+      .map((e: any) => e.courseId?._id)
+      .filter(Boolean)
 
     const exams = await Exam.find({
       courseId: { $in: courseIds },
@@ -58,17 +95,28 @@ export async function GET() {
       ],
     })
       .select('title courseId duration scheduledDate')
-      .populate({ path: 'courseId', select: 'name' })
+      .populate({
+        path: 'courseId',
+        select: 'name',
+      })
       .lean()
 
-    // ── Grades / scores ──
-    const grades = await Grade.find({ studentId: student._id })
+    // ─────────────────────────────────────────────
+    // Grades
+    // ─────────────────────────────────────────────
+
+    const grades = await Grade.find({
+      studentId: student._id,
+    })
       .select('examId score total gradedAt')
       .sort({ gradedAt: -1 })
       .limit(5)
       .lean()
 
-    // ── Format enrollments ──
+    // ─────────────────────────────────────────────
+    // Format enrollments
+    // ─────────────────────────────────────────────
+
     const formattedEnrollments = enrollments.map((e: any) => ({
       _id: e._id.toString(),
       courseName: e.courseId?.name ?? 'Unknown Course',
@@ -83,6 +131,10 @@ export async function GET() {
       endDate: e.endDate,
     }))
 
+    // ─────────────────────────────────────────────
+    // Response
+    // ─────────────────────────────────────────────
+
     return NextResponse.json({
       student: {
         _id: student._id.toString(),
@@ -93,14 +145,12 @@ export async function GET() {
         profileImage: student.profileImage ?? null,
         hasUsedFreeTrial: student.hasUsedFreeTrial,
       },
-      subscription: {
-        status: activeEnrollment?.status ?? 'none',
-        plan: activeEnrollment?.plan ?? null,
-        endDate: activeEnrollment?.endDate ?? null,
-        daysLeft,
-        secondsLeft,
-      },
+
+      // NEW
+      subscriptions,
+
       enrollments: formattedEnrollments,
+
       exams: exams.map((ex: any) => ({
         _id: ex._id.toString(),
         title: ex.title,
@@ -108,13 +158,18 @@ export async function GET() {
         duration: ex.duration,
         scheduledDate: ex.scheduledDate ?? null,
       })),
+
       recentGrades: grades.map((g: any) => ({
         _id: g._id.toString(),
         score: g.score,
         total: g.total,
-        percentage: g.total > 0 ? Math.round((g.score / g.total) * 100) : 0,
+        percentage:
+          g.total > 0
+            ? Math.round((g.score / g.total) * 100)
+            : 0,
         gradedAt: g.gradedAt,
       })),
+
       stats: {
         totalCourses: enrollments.length,
         totalExams: exams.length,
@@ -123,7 +178,10 @@ export async function GET() {
             ? Math.round(
                 grades.reduce(
                   (acc: number, g: any) =>
-                    acc + (g.total > 0 ? (g.score / g.total) * 100 : 0),
+                    acc +
+                    (g.total > 0
+                      ? (g.score / g.total) * 100
+                      : 0),
                   0
                 ) / grades.length
               )
@@ -132,6 +190,10 @@ export async function GET() {
     })
   } catch (error: any) {
     console.error('Student overview error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    )
   }
 }

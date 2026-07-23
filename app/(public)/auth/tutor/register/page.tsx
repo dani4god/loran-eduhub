@@ -135,9 +135,17 @@ export default function TutorRegistration() {
       setCoursesLoading(true);
       const res = await fetch('/api/courses');
       const data = await res.json();
-      setCourses(data.courses || []);
-      setFilteredCourses(data.courses || []);
-      setCategories(data.categories || []);
+      const loadedCourses = data.courses || [];
+      setCourses(loadedCourses);
+      setFilteredCourses(loadedCourses);
+
+      // Derive categories directly from the loaded courses rather than
+      // trusting a separate `data.categories` field — this is what was
+      // silently breaking the filter if that field was missing/empty.
+      const derivedCategories = Array.from(
+        new Set(loadedCourses.map((c: any) => c.category).filter(Boolean))
+      ) as string[];
+      setCategories(derivedCategories);
     } catch (error) {
       console.error('Failed to load courses:', error);
       toast.error('Failed to load courses');
@@ -147,8 +155,7 @@ export default function TutorRegistration() {
     } finally {
       setCoursesLoading(false);
     }
-  };
-  
+  };  
   // Filter courses
   useEffect(() => {
     let filtered = courses;
@@ -682,11 +689,11 @@ export default function TutorRegistration() {
                         </label>
                         
                         {/* Filters */}
-                        <div className="mb-4 flex gap-4">
+                        <div className="mb-4 flex flex-col sm:flex-row gap-3">
                           <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                           >
                             <option value="all">All Categories</option>
                             {categories && categories.length > 0 ? (
@@ -697,13 +704,13 @@ export default function TutorRegistration() {
                               <option disabled>No categories available</option>
                             )}
                           </select>
-                          
+
                           <input
                             type="text"
                             placeholder="Search courses..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            className="w-full flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                           />
                         </div>
                         

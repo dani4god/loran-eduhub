@@ -6,6 +6,7 @@ import User from '@/models/User'
 import Tutor from '@/models/Tutor'
 import Student from '@/models/Student'
 import Admin from '@/models/Admin'
+import { syncStudentDiscordRoles } from '@/lib/discordSync'
 import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
 import { decode } from 'next-auth/jwt'
@@ -133,65 +134,12 @@ async function syncStudentToDiscord(
   accessToken: string
 ) {
   try {
-    const guildId = LORAN_GUILD_ID
-    if (!guildId) return
-
-    const enrollments = await Enrollment.find({
-      studentId: student._id,
-      status: 'active',
-    })
-
-    if (enrollments.length === 0) {
-      await Student.findByIdAndUpdate(student._id, { discordRoles: [MEMBER_ROLE_NAME] })
-      return
-    }
-
-    const courseIds = enrollments.map((e: any) => e.courseId)
-    const courses = await Course.find({ _id: { $in: courseIds } }).select('category')
-    const courseById = new Map(courses.map((c: any) => [c._id.toString(), c]))
-
-    const targetRoleNames = new Set<string>([MEMBER_ROLE_NAME])
-
-    for (const enrollment of enrollments) {
-      const course = courseById.get(enrollment.courseId.toString())
-      if (!course) continue
-
-      targetRoleNames.add(getStudentRoleName(course.category))
-
-      const planRoleName = PLAN_ROLE_MAP[enrollment.plan]
-      if (planRoleName) targetRoleNames.add(planRoleName)
-
-      if (enrollment.plan !== 'trial') targetRoleNames.add(PAID_ROLE_NAME)
-    }
-
-    const roleNamesArr = Array.from(targetRoleNames)
-
-    const guildRoles = await getGuildRoles(guildId)
-    const roleByName = new Map<string, string>(
-      guildRoles.map((r: any) => [r.name, r.id])
-    )
-
-    const roleIds = roleNamesArr
-      .map(name => roleByName.get(name))
-      .filter(Boolean) as string[]
-
-    const member = await getGuildMember(guildId, discordId)
-    if (!member) {
-      await addMemberToGuild(guildId, discordId, accessToken)
-    }
-
-    await assignRolesToMember(guildId, discordId, roleIds)
-
-    await Student.findByIdAndUpdate(student._id, {
-      discordRoles: roleNamesArr,
-    })
-
-    console.log(`✅ Student ${student.firstName} synced to Discord with roles: ${roleNamesArr.join(', ')}`)
+    await syncStudentDiscordRoles(student._id.toString(), discordId, accessToken)
+    console.log(`✅ Student ${student.firstName} synced to Discord`)
   } catch (err: any) {
     console.error('Discord student sync error:', err.message)
   }
 }
-
 export const authOptions: NextAuthOptions = {
   providers: [
     DiscordProvider({

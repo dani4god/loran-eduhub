@@ -15,6 +15,7 @@ import {
   X,
   Menu,
   Wallet,
+  Bell,
   HeadphonesIcon,
   ChevronRight,
   GraduationCap,
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { label: 'Course Library', href: '/dashboard/student/library', icon: BookOpen },
   { label: 'My Certificates', href: '/dashboard/student/certificates', icon: Award },
   { label: 'Reviews', href: '/dashboard/student/reviews', icon: Star },
+  { label: 'Notifications', href: '/dashboard/student/notifications', icon: Bell },
   { href: '/dashboard/student/settings', label: 'Settings', icon: Settings },
 ]
 

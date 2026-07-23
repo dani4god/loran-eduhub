@@ -8,8 +8,7 @@ import User from '@/models/User'
 import Enrollment from '@/models/Enrollment'
 import Course from '@/models/Course'
 import WithdrawalFeedback, { WITHDRAWAL_REASONS } from '@/models/WithdrawalFeedback'
-import { getGuildRoles, removeRoleFromMember } from '@/lib/discord'
-import { getStudentRoleName, LORAN_GUILD_ID } from '@/lib/discordRoleMap'
+import { syncStudentDiscordRoles } from '@/lib/discordSync'
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const [course, user] = await Promise.all([
       Course.findById(enrollment.courseId).select('name category'),
-      User.findById(student.userId).select('email'),
+      User.findById(student.userId).select('email discordAccessToken'),
     ])
 
     await WithdrawalFeedback.create({
@@ -70,24 +69,26 @@ export async function POST(req: NextRequest) {
       withdrawnAt: new Date(),
     })
 
+    // Mark status BEFORE re-syncing Discord, so the sync's own DB read of
+    // "active" enrollments correctly excludes this one.
     enrollment.status = 'withdrawn'
     enrollment.withdrawnAt = new Date()
     await enrollment.save()
 
-    // Best-effort immediate Discord role revoke — access ends now, don't
-    // wait for the student to manually re-sync. Failures here shouldn't
-    // block the withdrawal itself.
+    // Full reconciliation — recomputes the student's ENTIRE role set from
+    // their remaining active enrollments, adding what's still valid and
+    // removing everything tied to this (now withdrawn) course. Best-effort;
+    // failure here doesn't block the withdrawal itself.
     try {
-      if (student.discordId && LORAN_GUILD_ID && course) {
-        const guildRoles = await getGuildRoles(LORAN_GUILD_ID)
-        const roleByName = new Map(guildRoles.map((r: any) => [r.name, r.id]))
-        const roleId = roleByName.get(getStudentRoleName(course.category))
-        if (roleId && typeof roleId === 'string') {
-          await removeRoleFromMember(LORAN_GUILD_ID, student.discordId, roleId).catch(() => {})
-        }
+      if (student.discordId) {
+        await syncStudentDiscordRoles(
+          student._id.toString(),
+          student.discordId,
+          user?.discordAccessToken || undefined
+        )
       }
     } catch (err) {
-      console.error('Discord role revoke on withdrawal failed (non-fatal):', err)
+      console.error('Discord role re-sync on withdrawal failed (non-fatal):', err)
     }
 
     return NextResponse.json({ success: true })
