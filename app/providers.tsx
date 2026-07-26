@@ -1,7 +1,7 @@
-// app/providers.tsx
 'use client'
 
 import { SessionProvider } from 'next-auth/react'
+import ThemeProvider from '@/components/providers/ThemeProvider'
 
 export default function Providers({
   children,
@@ -10,7 +10,9 @@ export default function Providers({
 }) {
   return (
     <SessionProvider>
-      {children}
+      <ThemeProvider>
+        {children}
+      </ThemeProvider>
     </SessionProvider>
   )
 }

@@ -30,6 +30,11 @@ export async function getGuildRoles(guildId: string) {
   return discordRequest(`/guilds/${guildId}/roles`)
 }
 
+// --- Member removal ---
+export async function removeGuildMember(guildId: string, userId: string) {
+  return discordRequest(`/guilds/${guildId}/members/${userId}`, { method: 'DELETE' })
+}
+
 // --- Member management ---
 export async function addMemberToGuild(
   guildId: string,

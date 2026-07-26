@@ -6,14 +6,20 @@ export interface IUser extends Document {
   password: string
   role: 'student' | 'tutor' | 'admin'
   isActive: boolean
+
   discordId?: string
   discordUsername?: string
   discordAccessToken?: string
   discordRefreshToken?: string
   discordTokenExpiresAt?: Date
+
   emailVerified: boolean
   resetPasswordToken?: string
   resetPasswordExpires?: Date
+
+  themePreference: 'light' | 'dark' | 'system'
+  deletedAt?: Date | null
+
   createdAt: Date
   updatedAt: Date
 
@@ -77,31 +83,47 @@ const UserSchema = new Schema<IUser>(
       default: false,
     },
 
-    resetPasswordToken: String,
+    resetPasswordToken: {
+      type: String,
+      default: null,
+    },
 
-    resetPasswordExpires: Date,
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+    },
+
+    themePreference: {
+      type: String,
+      enum: ['light', 'dark', 'system'],
+      default: 'system',
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 )
 
-// HASH PASSWORD BEFORE SAVE
+// Hash password before saving
 UserSchema.pre('save', async function () {
   if (!this.isModified('password')) return
 
   this.password = await bcrypt.hash(this.password, 12)
 })
 
-// COMPARE PASSWORD
+// Compare password
 UserSchema.methods.comparePassword = async function (
   candidatePassword: string
-) {
+): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password)
 }
 
 const User: Model<IUser> =
-  mongoose.models.User ||
-  mongoose.model<IUser>('User', UserSchema)
+  mongoose.models.User || mongoose.model<IUser>('User', UserSchema)
 
 export default User
