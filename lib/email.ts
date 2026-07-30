@@ -233,3 +233,19 @@ export async function sendTutorApplicationEmail(data: {
     html,
   });
 }
+
+// lib/email.ts — add alongside sendTutorApplicationEmail/sendTutorApprovalEmail
+
+export async function sendBankUpdateOtpEmail(to: string, name: string, otp: string) {
+  // Reuse whatever underlying transport your existing send*Email functions use.
+  await transporter.sendMail({
+    to,
+    subject: 'Your Loran EduHub verification code',
+    html: `
+      <p>Hi ${name},</p>
+      <p>Use this code to confirm your bank detail update:</p>
+      <h2 style="letter-spacing:4px;">${otp}</h2>
+      <p>This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
+    `,
+  })
+}

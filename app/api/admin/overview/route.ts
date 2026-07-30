@@ -2,180 +2,136 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import connectDB from '@/lib/mongodb';
-import User from '@/models/User';
 import Student from '@/models/Student';
 import Tutor from '@/models/Tutor';
 import Enrollment from '@/models/Enrollment';
 import Payment from '@/models/Payment';
 import Admin from '@/models/Admin';
-
-interface TokenPayload {
-  id: string;
-  role: string;
-  [key: string]: any;
-}
-
-interface PaymentDoc {
-  amount: number;
-  status: string;
-  paidAt?: Date;
-  [key: string]: any;
-}
-
-interface TutorDoc {
-  status: string;
-  updatedAt: Date;
-  firstName?: string;
-  lastName?: string;
-  [key: string]: any;
-}
-
-interface StudentPop {
-  firstName?: string;
-  lastName?: string;
-  [key: string]: any;
-}
-
-interface CoursePop {
-  name?: string;
-  [key: string]: any;
-}
-
-interface EnrollmentDoc {
-  createdAt: Date;
-  studentId?: StudentPop | string;
-  courseId?: CoursePop | string;
-  [key: string]: any;
-}
-
-interface AdminDoc {
-  userId: string;
-  isActive: boolean;
-  [key: string]: any;
-}
+import Course from '@/models/Course';
+import Certificate from '@/models/Certificate';
 
 export async function GET(req: NextRequest) {
   try {
-    const token = (await getToken({ req })) as TokenPayload | null;
-    
-    // Check authentication and admin role
+    const token = await getToken({ req });
     if (!token || token.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    // Check if admin is active
-    const admin = (await Admin.findOne({ userId: token.id })) as AdminDoc | null;
+
+    const admin = await Admin.findOne({ userId: token.id });
     if (!admin || !admin.isActive) {
       return NextResponse.json({ error: 'Admin account deactivated' }, { status: 403 });
     }
-    
+
     await connectDB();
-    
-    // Get statistics
-    const [totalStudents, totalTutors, activeEnrollments, payments] = await Promise.all([
+
+    const now = new Date();
+    const fiveDaysFromNow = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalStudents,
+      totalTutors,
+      pendingTutors,
+      activeEnrollments,
+      expiringEnrollments,
+      totalCourses,
+      pendingPayments,
+      certificatesIssued,
+    ] = await Promise.all([
       Student.countDocuments(),
       Tutor.countDocuments({ status: 'approved' }),
+      Tutor.countDocuments({ status: 'pending' }),
       Enrollment.countDocuments({ status: 'active' }),
-      Payment.find({ status: 'success' }),
+      Enrollment.countDocuments({ status: 'active', endDate: { $gte: now, $lte: fiveDaysFromNow } }),
+      Course.countDocuments({ isActive: true }),
+      Payment.countDocuments({ status: 'pending' }),
+      Certificate.countDocuments().catch(() => 0),
+      
     ]);
-    
-    // Calculate total revenue
-    const totalRevenue = (payments as PaymentDoc[]).reduce((sum: number, p: PaymentDoc) => sum + (p.amount || 0), 0);
-    
-    // Calculate revenue change (compare last 30 days with previous 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-    
-    const recentPayments = (await Payment.find({
-      status: 'success',
-      paidAt: { $gte: thirtyDaysAgo },
-    })) as PaymentDoc[];
-    
-    const previousPayments = (await Payment.find({
-      status: 'success',
-      paidAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo },
-    })) as PaymentDoc[];
-    
-    const recentRevenue = (recentPayments as PaymentDoc[]).reduce((sum: number, p: PaymentDoc) => sum + (p.amount || 0), 0);
-    const previousRevenue = (previousPayments as PaymentDoc[]).reduce((sum: number, p: PaymentDoc) => sum + (p.amount || 0), 0);
-    
-    let revenueChange = 0;
-    if (previousRevenue > 0) {
-      revenueChange = ((recentRevenue - previousRevenue) / previousRevenue) * 100;
-    }
-    
-    // Get pending tutors
-    const pendingTutors = await Tutor.countDocuments({ status: 'pending' });
-    
-    // Get pending payments
-    const pendingPayments = await Payment.countDocuments({ status: 'pending' });
-    
-    // Get recent activities
-    const recentTutors = (await Tutor.find({ status: { $in: ['approved', 'disapproved'] } })) as TutorDoc[];
-    // fetch and sort/populate in original chain
-    // re-run query to preserve chaining
-    const recentTutorsFull = await Tutor.find({ status: { $in: ['approved', 'disapproved'] } })
-      .sort({ updatedAt: -1 })
-      .limit(5)
-      .populate('userId', 'email') as TutorDoc[];
-    
-    const recentEnrollments = (await Enrollment.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('studentId', 'firstName lastName')
-      .populate('courseId', 'name')) as EnrollmentDoc[];
-    
-    const recentActivities = [
-      ...recentTutorsFull.map((t: TutorDoc) => ({
+
+    // Revenue
+    const successPayments = await Payment.find({ status: 'success' }).select('amount');
+    const totalRevenue = successPayments.reduce((sum, p: any) => sum + (p.amount || 0), 0);
+
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    const [recentPayments, previousPayments] = await Promise.all([
+      Payment.find({ status: 'success', paidAt: { $gte: thirtyDaysAgo } }).select('amount'),
+      Payment.find({ status: 'success', paidAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo } }).select('amount'),
+    ]);
+
+    const recentRevenue = recentPayments.reduce((sum, p: any) => sum + (p.amount || 0), 0);
+    const previousRevenue = previousPayments.reduce((sum, p: any) => sum + (p.amount || 0), 0);
+    const revenueChange = previousRevenue > 0 ? Math.round(((recentRevenue - previousRevenue) / previousRevenue) * 100) : 0;
+
+    // Recent activity — collected with REAL Date objects, sorted correctly,
+    // then formatted to "X ago" strings only at the very end. The previous
+    // version sorted by `new Date("3 days ago")`, which is always an
+    // Invalid Date — that comparison silently did nothing.
+    const [recentTutors, recentEnrollments] = await Promise.all([
+      Tutor.find({ status: { $in: ['approved', 'disapproved'] } }).sort({ updatedAt: -1 }).limit(10),
+      Enrollment.find().sort({ createdAt: -1 }).limit(10)
+        .populate('studentId', 'firstName lastName')
+        .populate('courseId', 'name'),
+    ]);
+
+    type Activity = { type: string; message: string; date: Date };
+    const activities: Activity[] = [];
+
+    for (const t of recentTutors as any[]) {
+      activities.push({
         type: t.status === 'approved' ? 'tutor_approved' : 'tutor_rejected',
         message: `Tutor application ${t.status === 'approved' ? 'approved' : 'rejected'}: ${t.firstName} ${t.lastName}`,
-        timeAgo: getTimeAgo(t.updatedAt),
-      })),
-      ...recentEnrollments.map(e => ({
+        date: t.updatedAt,
+      });
+    }
+
+    for (const e of recentEnrollments as any[]) {
+      const studentName = e.studentId ? `${e.studentId.firstName} ${e.studentId.lastName}` : 'A student';
+      const courseName = e.courseId?.name || 'a course';
+      activities.push({
         type: 'new_enrollment',
-        message: `New enrollment: ${typeof e.studentId === 'object' ? e.studentId?.firstName : ''} ${typeof e.studentId === 'object' ? e.studentId?.lastName : ''} enrolled in ${typeof e.courseId === 'object' ? e.courseId?.name : ''}`,
-        timeAgo: getTimeAgo(e.createdAt),
-      })),
-    ].sort((a, b) => new Date(b.timeAgo).getTime() - new Date(a.timeAgo).getTime()).slice(0, 10);
-    
+        message: `New enrollment: ${studentName} enrolled in ${courseName}`,
+        date: e.createdAt,
+      });
+    }
+
+    activities.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    function getTimeAgo(date: Date): string {
+      const seconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
+      const intervals: [string, number][] = [
+        ['year', 31536000], ['month', 2592000], ['week', 604800],
+        ['day', 86400], ['hour', 3600], ['minute', 60],
+      ];
+      for (const [unit, secondsInUnit] of intervals) {
+        const interval = Math.floor(seconds / secondsInUnit);
+        if (interval >= 1) return `${interval} ${unit}${interval === 1 ? '' : 's'} ago`;
+      }
+      return 'just now';
+    }
+
+    const recentActivities = activities.slice(0, 10).map((a) => ({
+      type: a.type,
+      message: a.message,
+      timeAgo: getTimeAgo(a.date),
+    }));
+
     return NextResponse.json({
       totalStudents,
       totalTutors,
       activeEnrollments,
+      expiringEnrollments,
+      totalCourses,
       totalRevenue,
-      revenueChange: Math.round(revenueChange),
+      revenueChange,
       pendingTutors,
       pendingPayments,
+      certificatesIssued,
       recentActivities,
     });
-    
   } catch (error: any) {
     console.error('Admin overview error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
-
-function getTimeAgo(date: Date): string {
-  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-  
-  const intervals = {
-    year: 31536000,
-    month: 2592000,
-    week: 604800,
-    day: 86400,
-    hour: 3600,
-    minute: 60,
-  };
-  
-  for (const [unit, secondsInUnit] of Object.entries(intervals)) {
-    const interval = Math.floor(seconds / secondsInUnit);
-    if (interval >= 1) {
-      return `${interval} ${unit}${interval === 1 ? '' : 's'} ago`;
-    }
-  }
-  
-  return 'just now';
 }

@@ -1,3 +1,4 @@
+//api/admin/tutors/[id]/[action]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
@@ -58,7 +59,8 @@ export async function PATCH(
     let newStatus:
       | 'approved'
       | 'disapproved'
-      | 'suspended' = tutor.status as any
+      | 'suspended'
+      | 'paused' = tutor.status as any
 
     let message = ''
 
@@ -66,7 +68,7 @@ export async function PATCH(
       case 'approve':
         newStatus = 'approved'
         message = 'Tutor application approved successfully'
-
+      
         // Activate user account
         await User.findByIdAndUpdate(tutor.userId, {
           isActive: true,
@@ -95,6 +97,14 @@ export async function PATCH(
         })
 
         break
+
+      // inside the existing switch(action) block, add this case:
+
+        case 'pause':
+          newStatus = 'paused'
+          message = 'Tutor account paused'
+          await User.findByIdAndUpdate(tutor.userId, { isActive: false })
+          break
 
       default:
         return NextResponse.json(

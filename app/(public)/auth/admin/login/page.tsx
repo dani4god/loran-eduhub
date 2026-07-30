@@ -50,7 +50,7 @@ export default function AdminLogin() {
         toast.error('Login failed');
       } else {
         toast.success('Welcome Admin!');
-        router.push('/admin');
+        router.push('/admin/overview');
         router.refresh();
       }
     } catch (error) {

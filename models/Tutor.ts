@@ -14,6 +14,14 @@ export interface IPricing {
   oneYear: number
 }
 
+export interface IBankDetails {
+  bankName: string
+  bankCode: string
+  accountNumber: string
+  accountName: string
+  paystackRecipientCode?: string
+}
+
 export interface ITutor extends Document {
   userId: mongoose.Types.ObjectId
   firstName: string
@@ -27,7 +35,7 @@ export interface ITutor extends Document {
   resume?: string
   pricing: IPricing 
   courses: mongoose.Types.ObjectId[]
-  status: 'pending' | 'approved' | 'disapproved' | 'suspended'
+  status: 'pending' | 'approved' | 'disapproved' | 'suspended' | 'paused'
   slug: string
   discordId?: string
   discordUsername?: string
@@ -38,6 +46,10 @@ export interface ITutor extends Document {
   updatedAt: Date
   certificateSignatureUrl?: string
   certificateLogoUrl?: string
+  bankDetails?: IBankDetails
+  bankUpdateOtpHash?: string
+  bankUpdateOtpExpires?: Date
+
 }
 
 const TutorSchema = new Schema<ITutor>(
@@ -117,7 +129,7 @@ const TutorSchema = new Schema<ITutor>(
 
     status: {
       type: String,
-      enum: ['pending', 'approved', 'disapproved', 'suspended'],
+      enum: ['pending', 'approved', 'disapproved', 'suspended', 'paused'],
       default: 'pending',
     },
 
@@ -157,6 +169,17 @@ const TutorSchema = new Schema<ITutor>(
       sixMonths: { type: Number, required: true, min: 1 },
       oneYear: { type: Number, required: true, min: 1 },
     },
+    bankDetails: {
+      bankName: { type: String },
+      bankCode: { type: String },
+      accountNumber: { type: String },
+      accountName: { type: String },
+      paystackRecipientCode: { type: String },
+    },
+    bankUpdateOtpHash: { type: String, default: null },
+    bankUpdateOtpExpires: { type: Date, default: null },
+
+
 
     // ← ADDED: Store assigned Discord roles
     discordRoles: {
@@ -172,5 +195,6 @@ const TutorSchema = new Schema<ITutor>(
 const Tutor: Model<ITutor> =
   mongoose.models.Tutor ||
   mongoose.model<ITutor>('Tutor', TutorSchema)
+
 
 export default Tutor

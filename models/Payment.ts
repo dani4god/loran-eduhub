@@ -25,6 +25,7 @@ export interface IPayment extends Document {
 
   amount: number
   currency: string
+  payoutLogged?: boolean
 
   plan: 'trial' | 'monthly' | '3months' | '6months' | '1year'
   planDurationDays: number
@@ -98,6 +99,8 @@ const PaymentSchema = new Schema<IPayment>(
       required: true,
       index: true,
     },
+    
+    
 
     enrollmentIds: [
       {
@@ -200,6 +203,7 @@ const PaymentSchema = new Schema<IPayment>(
         type: Number,
         default: 0,
       },
+      payoutLogged: { type: Boolean, default: false },
       tax: {
         type: Number,
         default: 0,
@@ -216,6 +220,8 @@ const PaymentSchema = new Schema<IPayment>(
     toObject: { virtuals: true },
   }
 )
+
+
 
 PaymentSchema.index({ studentId: 1, status: 1 })
 PaymentSchema.index({ createdAt: -1 })

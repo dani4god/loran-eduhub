@@ -23,6 +23,7 @@ import {
   X,
   Megaphone,
   ScrollText,
+  Wallet,
 } from "lucide-react";
 
 const navItems = [
@@ -36,6 +37,7 @@ const navItems = [
   { name: "Feedback", href: "/dashboard/tutor/feedback", icon: Inbox },
   { name: "Create Certificate", href: "/dashboard/tutor/certificates", icon: ScrollText },
   { name: "Announcements", href: "/dashboard/tutor/announcements", icon: Megaphone },
+  { name: "Payments", href: "/dashboard/tutor/payments", icon: Wallet },
   { name: "Settings", href: "/dashboard/tutor/settings", icon: Settings },
 ];
 

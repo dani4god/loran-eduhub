@@ -8,6 +8,7 @@ import ThemeToggle from "@/components/shared/ThemeToggle";
 import ChangePasswordForm from "@/components/shared/ChangePasswordForm";
 import DangerZone from "@/components/shared/DangerZone";
 import { Palette } from "lucide-react";
+import BankSettings from "@/components/tutor/BankSettings";
 
 export default async function TutorSettingsPage() {
   const session = await getServerSession(authOptions);
@@ -28,6 +29,7 @@ export default async function TutorSettingsPage() {
         <ProfileSettings />
         <CourseManagement />
         <TutorPricingSettings />
+        <BankSettings />
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-1">
