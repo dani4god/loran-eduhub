@@ -21,6 +21,19 @@ export interface IBankDetails {
   accountName: string
   paystackRecipientCode?: string
 }
+// models/Tutor.ts — additions
+
+export interface ISocialLink {
+  _id?: mongoose.Types.ObjectId
+  label: string
+  url: string
+}
+
+export interface ICampaignMessage {
+  _id?: mongoose.Types.ObjectId
+  message: string
+  createdAt: Date
+}
 
 export interface ITutor extends Document {
   userId: mongoose.Types.ObjectId
@@ -49,6 +62,8 @@ export interface ITutor extends Document {
   bankDetails?: IBankDetails
   bankUpdateOtpHash?: string
   bankUpdateOtpExpires?: Date
+  socialLinks?: ISocialLink[]
+  campaignMessages?: ICampaignMessage[]
 
 }
 
@@ -72,6 +87,16 @@ const TutorSchema = new Schema<ITutor>(
       required: true,
       trim: true,
     },
+
+    // add to TutorSchema:
+    socialLinks: [{
+      label: { type: String, required: true, trim: true },
+      url: { type: String, required: true, trim: true },
+    }],
+    campaignMessages: [{
+      message: { type: String, required: true, trim: true },
+      createdAt: { type: Date, default: Date.now },
+    }],
 
     email: {
       type: String,

@@ -1,11 +1,12 @@
 // app/(public)/tutors/page.tsx
 'use client'
-
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
-import { Search, BookOpen } from 'lucide-react'
+import { Search, BookOpen, User } from 'lucide-react'
 import { RatingSummaryBadge } from '@/components/shared/TutorReviewsPanel'
 import TutorReviewsPanel from '@/components/shared/TutorReviewsPanel'
 
@@ -33,6 +34,8 @@ export default function PublicTutorsPage() {
   const [tutors, setTutors] = useState<Tutor[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const searchParams = useSearchParams()
+  const courseFilter = searchParams.get('course')
 
   useEffect(() => {
     fetch('/api/tutors/all')
@@ -43,10 +46,11 @@ export default function PublicTutorsPage() {
 
   const filtered = tutors.filter(t => {
     const q = search.toLowerCase()
-    return (
+    const matchesSearch =
       `${t.firstName} ${t.lastName}`.toLowerCase().includes(q) ||
       t.courses.some(c => c.name.toLowerCase().includes(q))
-    )
+    const matchesCourseFilter = !courseFilter || t.courses.some(c => c.name === courseFilter)
+    return matchesSearch && matchesCourseFilter
   })
 
   // Sends the user straight into the existing registration flow with this
@@ -88,6 +92,16 @@ export default function PublicTutorsPage() {
             />
           </div>
 
+          {/* Filter indicator */}
+          {courseFilter && (
+            <div className="max-w-md mx-auto mb-6 text-center">
+              <p className="text-sm text-gray-500">
+                Showing tutors for <span className="font-semibold text-gray-900">{courseFilter}</span>
+                {' '}<Link href="/tutors" className="text-blue-600 hover:underline">(clear filter)</Link>
+              </p>
+            </div>
+          )}
+
           {loading ? (
             <div className="py-16 text-center">
               <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -99,7 +113,7 @@ export default function PublicTutorsPage() {
               {filtered.map(tutor => (
                 <div
                   key={tutor._id}
-                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
+                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col"
                 >
                   <div className="p-5 flex items-start gap-3">
                     {tutor.profileImage ? (
@@ -120,8 +134,8 @@ export default function PublicTutorsPage() {
                     </div>
                   </div>
 
-                  <div className="px-5 pb-5">
-                    <p className="text-xs text-gray-500 line-clamp-3 mb-3">{tutor.bio || 'Experienced tutor.'}</p>
+                  <div className="px-5 pb-5 flex-1 flex flex-col">
+                    <p className="text-xs text-gray-500 line-clamp-3 mb-3 flex-1">{tutor.bio || 'Experienced tutor.'}</p>
 
                     <div className="space-y-1.5 mb-3">
                       {tutor.courses.map(course => (
@@ -141,11 +155,24 @@ export default function PublicTutorsPage() {
                       ))}
                     </div>
 
-                    {tutor.pricing && (
-                      <p className="text-[11px] text-gray-400 mb-3">
-                        From ₦{tutor.pricing.monthly.toLocaleString('en-NG')}/mo
-                      </p>
-                    )}
+                    {/* Pricing line with View Full Profile link */}
+                    <div className="flex items-center justify-between mb-3">
+                      {tutor.pricing ? (
+                        <p className="text-[11px] text-gray-400">
+                          From ₦{tutor.pricing.monthly.toLocaleString('en-NG')}/mo
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-gray-400">Pricing available on profile</p>
+                      )}
+                      
+                      <Link
+                        href={`/tutors/${tutor.slug}`}
+                        className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        <User size={12} />
+                        View Profile
+                      </Link>
+                    </div>
 
                     <TutorReviewsPanel tutorId={tutor._id} />
                   </div>

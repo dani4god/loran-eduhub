@@ -1,17 +1,25 @@
 // components/layout/Logo.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 export default function Logo({ className = '' }: { className?: string }) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [imgError, setImgError] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/site-settings')
+      .then((r) => r.json())
+      .then((d) => setLogoUrl(d.logoUrl))
+      .catch(() => {})
+  }, [])
 
   return (
     <Link href="/" className={`flex items-center gap-2 group shrink-0 ${className}`}>
-      {!imgError ? (
+      {logoUrl && !imgError ? (
         <img
-          src="/logo.png"
+          src={logoUrl}
           alt="Loran EduHub"
           className="h-8 w-8 sm:h-9 sm:w-9 object-contain rounded-lg"
           onError={() => setImgError(true)}

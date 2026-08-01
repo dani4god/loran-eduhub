@@ -104,7 +104,7 @@ export default function PublicCoursesPage() {
                     </ul>
                   )}
                   <Link
-                    href="/tutors"
+                    href={`/tutors?course=${encodeURIComponent(course.name)}`}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline"
                   >
                     Find a tutor for this course <ArrowRight size={12} />
