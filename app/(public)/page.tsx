@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
+import AdCorner from '@/components/home/AdCorner'
 import {
   ShieldCheck, Clock, TrendingUp, Users, FileQuestion, CreditCard,
   ArrowRight, ScrollText, ClipboardList, Megaphone, Briefcase, Sparkles,
@@ -59,6 +60,7 @@ export default async function HomePage() {
   return (
     <>
       <Navbar />
+      <AdCorner />
       <main className="bg-gray-950">
         {/* ── HERO (reduced size) ── */}
         <section className="relative overflow-hidden bg-gradient-to-br from-gray-950 via-blue-950/60 to-purple-950/40 pt-24 pb-14 sm:pt-28 sm:pb-16">

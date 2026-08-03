@@ -1,5 +1,6 @@
 import AdminLayout from '@/components/admin/AdminLayout';
 import SiteSettingsPanel from '@/components/admin/SiteSettingsPanel';
+import AdsManager from '@/components/admin/AdsManager';
 
 export default function AdminSettingsPage() {
   return (
@@ -10,6 +11,7 @@ export default function AdminSettingsPage() {
           <p className="text-gray-500 text-sm mt-0.5">Site-wide configuration.</p>
         </div>
         <SiteSettingsPanel />
+        <AdsManager />
       </div>
     </AdminLayout>
   );
