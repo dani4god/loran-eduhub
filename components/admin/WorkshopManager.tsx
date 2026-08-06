@@ -5,13 +5,16 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import {
   Calendar, Plus, X, Upload, Loader2, Trash2, Copy, ShieldCheck,
-  Eye, EyeOff, Image as ImageIcon,
+  Eye, EyeOff, Image as ImageIcon, PenTool,
 } from 'lucide-react'
 
-interface Speaker { _id?: string; name: string; sessionTitle: string; description: string; points: string[] }
+interface Speaker {
+  _id?: string; name: string; title: string; institution: string;
+  sessionTitle: string; description: string; points: string[]; isConvener: boolean
+}
 interface CertBatch {
   _id: string; title: string; code: string; themeImageUrl: string; logoUrl: string;
-  isActive: boolean; issuedCount: number; createdAt: string
+  signatureUrl: string; convenerName: string; isActive: boolean; issuedCount: number; createdAt: string
 }
 
 export default function WorkshopManager() {
@@ -27,10 +30,13 @@ export default function WorkshopManager() {
   const [batches, setBatches] = useState<CertBatch[]>([])
   const [showCertForm, setShowCertForm] = useState(false)
   const [certTitle, setCertTitle] = useState('')
+  const [convenerName, setConvenerName] = useState('Okeke Daniel')
   const [themeImageUrl, setThemeImageUrl] = useState<string | null>(null)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null)
   const [uploadingTheme, setUploadingTheme] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingSig, setUploadingSig] = useState(false)
   const [creatingBatch, setCreatingBatch] = useState(false)
 
   const loadContent = () => {
@@ -52,7 +58,7 @@ export default function WorkshopManager() {
   }
   const addPoint = (si: number) => { const next = [...speakers]; next[si].points.push(''); setSpeakers(next) }
   const removePoint = (si: number, pi: number) => { const next = [...speakers]; next[si].points.splice(pi, 1); setSpeakers(next) }
-  const addSpeaker = () => setSpeakers([...speakers, { name: '', sessionTitle: '', description: '', points: [''] }])
+  const addSpeaker = () => setSpeakers([...speakers, { name: '', title: '', institution: '', sessionTitle: '', description: '', points: [''], isConvener: false }])
   const removeSpeaker = (i: number) => setSpeakers(speakers.filter((_, idx) => idx !== i))
 
   const uploadAdImage = async (file: File) => {
@@ -79,22 +85,27 @@ export default function WorkshopManager() {
     } finally { setSavingContent(false) }
   }
 
-  const uploadCertImage = async (file: File, field: 'theme' | 'logo') => {
-    field === 'theme' ? setUploadingTheme(true) : setUploadingLogo(true)
+  const uploadCertAsset = async (file: File, field: 'theme' | 'logo' | 'signature') => {
+    if (field === 'theme') setUploadingTheme(true)
+    if (field === 'logo') setUploadingLogo(true)
+    if (field === 'signature') setUploadingSig(true)
     try {
       const formData = new FormData(); formData.append('file', file); formData.append('type', 'image')
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await res.json()
-      if (res.ok) { field === 'theme' ? setThemeImageUrl(data.url) : setLogoUrl(data.url) }
-      else toast.error(data.error || 'Upload failed')
+      if (res.ok) {
+        if (field === 'theme') setThemeImageUrl(data.url)
+        if (field === 'logo') setLogoUrl(data.url)
+        if (field === 'signature') setSignatureUrl(data.url)
+      } else toast.error(data.error || 'Upload failed')
     } finally {
-      field === 'theme' ? setUploadingTheme(false) : setUploadingLogo(false)
+      setUploadingTheme(false); setUploadingLogo(false); setUploadingSig(false)
     }
   }
 
   const createBatch = async () => {
-    if (!certTitle.trim() || !themeImageUrl || !logoUrl) {
-      toast.error('Title, theme image, and logo are all required')
+    if (!certTitle.trim() || !themeImageUrl || !logoUrl || !signatureUrl) {
+      toast.error('Title, theme image, logo, and signature are all required')
       return
     }
     setCreatingBatch(true)
@@ -102,12 +113,12 @@ export default function WorkshopManager() {
       const res = await fetch('/api/admin/workshop/certificates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: certTitle, themeImageUrl, logoUrl }),
+        body: JSON.stringify({ title: certTitle, themeImageUrl, logoUrl, signatureUrl, convenerName }),
       })
       const data = await res.json()
       if (res.ok) {
         toast.success(`Code generated: ${data.batch.code}`)
-        setCertTitle(''); setThemeImageUrl(null); setLogoUrl(null); setShowCertForm(false)
+        setCertTitle(''); setThemeImageUrl(null); setLogoUrl(null); setSignatureUrl(null); setShowCertForm(false)
         loadBatches()
       } else toast.error(data.error || 'Failed to create')
     } finally { setCreatingBatch(false) }
@@ -145,9 +156,8 @@ export default function WorkshopManager() {
           <input value={subheading} onChange={(e) => setSubheading(e.target.value)} placeholder="Subheading / topic" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
           <input value={discordLink} onChange={(e) => setDiscordLink(e.target.value)} placeholder="Discord invite link (e.g. https://discord.gg/...)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
 
-          {/* Advert images */}
           <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Advert Images</label>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">Hero Slider Images</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {advertImages.map((img, i) => (
                 <div key={i} className="relative w-16 h-16">
@@ -162,9 +172,9 @@ export default function WorkshopManager() {
               {uploadingAd ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />} Add Image
               <input type="file" accept="image/*" className="hidden" disabled={uploadingAd} onChange={(e) => e.target.files?.[0] && uploadAdImage(e.target.files[0])} />
             </label>
+            <p className="text-[11px] text-gray-400 mt-1">Multiple images auto-rotate as a slider in the page hero.</p>
           </div>
 
-          {/* Speakers */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Speakers</label>
@@ -175,7 +185,14 @@ export default function WorkshopManager() {
                 <div key={si} className="border border-gray-100 rounded-xl p-3 space-y-2">
                   <div className="flex justify-between gap-2">
                     <input value={sp.name} onChange={(e) => updateSpeaker(si, 'name', e.target.value)} placeholder="Speaker name" className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs" />
+                    <label className="flex items-center gap-1 text-[11px] text-gray-500 shrink-0">
+                      <input type="checkbox" checked={sp.isConvener} onChange={(e) => updateSpeaker(si, 'isConvener', e.target.checked)} /> Convener
+                    </label>
                     <button onClick={() => removeSpeaker(si)}><X size={15} className="text-gray-400 hover:text-red-500" /></button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input value={sp.title} onChange={(e) => updateSpeaker(si, 'title', e.target.value)} placeholder="Role/title (e.g. Lecturer)" className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs" />
+                    <input value={sp.institution} onChange={(e) => updateSpeaker(si, 'institution', e.target.value)} placeholder="Institution / organization" className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs" />
                   </div>
                   <input value={sp.sessionTitle} onChange={(e) => updateSpeaker(si, 'sessionTitle', e.target.value)} placeholder="Session title" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs" />
                   <input value={sp.description} onChange={(e) => updateSpeaker(si, 'description', e.target.value)} placeholder="Description / talk title" className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs" />
@@ -217,25 +234,36 @@ export default function WorkshopManager() {
         {showCertForm && (
           <div className="border-2 border-red-100 rounded-xl p-4 space-y-3 mb-4">
             <input value={certTitle} onChange={(e) => setCertTitle(e.target.value)} placeholder="Workshop / event title" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <input value={convenerName} onChange={(e) => setConvenerName(e.target.value)} placeholder="Convener name" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1.5">Certificate Theme (background)</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">Theme (background)</p>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
-                  {themeImageUrl ? <img src={themeImageUrl} className="h-16 mx-auto object-cover rounded mb-1.5" /> : <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />}
+                  {themeImageUrl ? <img src={themeImageUrl} className="h-14 mx-auto object-cover rounded mb-1.5" /> : <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />}
                   <label className="text-xs font-semibold text-red-600 cursor-pointer">
                     {uploadingTheme ? 'Uploading...' : 'Upload'}
-                    <input type="file" accept="image/*" className="hidden" disabled={uploadingTheme} onChange={(e) => e.target.files?.[0] && uploadCertImage(e.target.files[0], 'theme')} />
+                    <input type="file" accept="image/*" className="hidden" disabled={uploadingTheme} onChange={(e) => e.target.files?.[0] && uploadCertAsset(e.target.files[0], 'theme')} />
                   </label>
                 </div>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-1.5">Logo</p>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
-                  {logoUrl ? <img src={logoUrl} className="h-16 mx-auto object-contain mb-1.5" /> : <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />}
+                  {logoUrl ? <img src={logoUrl} className="h-14 mx-auto object-contain mb-1.5" /> : <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />}
                   <label className="text-xs font-semibold text-red-600 cursor-pointer">
                     {uploadingLogo ? 'Uploading...' : 'Upload'}
-                    <input type="file" accept="image/*" className="hidden" disabled={uploadingLogo} onChange={(e) => e.target.files?.[0] && uploadCertImage(e.target.files[0], 'logo')} />
+                    <input type="file" accept="image/*" className="hidden" disabled={uploadingLogo} onChange={(e) => e.target.files?.[0] && uploadCertAsset(e.target.files[0], 'logo')} />
+                  </label>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5 flex items-center justify-center gap-1"><PenTool size={11} /> Signature</p>
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
+                  {signatureUrl ? <img src={signatureUrl} className="h-14 mx-auto object-contain mb-1.5" /> : <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />}
+                  <label className="text-xs font-semibold text-red-600 cursor-pointer">
+                    {uploadingSig ? 'Uploading...' : 'Upload'}
+                    <input type="file" accept="image/*" className="hidden" disabled={uploadingSig} onChange={(e) => e.target.files?.[0] && uploadCertAsset(e.target.files[0], 'signature')} />
                   </label>
                 </div>
               </div>
@@ -259,7 +287,7 @@ export default function WorkshopManager() {
                 <button onClick={() => copyCode(b.code)} className="flex items-center gap-1.5 text-xs font-mono text-red-600 mt-0.5">
                   {b.code} <Copy size={11} />
                 </button>
-                <p className="text-[11px] text-gray-400 mt-0.5">{b.issuedCount} certificate{b.issuedCount !== 1 ? 's' : ''} issued</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">{b.issuedCount} certificate{b.issuedCount !== 1 ? 's' : ''} issued · signed by {b.convenerName}</p>
               </div>
               <button onClick={() => toggleBatch(b)} className={`p-2 rounded-lg shrink-0 ${b.isActive ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}>
                 {b.isActive ? <Eye size={15} /> : <EyeOff size={15} />}

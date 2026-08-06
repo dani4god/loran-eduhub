@@ -31,21 +31,22 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ batches: results })
 }
 
+// app/api/admin/workshop/certificates/route.ts — POST handler only, GET stays as-is
+
 export async function POST(req: NextRequest) {
   const token = await getToken({ req })
   if (!token || token.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { title, themeImageUrl, logoUrl } = await req.json()
-  if (!title?.trim() || !themeImageUrl || !logoUrl) {
-    return NextResponse.json({ error: 'Title, theme image, and logo are required' }, { status: 400 })
+  const { title, themeImageUrl, logoUrl, signatureUrl, convenerName } = await req.json()
+  if (!title?.trim() || !themeImageUrl || !logoUrl || !signatureUrl) {
+    return NextResponse.json({ error: 'Title, theme image, logo, and signature are all required' }, { status: 400 })
   }
 
   await connectDB()
 
   let code = generate12DigitCode()
-  // Extremely unlikely to collide, but guard against it anyway.
   while (await WorkshopCertificateBatch.findOne({ code })) {
     code = generate12DigitCode()
   }
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest) {
     code,
     themeImageUrl,
     logoUrl,
+    signatureUrl,
+    convenerName: (convenerName || 'Okeke Daniel').trim(),
     isActive: true,
   })
 

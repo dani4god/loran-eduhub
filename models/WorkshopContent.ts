@@ -4,9 +4,12 @@ import mongoose, { Schema, Document, Model } from 'mongoose'
 export interface ISpeaker {
   _id?: mongoose.Types.ObjectId
   name: string
+  title: string
+  institution: string
   sessionTitle: string
   description: string
   points: string[]
+  isConvener: boolean
 }
 
 export interface IWorkshopContent extends Document {
@@ -22,9 +25,12 @@ export interface IWorkshopContent extends Document {
 const SpeakerSchema = new Schema<ISpeaker>(
   {
     name: { type: String, required: true },
+    title: { type: String, default: '' },
+    institution: { type: String, default: '' },
     sessionTitle: { type: String, required: true },
     description: { type: String, default: '' },
     points: [{ type: String }],
+    isConvener: { type: Boolean, default: false },
   },
   { _id: true }
 )

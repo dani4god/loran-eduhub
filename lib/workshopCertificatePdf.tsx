@@ -7,28 +7,33 @@ const styles = StyleSheet.create({
   themeImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   overlay: {
     position: 'absolute',
-    top: '30%',
+    top: '22%',
     left: 60,
     right: 60,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(255,255,255,0.94)',
     borderRadius: 8,
-    padding: 36,
+    padding: 32,
     alignItems: 'center',
   },
-  logo: { width: 48, height: 48, marginBottom: 10, objectFit: 'contain' },
-  certTitle: { fontSize: 13, fontFamily: 'Times-Bold', color: '#B8860B', letterSpacing: 3, marginBottom: 14 },
+  logo: { width: 44, height: 44, marginBottom: 8, objectFit: 'contain' },
+  certTitle: { fontSize: 13, fontFamily: 'Times-Bold', color: '#B8860B', letterSpacing: 3, marginBottom: 12 },
   bodyText: { fontSize: 11, color: '#333', marginBottom: 4 },
   name: {
-    fontSize: 24,
+    fontSize: 22,
     fontFamily: 'Times-BoldItalic',
     color: '#122C4A',
-    marginVertical: 8,
+    marginVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#B8860B',
-    paddingBottom: 6,
+    paddingBottom: 5,
     paddingHorizontal: 20,
   },
-  workshopTitle: { fontSize: 13, fontFamily: 'Times-Bold', color: '#122C4A', marginTop: 6, marginBottom: 10, textAlign: 'center' },
+  workshopTitle: { fontSize: 12, fontFamily: 'Times-Bold', color: '#122C4A', marginTop: 4, marginBottom: 14, textAlign: 'center' },
+  signatureRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 6 },
+  signatureImg: { width: 90, height: 32, objectFit: 'contain', marginBottom: 2 },
+  signatureLine: { borderTopWidth: 1, borderTopColor: '#999', width: 130, paddingTop: 3, alignItems: 'center' },
+  signatureName: { fontSize: 9, fontFamily: 'Times-Bold', color: '#122C4A' },
+  signatureRole: { fontSize: 7, color: '#666' },
   certNumber: { fontSize: 8, color: '#666', marginTop: 12 },
   date: { fontSize: 8, color: '#666' },
 })
@@ -38,11 +43,15 @@ interface Props {
   workshopTitle: string
   themeImageUrl: string
   logoUrl: string
+  signatureUrl: string
+  convenerName: string
   certificateNumber: string
   issuedAt: Date
 }
 
-function WorkshopCertDoc({ fullName, workshopTitle, themeImageUrl, logoUrl, certificateNumber, issuedAt }: Props) {
+function WorkshopCertDoc({
+  fullName, workshopTitle, themeImageUrl, logoUrl, signatureUrl, convenerName, certificateNumber, issuedAt,
+}: Props) {
   const dateStr = issuedAt.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
@@ -56,6 +65,15 @@ function WorkshopCertDoc({ fullName, workshopTitle, themeImageUrl, logoUrl, cert
           <Text style={styles.name}>{fullName}</Text>
           <Text style={styles.bodyText}>participated in</Text>
           <Text style={styles.workshopTitle}>{workshopTitle}</Text>
+
+          <View style={styles.signatureRow}>
+            {signatureUrl && <Image src={signatureUrl} style={styles.signatureImg} />}
+          </View>
+          <View style={styles.signatureLine}>
+            <Text style={styles.signatureName}>{convenerName}</Text>
+            <Text style={styles.signatureRole}>Convener, Loran EduHub</Text>
+          </View>
+
           <Text style={styles.certNumber}>Certificate No: {certificateNumber}</Text>
           <Text style={styles.date}>Issued: {dateStr}</Text>
         </View>

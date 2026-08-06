@@ -31,11 +31,15 @@ export async function POST(req: NextRequest) {
       issuedAt,
     })
 
+    // app/api/workshop/certificates/download/route.ts — inside the POST handler, update the renderWorkshopCertificatePdf call:
+
     const pdfBuffer = await renderWorkshopCertificatePdf({
       fullName: fullName.trim(),
       workshopTitle: batch.title,
       themeImageUrl: batch.themeImageUrl,
       logoUrl: batch.logoUrl,
+      signatureUrl: batch.signatureUrl,
+      convenerName: batch.convenerName,
       certificateNumber,
       issuedAt,
     })
