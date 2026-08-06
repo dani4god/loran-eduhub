@@ -1,7 +1,7 @@
 import AdminLayout from '@/components/admin/AdminLayout';
 import SiteSettingsPanel from '@/components/admin/SiteSettingsPanel';
 import AdsManager from '@/components/admin/AdsManager';
-
+import WorkshopManager from '@/components/admin/WorkshopManager';
 export default function AdminSettingsPage() {
   return (
     <AdminLayout>
@@ -12,6 +12,7 @@ export default function AdminSettingsPage() {
         </div>
         <SiteSettingsPanel />
         <AdsManager />
+        <WorkshopManager />
       </div>
     </AdminLayout>
   );
