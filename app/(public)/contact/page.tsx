@@ -7,7 +7,7 @@ const DISCORD_INVITE = process.env.NEXT_PUBLIC_DISCORD_INVITE_LINK || '#'
 
 // TODO: replace with your real support email and phone number
 const SUPPORT_EMAIL = 'support@loraneduhub.com'
-const SUPPORT_PHONE = '+234 800 000 0000'
+const SUPPORT_PHONE = '+234 906 397 1428'
 
 export default function ContactPage() {
   return (
