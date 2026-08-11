@@ -3,6 +3,7 @@ import { ClipboardList } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { signOut } from 'next-auth/react'
 import {
   LayoutDashboard,
@@ -142,7 +143,13 @@ export default function StudentSidebar({ user }: SidebarProps) {
           )
         })}
       </nav>
-
+      {/* Theme toggle */}
+      <div className="px-3 py-3 border-t border-gray-100 flex items-center justify-between">
+        <span className="text-sm font-medium text-gray-600">
+          Theme
+        </span>
+        <ThemeToggle />
+      </div>
       {/* Logout */}
       <div className="px-3 py-4 border-t border-gray-100">
         <button

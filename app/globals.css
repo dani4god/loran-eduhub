@@ -37,17 +37,15 @@
   --input-border: #CBD5E1;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0F172A;
-    --foreground: #F8FAFC;
-    --input-bg:   #1E293B;
-    --input-text: #F8FAFC;
-    --input-placeholder: #64748B;
-    --input-border: #334155;
-  }
+/* Replace the @media block with this */
+.dark {
+  --background: #0F172A;
+  --foreground: #F8FAFC;
+  --input-bg:   #1E293B;
+  --input-text: #F8FAFC;
+  --input-placeholder: #64748B;
+  --input-border: #334155;
 }
-
 /* ── Base Styles ── */
 body {
   background: var(--background);

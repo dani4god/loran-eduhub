@@ -4,6 +4,7 @@ import { BookOpen, ClipboardList } from 'lucide-react'
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { useState } from "react";
 
 import {
@@ -154,6 +155,14 @@ export default function TutorSidebar({ tutorName }: TutorSidebarProps) {
             <span className="ml-auto bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">3</span>
           </button>
         )}
+
+        {/* Theme toggle */}
+        <div className="px-3 py-3 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-600">
+            Theme
+          </span>
+          <ThemeToggle />
+        </div>
 
         <button
           onClick={handleLogout}

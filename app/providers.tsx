@@ -1,7 +1,8 @@
+
 'use client'
 
 import { SessionProvider } from 'next-auth/react'
-import ThemeProvider from '@/components/providers/ThemeProvider'
+import { ThemeProvider } from 'next-themes'
 
 export default function Providers({
   children,
@@ -10,7 +11,12 @@ export default function Providers({
 }) {
   return (
     <SessionProvider>
-      <ThemeProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange={false}
+      >
         {children}
       </ThemeProvider>
     </SessionProvider>
