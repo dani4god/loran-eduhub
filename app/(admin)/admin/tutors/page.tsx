@@ -8,9 +8,10 @@ import toast from 'react-hot-toast';
 import {
   Search, Eye, CheckCircle, XCircle, Ban, Mail, Clock, ExternalLink,
   ChevronLeft, ChevronRight, RefreshCw, X, Users, MessageSquare, DollarSign,
-  PlayCircle,
+  PlayCircle, CalendarClock,
 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
+import ScheduleInterviewModal from '@/components/admin/ScheduleInterviewModal';
 
 interface Tutor {
   _id: string;
@@ -59,6 +60,7 @@ export default function AdminTutors() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedTutor, setSelectedTutor] = useState<Tutor | null>(null);
+  const [interviewTutor, setInterviewTutor] = useState<Tutor | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
@@ -224,6 +226,13 @@ export default function AdminTutors() {
                   </button>
                   {tutor.status === 'pending' && (
                     <>
+                      <button
+                        onClick={() => setInterviewTutor(tutor)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Schedule Interview"
+                      >
+                        <CalendarClock size={16} />
+                      </button>
                       <button onClick={() => handleAction(tutor._id, 'approve')} disabled={actionLoading} className="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50">
                         <CheckCircle size={16} />
                       </button>
@@ -371,15 +380,23 @@ export default function AdminTutors() {
                 </a>
               </div>
 
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
+              <div className="flex flex-col gap-2 pt-3 border-t border-gray-100">
                 {selectedTutor.status === 'pending' && (
                   <>
-                    <button onClick={() => handleAction(selectedTutor._id, 'approve')} disabled={actionLoading} className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
-                      {actionLoading ? 'Processing...' : 'Approve'}
+                    <button
+                      onClick={() => setInterviewTutor(selectedTutor)}
+                      className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
+                    >
+                      Schedule Interview
                     </button>
-                    <button onClick={() => handleAction(selectedTutor._id, 'disapprove')} disabled={actionLoading} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
-                      {actionLoading ? 'Processing...' : 'Reject'}
-                    </button>
+                    <div className="flex gap-3">
+                      <button onClick={() => handleAction(selectedTutor._id, 'approve')} disabled={actionLoading} className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
+                        {actionLoading ? 'Processing...' : 'Approve'}
+                      </button>
+                      <button onClick={() => handleAction(selectedTutor._id, 'disapprove')} disabled={actionLoading} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+                        {actionLoading ? 'Processing...' : 'Reject'}
+                      </button>
+                    </div>
                   </>
                 )}
                 {selectedTutor.status === 'approved' && (
@@ -393,7 +410,6 @@ export default function AdminTutors() {
                   </button>
                 )}
 
-                {/* In the tutor modal, alongside the existing approve/disapprove/suspend buttons */}
                 <button
                   onClick={async () => {
                     if (!confirm(`Permanently remove ${selectedTutor.firstName}? This withdraws all their students.`)) return;
@@ -408,6 +424,11 @@ export default function AdminTutors() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Interview Modal */}
+      {interviewTutor && (
+        <ScheduleInterviewModal tutor={interviewTutor} onClose={() => setInterviewTutor(null)} />
       )}
     </AdminLayout>
   );

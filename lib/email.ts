@@ -197,6 +197,7 @@ export async function sendTutorApplicationEmail(data: {
 }) {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@loraneduhub.com';
   
+  // Build the email content (same as before)
   const qualificationsList = data.qualifications
     .map(q => `<li>${q.degree} from ${q.institution} (${q.year})</li>`)
     .join('');
@@ -225,12 +226,40 @@ export async function sendTutorApplicationEmail(data: {
       </a>
     </p>
   `;
-  
+
+  // Tutor's confirmation email content (simpler version)
+  const tutorHtml = `
+    <h2>Thank You for Your Tutor Application</h2>
+    <p>Dear ${data.tutorName},</p>
+    <p>Thank you for submitting your tutor application to Loran EduHub. We have received your application and our team will review it shortly.</p>
+    
+    <h3>Application Summary:</h3>
+    <p><strong>Name:</strong> ${data.tutorName}</p>
+    <p><strong>Email:</strong> ${data.tutorEmail}</p>
+    
+    <h3>Courses Selected:</h3>
+    <ul>${coursesList}</ul>
+    
+    <p>You will receive a confirmation email once your application has been reviewed.</p>
+    <p>If you have any questions, please contact our support team.</p>
+    
+    <p>Best regards,<br>Loran EduHub Team</p>
+  `;
+
+  // Send to admin
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: adminEmail,
     subject: `New Tutor Application: ${data.tutorName}`,
     html,
+  });
+
+  // Send confirmation to tutor
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: data.tutorEmail,  // Now using the tutor's email
+    subject: `Tutor Application Received - Loran EduHub`,
+    html: tutorHtml,
   });
 }
 
@@ -239,6 +268,7 @@ export async function sendTutorApplicationEmail(data: {
 export async function sendBankUpdateOtpEmail(to: string, name: string, otp: string) {
   // Reuse whatever underlying transport your existing send*Email functions use.
   await transporter.sendMail({
+    from: process.env.SMTP_FROM,
     to,
     subject: 'Your Loran EduHub verification code',
     html: `
@@ -247,5 +277,16 @@ export async function sendBankUpdateOtpEmail(to: string, name: string, otp: stri
       <h2 style="letter-spacing:4px;">${otp}</h2>
       <p>This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
     `,
+  })
+}
+
+// lib/email.ts — add
+
+export async function sendInterviewInviteEmail(to: string, html: string) {
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to,
+    subject: 'Interview Invitation — Loran EduHub Tutor Application',
+    html,
   })
 }
