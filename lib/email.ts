@@ -290,3 +290,49 @@ export async function sendInterviewInviteEmail(to: string, html: string) {
     html,
   })
 }
+
+// lib/email.ts — add
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function sendNewsletterBatch(
+  recipients: string[],
+  subject: string,
+  html: string
+) {
+  const BATCH_SIZE = 25;
+
+  let sent = 0;
+  let failed = 0;
+
+  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BATCH_SIZE);
+
+    const results = await Promise.allSettled(
+      batch.map((to) =>
+        transporter.sendMail({
+          from: process.env.SMTP_FROM,
+          to,
+          subject,
+          html,
+        })
+      )
+    );
+
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        sent++;
+      } else {
+        failed++;
+        console.error("Failed to send newsletter:", result.reason);
+      }
+    }
+
+    // Pause 1 second before sending the next batch
+    if (i + BATCH_SIZE < recipients.length) {
+      await delay(1000);
+    }
+  }
+
+  return { sent, failed };
+}

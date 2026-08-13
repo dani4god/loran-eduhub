@@ -51,14 +51,48 @@ export function buildInterviewInviteHtml(params: InviteParams): string {
           <td style="padding: 6px 0; color: #6b7280; font-size: 13px; vertical-align: top;">Venue</td>
           <td style="padding: 6px 0; color: #111827; font-size: 14px; font-weight: 600;">${venue}</td>
         </tr>
-        ${meetingLink ? `
-        <tr>
-          <td style="padding: 6px 0; color: #6b7280; font-size: 13px; vertical-align: top;">Meeting Link</td>
-          <td style="padding: 6px 0; font-size: 14px;">
-            <a href="${meetingLink}" style="color: #2563eb; font-weight: 600; text-decoration: none;">${meetingLink}</a>
-          </td>
-        </tr>` : ''}
       </table>
+    </div>
+
+    <p style="font-size: 15px; color: #374151; line-height: 1.7;">
+      <strong>This interview will take place on Discord.</strong> Please review the steps below to make sure
+      you're set up and ready to join on time.
+    </p>
+
+    <!-- Discord setup steps -->
+    <div style="background-color: #eef2ff; border: 1px solid #e0e7ff; border-radius: 10px; padding: 20px 24px; margin: 20px 0;">
+      <p style="font-size: 14px; font-weight: 700; color: #3730a3; margin: 0 0 12px 0;">📌 How to Set Up Discord</p>
+
+      <p style="font-size: 13px; font-weight: 700; color: #1f2937; margin: 14px 0 6px 0;">On a Windows PC:</p>
+      <ol style="font-size: 13px; color: #374151; line-height: 1.8; padding-left: 20px; margin: 0;">
+        <li>Go to <a href="https://discord.com/download" style="color: #4338ca;">discord.com/download</a> and download the Windows app</li>
+        <li>Run the installer and let it finish setting up automatically</li>
+        <li>Open Discord, click "Register" and create a free account (or log in if you already have one)</li>
+        <li>Verify your email address if prompted</li>
+      </ol>
+
+      <p style="font-size: 13px; font-weight: 700; color: #1f2937; margin: 14px 0 6px 0;">On your Phone:</p>
+      <ol style="font-size: 13px; color: #374151; line-height: 1.8; padding-left: 20px; margin: 0;">
+        <li>Download "Discord" from the App Store (iPhone) or Google Play Store (Android)</li>
+        <li>Open the app and create a free account, or log in if you already have one</li>
+        <li>Verify your email address if prompted</li>
+      </ol>
+
+      <p style="font-size: 13px; font-weight: 700; color: #1f2937; margin: 14px 0 6px 0;">Joining the Interview:</p>
+      <ol style="font-size: 13px; color: #374151; line-height: 1.8; padding-left: 20px; margin: 0;">
+        <li>${meetingLink
+          ? `On the day of your interview, click this link to join our server: <a href="${meetingLink}" style="color: #4338ca; font-weight: 600;">${meetingLink}</a>`
+          : 'You will receive a server link from us closer to the interview date'}</li>
+        <li>Accept the invite and enter the voice channel shown by our HR team</li>
+      </ol>
+    </div>
+
+    <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 16px 20px; margin: 20px 0;">
+      <p style="font-size: 13px; color: #92400e; margin: 0; line-height: 1.6;">
+        ⚠️ <strong>Please note:</strong> for the best experience, we recommend joining from a <strong>PC/laptop</strong>
+        rather than a phone, and ensuring you have a <strong>stable, strong internet connection</strong> before the
+        interview begins.
+      </p>
     </div>
 
     <p style="font-size: 15px; color: #374151; line-height: 1.7;">
@@ -72,8 +106,8 @@ export function buildInterviewInviteHtml(params: InviteParams): string {
     </p>
     <ul style="font-size: 14px; color: #374151; line-height: 1.8; padding-left: 20px;">
       <li>Choose a specific, focused topic rather than a broad overview</li>
-      <li>Feel free to use slides, a whiteboard, or screen share if joining virtually</li>
-      <li>Please join a few minutes early to ensure your audio/video setup works</li>
+      <li>Feel free to share your screen if you have slides or visuals</li>
+      <li>Please join a few minutes early to test your microphone and camera</li>
     </ul>
 
     <p style="font-size: 15px; color: #374151; line-height: 1.7;">
