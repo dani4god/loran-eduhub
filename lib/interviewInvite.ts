@@ -81,9 +81,9 @@ export function buildInterviewInviteHtml(params: InviteParams): string {
       <p style="font-size: 13px; font-weight: 700; color: #1f2937; margin: 14px 0 6px 0;">Joining the Interview:</p>
       <ol style="font-size: 13px; color: #374151; line-height: 1.8; padding-left: 20px; margin: 0;">
         <li>${meetingLink
-          ? `On the day of your interview, click this link to join our server: <a href="${meetingLink}" style="color: #4338ca; font-weight: 600;">${meetingLink}</a>`
+          ? `On the day and time of your interview, click this link to join our server: <a href="${meetingLink}" style="color: #4338ca; font-weight: 600;">${meetingLink}</a>`
           : 'You will receive a server link from us closer to the interview date'}</li>
-        <li>Accept the invite and enter the voice channel shown by our HR team</li>
+        <li>Accept the invite and enter the "Interview" voice channel</li>
       </ol>
     </div>
 
@@ -111,7 +111,7 @@ export function buildInterviewInviteHtml(params: InviteParams): string {
     </ul>
 
     <p style="font-size: 15px; color: #374151; line-height: 1.7;">
-      If you have any questions or need to reschedule, please reply to this email at your earliest convenience.
+      If you have any questions or need to reschedule, please join our server with the link above and raise a ticket.
     </p>
 
     <p style="font-size: 15px; color: #374151; line-height: 1.7; margin-top: 28px;">
