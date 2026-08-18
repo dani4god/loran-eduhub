@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 export interface IUser extends Document {
   email: string
   password: string
-  role: 'student' | 'tutor' | 'admin'
+  role: 'student' | 'tutor' | 'admin' | 'selfpaced_student'
   isActive: boolean
 
   discordId?: string
@@ -44,7 +44,7 @@ const UserSchema = new Schema<IUser>(
 
     role: {
       type: String,
-      enum: ['student', 'tutor', 'admin'],
+      enum: ['student', 'tutor', 'admin', 'selfpaced_student'],
       required: true,
     },
 

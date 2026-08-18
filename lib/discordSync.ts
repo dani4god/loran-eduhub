@@ -20,6 +20,10 @@ import {
   CATEGORY_TO_ROLE_GROUP,
   LORAN_GUILD_ID,
 } from '@/lib/discordRoleMap'
+import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
+import SelfPacedCourse from '@/models/SelfPacedCourse'
+import { getSelfPacedStudentRoleName } from '@/lib/discordRoleMap'
+import SelfPacedStudent from '@/models/SelfPacedStudent'
 
 // Every role name this app is allowed to manage for a student. Anything a
 // student holds OUTSIDE this list (e.g. a role an admin manually assigned)
@@ -120,5 +124,47 @@ export async function syncStudentDiscordRoles(
   const finalNames = Array.from(targetNames)
   await Student.findByIdAndUpdate(studentId, { discordRoles: finalNames })
 
+  return finalNames
+}
+
+// lib/discordSync.ts — add
+
+export async function syncSelfPacedStudentDiscordRoles(
+  spStudentId: string,
+  discordId: string,
+  accessToken?: string
+): Promise<string[]> {
+  const guildId = LORAN_GUILD_ID
+  if (!guildId) return []
+
+  await connectDB()
+
+  const enrollments = await SelfPacedEnrollment.find({ selfPacedStudentId: spStudentId })
+  const courseIds = enrollments.map((e: any) => e.courseId)
+  const courses = await SelfPacedCourse.find({ _id: { $in: courseIds } }).select('category')
+
+  const targetNames = new Set<string>([MEMBER_ROLE_NAME])
+  for (const course of courses) {
+    if (course.category) {
+      targetNames.add(getSelfPacedStudentRoleName(course.category))
+    }
+  }
+
+  const guildRoles = await getGuildRoles(guildId)
+  const roleByName = new Map<string, string>(guildRoles.map((r: any) => [r.name, r.id]))
+  const targetRoleIds = Array.from(targetNames).map((n) => roleByName.get(n)).filter(Boolean) as string[]
+
+  let member = await getGuildMember(guildId, discordId)
+  if (!member && accessToken) {
+    await addMemberToGuild(guildId, discordId, accessToken)
+    member = await getGuildMember(guildId, discordId)
+  }
+
+  const currentRoleIds = new Set<string>(member?.roles || [])
+  const toAdd = targetRoleIds.filter((id) => !currentRoleIds.has(id))
+  await Promise.all(toAdd.map((id) => addRoleToMember(guildId, discordId, id).catch(() => {})))
+
+  const finalNames = Array.from(targetNames)
+  await SelfPacedStudent.findByIdAndUpdate(spStudentId, { discordRoles: finalNames })
   return finalNames
 }

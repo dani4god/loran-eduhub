@@ -21,6 +21,7 @@ import {
   GraduationCap,
   Bell,
   Menu,
+  Layers,
   X,
   Megaphone,
   ScrollText,
@@ -39,6 +40,8 @@ const navItems = [
   { name: "Create Certificate", href: "/dashboard/tutor/certificates", icon: ScrollText },
   { name: "Announcements", href: "/dashboard/tutor/announcements", icon: Megaphone },
   { name: "Payments", href: "/dashboard/tutor/payments", icon: Wallet },
+  { name: "Self-Paced Courses", href: "/dashboard/tutor/self-paced", icon: Layers },
+  { name: "Coaching Bookings", href: "/dashboard/tutor/coaching-bookings", icon: MessageSquare },
   { name: "Settings", href: "/dashboard/tutor/settings", icon: Settings },
 ];
 

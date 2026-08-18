@@ -8,6 +8,7 @@ import { useSession, signOut } from 'next-auth/react';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen, CreditCard,
   Settings, Shield, Ticket, Menu, X, LogOut, Wallet,
+  Layers,
 } from 'lucide-react';
 
 const menuItems = [
@@ -20,6 +21,7 @@ const menuItems = [
   { href: '/admin/courses', label: 'Courses', icon: BookOpen },
   { href: '/admin/payouts', label: 'Payouts', icon: Wallet },
   { href: '/admin/admins', label: 'Admins', icon: Shield },
+  { href: '/admin/self-paced-courses', label: 'Self-Paced Courses', icon: Layers, superAdminOnly: false },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 

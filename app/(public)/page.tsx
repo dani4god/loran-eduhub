@@ -5,6 +5,7 @@ import AdCorner from '@/components/home/AdCorner'
 import {
   ShieldCheck, Clock, TrendingUp, Users, FileQuestion, CreditCard,
   ArrowRight, ScrollText, ClipboardList, Megaphone, Briefcase, Sparkles,
+  Layers,
 } from 'lucide-react'
 
 const STATS = [
@@ -40,11 +41,31 @@ interface TutorCard {
   rating?: { average: number; count: number }
 }
 
+interface SelfPacedCourseCard {
+  _id: string
+  title: string
+  coverImageUrl: string | null
+  price: number
+  isFree: boolean
+  tutorName: string
+  weekCount: number
+}
+
 async function getFeaturedTutors(): Promise<TutorCard[]> {
   try {
     const res = await fetch(`${process.env.NEXTAUTH_URL}/api/tutors/all`, { cache: 'no-store' })
     const data = await res.json()
     return (data.tutors || []).slice(0, 6)
+  } catch {
+    return []
+  }
+}
+
+async function getFeaturedSelfPacedCourses(): Promise<SelfPacedCourseCard[]> {
+  try {
+    const res = await fetch(`${process.env.NEXTAUTH_URL}/api/self-paced/courses`, { cache: 'no-store' })
+    const data = await res.json()
+    return (data.courses || []).slice(0, 3)
   } catch {
     return []
   }
@@ -56,6 +77,7 @@ function getInitials(first: string, last: string) {
 
 export default async function HomePage() {
   const tutors = await getFeaturedTutors()
+  const selfPacedCourses = await getFeaturedSelfPacedCourses()
 
   return (
     <>
@@ -243,6 +265,65 @@ export default async function HomePage() {
                 ))}
               </div>
             )}
+          </div>
+        </section>
+
+        {/* ── SELF-PACED COURSES ── */}
+        <section className="py-16 sm:py-20 lg:py-24">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+              <div>
+                <span className="text-purple-400 font-semibold text-xs sm:text-sm uppercase tracking-wider">Learn On Your Own Time</span>
+                <h2 className="font-heading font-bold text-2xl sm:text-4xl text-white mt-3">Self-Paced Courses</h2>
+                <p className="text-gray-400 text-sm mt-2 max-w-lg">
+                  Purchase once, learn at your own pace — with weekly exams, optional 1-on-1 coaching, and a
+                  certificate when you finish.
+                </p>
+              </div>
+              <Link href="/self-paced" className="inline-flex items-center gap-2 text-blue-400 font-semibold text-sm hover:gap-3 transition-all shrink-0">
+                Browse All Courses <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            {selfPacedCourses.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-10">New self-paced courses are coming soon — check back shortly.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+                {selfPacedCourses.map((course) => (
+                  <Link
+                    key={course._id}
+                    href={`/self-paced/${course._id}`}
+                    className="group rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-purple-500/30 transition-all duration-300"
+                  >
+                    <div className="h-40 bg-white/5">
+                      {course.coverImageUrl ? (
+                        <img src={course.coverImageUrl} alt={course.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Layers className="w-8 h-8 text-gray-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <h3 className="font-heading font-bold text-white text-sm mb-1 truncate">{course.title}</h3>
+                      <p className="text-gray-500 text-xs mb-3">{course.tutorName} · {course.weekCount} week{course.weekCount !== 1 ? 's' : ''}</p>
+                      <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${course.isFree ? 'bg-green-500/10 text-green-400' : 'bg-blue-500/10 text-blue-300'}`}>
+                        {course.isFree ? 'Free' : `₦${course.price.toLocaleString('en-NG')}`}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="text-center mt-10">
+              <Link
+                href="/self-paced"
+                className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold rounded-xl hover:bg-white/20 transition-all text-sm sm:text-base"
+              >
+                Purchase a Self-Paced Course <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         </section>
 

@@ -11,11 +11,13 @@ import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
+import Image from '@tiptap/extension-image'
 import { useEffect } from 'react'
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, List, ListOrdered,
   Quote, Code, Link as LinkIcon, Undo, Redo, Heading1, Heading2, Heading3,
   AlignLeft, AlignCenter, AlignRight, Table as TableIcon, Minus,
+  ImagePlus,
 } from 'lucide-react'
 
 interface Props {
@@ -63,6 +65,7 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
       TableRow,
       TableHeader,
       TableCell,
+      Image.configure({ HTMLAttributes: { class: 'rounded-lg max-w-full' } }),
     ],
     content: value || '',
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -83,9 +86,26 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey, editor])
 
-  if (!editor) return null
+  const insertImage = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'image')
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (res.ok) editor?.chain().focus().setImage({ src: data.url }).run()
+    }
+    input.click()
+  }
 
   const setLink = () => {
+    if (!editor) return
+
     const previousUrl = editor.getAttributes('link').href
     const url = window.prompt('Enter URL', previousUrl || 'https://')
     if (url === null) return
@@ -95,6 +115,8 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
   }
+
+  if (!editor) return null
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
@@ -147,6 +169,9 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
         <div className="w-px h-5 bg-gray-200 mx-1" />
         <ToolBtn onClick={setLink} active={editor.isActive('link')} title="Insert link">
           <LinkIcon size={15} />
+        </ToolBtn>
+        <ToolBtn onClick={insertImage} title="Insert image">
+          <ImagePlus size={15} />
         </ToolBtn>
         <ToolBtn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insert table">
           <TableIcon size={15} />

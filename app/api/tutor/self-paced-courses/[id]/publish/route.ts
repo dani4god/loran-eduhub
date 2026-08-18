@@ -1,0 +1,59 @@
+// app/api/tutor/self-paced-courses/[id]/publish/route.ts — full rewrite
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import connectDB from '@/lib/mongodb'
+import Tutor from '@/models/Tutor'
+import SelfPacedCourse from '@/models/SelfPacedCourse'
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const session = await getServerSession(authOptions)
+  if (!session || session.user.role !== 'tutor') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  await connectDB()
+  const tutor = await Tutor.findOne({ userId: session.user.id })
+  if (!tutor) return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
+
+  const course = await SelfPacedCourse.findById(id)
+  if (!course || course.tutorId.toString() !== tutor._id.toString()) {
+    return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+  }
+
+  const body = await req.json().catch(() => ({}))
+
+  // Tutor un-publishing an already-live course — allowed directly, no
+  // re-approval needed to take something down.
+  if (body.status === 'draft') {
+    course.status = 'draft'
+    await course.save()
+    return NextResponse.json({ success: true, status: course.status })
+  }
+
+  // Tutor submitting for approval — validation still applies before it's
+  // even allowed to queue for admin review.
+  if (course.weeks.length === 0) {
+    return NextResponse.json({ error: 'Add at least one week before submitting' }, { status: 400 })
+  }
+  if (!course.coverImageUrl) {
+    return NextResponse.json({ error: 'Upload a cover image before submitting' }, { status: 400 })
+  }
+  const weekWithoutQuestions = course.weeks.find((w: any) => w.exam.questions.length === 0)
+  if (weekWithoutQuestions) {
+    return NextResponse.json(
+      { error: `Week ${weekWithoutQuestions.weekNumber} has no exam questions — every week needs at least one` },
+      { status: 400 }
+    )
+  }
+
+  course.status = 'pending_approval'
+  course.rejectionReason = undefined
+  await course.save()
+
+  return NextResponse.json({ success: true, status: course.status })
+}

@@ -24,6 +24,7 @@ export default function Navbar() {
     { href: '/courses', label: 'Courses' },
     { href: '/about', label: 'About' },
     { href: '/faq', label: 'FAQ' },
+    { href: '/self-paced', label: 'Self-Paced' },
     { href: '/contact', label: 'Contact' },
   ]
 

@@ -5,6 +5,8 @@ import connectDB from '@/lib/mongodb'
 import User from '@/models/User'
 import Tutor from '@/models/Tutor'
 import Student from '@/models/Student'
+import SelfPacedStudent from '@/models/SelfPacedStudent'
+import { syncSelfPacedStudentDiscordRoles } from '@/lib/discordSync' 
 import Admin from '@/models/Admin'
 import { syncStudentDiscordRoles } from '@/lib/discordSync'
 import bcrypt from 'bcryptjs'
@@ -32,7 +34,7 @@ declare module 'next-auth' {
     user: {
       id: string
       email: string
-      role: 'student' | 'tutor' | 'admin'
+      role: 'student' | 'tutor' | 'admin' | 'selfpaced_student'
       name?: string | null
       discordId?: string | null
     } & DefaultSession['user']
@@ -41,7 +43,7 @@ declare module 'next-auth' {
   interface User {
     id: string
     email: string
-    role: 'student' | 'tutor' | 'admin'
+    role: 'student' | 'tutor' | 'admin' | 'selfpaced_student'
     discordId?: string
   }
 }
@@ -49,7 +51,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     id: string
-    role: 'student' | 'tutor' | 'admin'
+    role: 'student' | 'tutor' | 'admin' | 'selfpaced_student'
     email: string
     discordId?: string
     discordAccessToken?: string
@@ -140,6 +142,7 @@ async function syncStudentToDiscord(
     console.error('Discord student sync error:', err.message)
   }
 }
+
 export const authOptions: NextAuthOptions = {
   providers: [
     DiscordProvider({
@@ -192,6 +195,11 @@ export const authOptions: NextAuthOptions = {
           if (!student) throw new Error('Student profile not found')
         }
 
+        if (user.role === 'selfpaced_student') {
+          const spStudent = await SelfPacedStudent.findOne({ userId: user._id })
+          if (!spStudent) throw new Error('Self-paced student profile not found')
+        }
+
         if (user.role === 'admin') {
           const admin = await Admin.findOne({ userId: user._id })
           if (!admin) throw new Error('Admin profile not found')
@@ -206,6 +214,9 @@ export const authOptions: NextAuthOptions = {
         } else if (user.role === 'student') {
           const student = await Student.findOne({ userId: user._id })
           name = student ? `${student.firstName} ${student.lastName}` : name
+        } else if (user.role === 'selfpaced_student') {
+          const spStudent = await SelfPacedStudent.findOne({ userId: user._id })
+          name = spStudent ? `${spStudent.firstName} ${spStudent.lastName}` : name
         } else if (user.role === 'admin') {
           const admin = await Admin.findOne({ userId: user._id })
           name = admin ? `${admin.firstName} ${admin.lastName}` : name
@@ -312,6 +323,21 @@ export const authOptions: NextAuthOptions = {
 
               await syncStudentToDiscord(
                 student,
+                account.providerAccountId,
+                account.access_token
+              )
+            }
+          }
+
+          if (existingUser.role === 'selfpaced_student') {
+            const spStudent = await SelfPacedStudent.findOne({ userId: existingUser._id })
+            if (spStudent && account.access_token) {
+              await SelfPacedStudent.findByIdAndUpdate(spStudent._id, {
+                discordId: account.providerAccountId,
+                discordUsername,
+              })
+              await syncSelfPacedStudentDiscordRoles(
+                spStudent._id.toString(),
                 account.providerAccountId,
                 account.access_token
               )

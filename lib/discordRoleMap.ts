@@ -30,6 +30,12 @@ export const PLAN_ROLE_MAP: Record<string, string> = {
   '6months': '6 months',
   '1year': '1 year diploma',
 }
+// lib/discordRoleMap.ts — additions
+
+export function getSelfPacedStudentRoleName(category: string): string {
+  const group = CATEGORY_TO_ROLE_GROUP[category] || 'General'
+  return `${group} Self Paced Student`
+}
 
 export const PAID_ROLE_NAME = 'Paid'
 export const EXPIRED_ROLE_NAME = 'Expired'
