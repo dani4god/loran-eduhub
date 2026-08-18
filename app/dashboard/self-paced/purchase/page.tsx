@@ -1,5 +1,7 @@
+// app/(student)/dashboard/self-paced/purchase/page.tsx
 'use client'
 
+import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Script from 'next/script'
@@ -7,7 +9,8 @@ import { Layers, DollarSign, Loader2, CheckCircle2 } from 'lucide-react'
 
 declare global { interface Window { PaystackPop: any } }
 
-export default function PurchaseAnotherCoursePage() {
+// Client component that uses useSearchParams
+function PurchaseContent() {
   const searchParams = useSearchParams()
   const [courses, setCourses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,5 +98,21 @@ export default function PurchaseAnotherCoursePage() {
         </div>
       </div>
     </>
+  )
+}
+
+// Main page component with Suspense boundary
+export default function PurchaseAnotherCoursePage() {
+  return (
+    <Suspense fallback={
+      <div className="pt-16 lg:pt-0 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-500 mt-3 text-sm">Loading...</p>
+        </div>
+      </div>
+    }>
+      <PurchaseContent />
+    </Suspense>
   )
 }
