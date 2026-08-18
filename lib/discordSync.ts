@@ -3,6 +3,9 @@ import connectDB from '@/lib/mongodb'
 import Enrollment from '@/models/Enrollment'
 import Course from '@/models/Course'
 import Student from '@/models/Student'
+import SelfPacedStudent from '@/models/SelfPacedStudent'
+import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
+import SelfPacedCourse from '@/models/SelfPacedCourse'
 import {
   getGuildRoles,
   getGuildMember,
@@ -12,22 +15,17 @@ import {
 } from '@/lib/discord'
 import {
   getStudentRoleName,
+  getSelfPacedStudentRoleName,
   PLAN_ROLE_MAP,
   PAID_ROLE_NAME,
   EXPIRED_ROLE_NAME,
   SUSPENDED_ROLE_NAME,
   MEMBER_ROLE_NAME,
+  ADMIN_ROLE_NAME,
   CATEGORY_TO_ROLE_GROUP,
   LORAN_GUILD_ID,
 } from '@/lib/discordRoleMap'
-import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
-import SelfPacedCourse from '@/models/SelfPacedCourse'
-import { getSelfPacedStudentRoleName } from '@/lib/discordRoleMap'
-import SelfPacedStudent from '@/models/SelfPacedStudent'
 
-// Every role name this app is allowed to manage for a student. Anything a
-// student holds OUTSIDE this list (e.g. a role an admin manually assigned)
-// is left untouched by sync — we only add/remove roles we own.
 function getAllManagedStudentRoleNames(): string[] {
   const courseRoles = Object.keys(CATEGORY_TO_ROLE_GROUP).map(getStudentRoleName)
   const planRoles = Object.values(PLAN_ROLE_MAP)
@@ -41,11 +39,6 @@ function getAllManagedStudentRoleNames(): string[] {
   ]
 }
 
-// Full reconciliation: computes the role set a student SHOULD have based on
-// their currently-active enrollments only, then adds what's missing and
-// removes any managed role they still hold but shouldn't (e.g. after a
-// withdrawal, pause, or expiry). This replaces any narrower, single-role
-// add/remove call — those left stale roles behind.
 export async function syncStudentDiscordRoles(
   studentId: string,
   discordId: string,
@@ -81,9 +74,6 @@ export async function syncStudentDiscordRoles(
     }
   }
 
-  // If the student has ANY expired enrollment, they carry the "Expired"
-  // role — this is what makes expiry visible in Discord itself, not just
-  // in the database.
   if (expiredEnrollments.length > 0) {
     targetNames.add(EXPIRED_ROLE_NAME)
   }
@@ -92,15 +82,10 @@ export async function syncStudentDiscordRoles(
   const roleByName = new Map<string, string>(guildRoles.map((r: any) => [r.name, r.id]))
 
   const targetRoleIds = new Set(
-    Array.from(targetNames)
-      .map(name => roleByName.get(name))
-      .filter(Boolean) as string[]
+    Array.from(targetNames).map((name) => roleByName.get(name)).filter(Boolean) as string[]
   )
-
   const managedRoleIds = new Set(
-    getAllManagedStudentRoleNames()
-      .map(name => roleByName.get(name))
-      .filter(Boolean) as string[]
+    getAllManagedStudentRoleNames().map((name) => roleByName.get(name)).filter(Boolean) as string[]
   )
 
   let member = await getGuildMember(guildId, discordId)
@@ -110,25 +95,52 @@ export async function syncStudentDiscordRoles(
   }
 
   const currentRoleIds = new Set<string>(member?.roles || [])
-
-  const toAdd = Array.from(targetRoleIds).filter(id => !currentRoleIds.has(id))
-  const toRemove = Array.from(currentRoleIds).filter(
-    id => managedRoleIds.has(id) && !targetRoleIds.has(id)
-  )
+  const toAdd = Array.from(targetRoleIds).filter((id) => !currentRoleIds.has(id))
+  const toRemove = Array.from(currentRoleIds).filter((id) => managedRoleIds.has(id) && !targetRoleIds.has(id))
 
   await Promise.all([
-    ...toAdd.map(id => addRoleToMember(guildId, discordId, id).catch(() => {})),
-    ...toRemove.map(id => removeRoleFromMember(guildId, discordId, id).catch(() => {})),
+    ...toAdd.map((id) => addRoleToMember(guildId, discordId, id).catch(() => {})),
+    ...toRemove.map((id) => removeRoleFromMember(guildId, discordId, id).catch(() => {})),
   ])
 
   const finalNames = Array.from(targetNames)
   await Student.findByIdAndUpdate(studentId, { discordRoles: finalNames })
-
   return finalNames
 }
 
-// lib/discordSync.ts — add
+export async function syncAdminDiscordRoles(
+  adminId: string,
+  discordId: string,
+  accessToken?: string
+): Promise<string[]> {
+  const guildId = LORAN_GUILD_ID
+  if (!guildId) return []
 
+  const Admin = (await import('@/models/Admin')).default
+  const targetNames = [MEMBER_ROLE_NAME, ADMIN_ROLE_NAME]
+
+  const guildRoles = await getGuildRoles(guildId)
+  const roleByName = new Map<string, string>(guildRoles.map((r: any) => [r.name, r.id]))
+  const targetRoleIds = targetNames.map((n) => roleByName.get(n)).filter(Boolean) as string[]
+
+  let member = await getGuildMember(guildId, discordId)
+  if (!member && accessToken) {
+    await addMemberToGuild(guildId, discordId, accessToken)
+    member = await getGuildMember(guildId, discordId)
+  }
+
+  const currentRoleIds = new Set<string>(member?.roles || [])
+  const toAdd = targetRoleIds.filter((id) => !currentRoleIds.has(id))
+  await Promise.all(toAdd.map((id) => addRoleToMember(guildId, discordId, id).catch(() => {})))
+
+  await Admin.findByIdAndUpdate(adminId, { discordRoles: targetNames })
+  return targetNames
+}
+
+// Roles derived from the categories of self-paced courses the student
+// actually OWNS — a student who owns an IELTS course and a Tech course
+// gets both "IELTS Self Paced Student" and "Tech Innovations Self Paced
+// Student", never a mismatched or generic role.
 export async function syncSelfPacedStudentDiscordRoles(
   spStudentId: string,
   discordId: string,

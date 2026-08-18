@@ -52,7 +52,7 @@ export async function PATCH(
 
   const body = await req.json()
   const allowedFields = [
-    'title', 'description', 'coverImageUrl', 'price', 'category', 'weeks',
+    'title', 'description', 'coverImageUrl', 'price', 'weeks',
     'coachingEnabled', 'coachingHourlyRate', 'discordEnabled', 'discordDescription',
     'weeklyWorkshop', 'certificateSignatureUrl', 'certificateLogoUrl',
   ]

@@ -10,7 +10,7 @@ import { LayoutDashboard, MessageSquare, LogOut, Menu, X, GraduationCap, Shoppin
 const navItems = [
   { name: 'My Courses', href: '/dashboard/self-paced', icon: LayoutDashboard },
   { name: 'Discord', href: '/dashboard/self-paced/discord', icon: MessageSquare },
-  { name: 'Purchase Another Course', href: '/self-paced', icon: ShoppingBag },
+  { name: 'Purchase Another Course', href: '/dashboard/self-paced/purchase', icon: ShoppingBag },
 ]
 
 export default function SelfPacedSidebar() {

@@ -16,24 +16,32 @@ export default function SelfPacedCoursesList() {
   const [showNew, setShowNew] = useState(false)
   const [title, setTitle] = useState('')
   const [creating, setCreating] = useState(false)
+  const [myCourses, setMyCourses] = useState<{ _id: string; name: string }[]>([])
+  const [selectedCourseId, setSelectedCourseId] = useState('')
 
   const load = () => {
     setLoading(true)
     fetch('/api/tutor/self-paced-courses').then((r) => r.json()).then((d) => setCourses(d.courses || [])).finally(() => setLoading(false))
   }
+  
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    fetch('/api/tutor/courses').then((r) => r.json()).then((d) => setMyCourses(d.courses || []))
+  }, [])
+
   const create = async () => {
-    if (!title.trim()) return
+    if (!title.trim() || !selectedCourseId) return
     setCreating(true)
     try {
       const res = await fetch('/api/tutor/self-paced-courses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, courseId: selectedCourseId }),
       })
       const data = await res.json()
       if (res.ok) window.location.href = `/dashboard/tutor/self-paced/${data.courseId}`
+      else alert(data.error)
     } finally {
       setCreating(false)
     }
@@ -53,12 +61,36 @@ export default function SelfPacedCoursesList() {
         </div>
 
         {showNew && (
-          <div className="bg-white rounded-2xl border-2 border-blue-100 p-4 flex flex-col sm:flex-row gap-2">
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Course title" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-            <button onClick={create} disabled={creating} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-              {creating ? 'Creating...' : 'Create'}
-            </button>
-            <button onClick={() => setShowNew(false)} className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg text-sm font-semibold">Cancel</button>
+          <div className="bg-white rounded-2xl border-2 border-blue-100 p-4 space-y-2">
+            <select 
+              value={selectedCourseId} 
+              onChange={(e) => setSelectedCourseId(e.target.value)} 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="">Select which course this is based on...</option>
+              {myCourses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
+            <input 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)} 
+              placeholder="Self-paced course title" 
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" 
+            />
+            <div className="flex gap-2">
+              <button 
+                onClick={create} 
+                disabled={creating || !selectedCourseId} 
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {creating ? 'Creating...' : 'Create'}
+              </button>
+              <button 
+                onClick={() => setShowNew(false)} 
+                className="flex-1 px-4 py-2 text-gray-600 border border-gray-200 rounded-lg text-sm font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 

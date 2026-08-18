@@ -38,6 +38,7 @@ export interface ISelfPacedCourse extends Document {
   category: string
   weeks: ISPWeek[]
   status: 'draft' | 'pending_approval' | 'published' | 'rejected'
+  sourceCourseId: mongoose.Types.ObjectId
   rejectionReason?: string
   coachingEnabled: boolean
   coachingHourlyRate: number
@@ -85,6 +86,7 @@ const SelfPacedCourseSchema = new Schema<ISelfPacedCourse>(
     category: { type: String, default: '' },
     weeks: [SPWeekSchema],
     status: { type: String, enum: ['draft', 'pending_approval', 'published', 'rejected'], default: 'draft' },
+    sourceCourseId: { type: Schema.Types.ObjectId, ref: 'Course', required: true },
     rejectionReason: { type: String },
     coachingEnabled: { type: Boolean, default: false },
     coachingHourlyRate: { type: Number, default: 0 },

@@ -2,12 +2,14 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import {
   Lock, CheckCircle2, Clock, ExternalLink, Download, MessageSquare, Calendar,
   AlertTriangle, Loader2,
 } from 'lucide-react'
+import SelfPacedContent from '@/components/self-paced/SelfPacedContent'
 
 export default function CourseViewer({ courseId }: { courseId: string }) {
   const [data, setData] = useState<any>(null)
@@ -75,7 +77,7 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-gray-50 pt-20">
+      <div className="min-h-screen bg-gray-50 pt-20 overflow-x-hidden">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col lg:flex-row gap-5 py-6">
           {/* Sidebar */}
           <div className="lg:w-64 shrink-0 space-y-1">
@@ -124,12 +126,22 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
                 {!inExam && !result && (
                   <>
                     <h1 className="text-xl font-bold text-gray-900 mb-4">{week.title}</h1>
-                    <div className="prose prose-sm max-w-none mb-6" dangerouslySetInnerHTML={{ __html: week.content || '' }} />
+                    <div className="mb-6"><SelfPacedContent html={week.content} /></div>
                     {week.links.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-6">
                         {week.links.map((l: any, i: number) => (
                           <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold"><ExternalLink size={13} /> {l.label}</a>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Coaching prompt */}
+                    {data.coachingEnabled && !inExam && !result && (
+                      <div className="bg-purple-50 border border-purple-100 rounded-xl p-3.5 mb-4 flex items-center justify-between gap-3 flex-wrap">
+                        <p className="text-xs text-purple-700">Finding this concept difficult? Book a one-on-one session with <strong>{data.tutorName}</strong>.</p>
+                        <Link href={`/dashboard/self-paced/course/${courseId}/book`} className="shrink-0 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700 transition">
+                          Book Session
+                        </Link>
                       </div>
                     )}
 
@@ -195,7 +207,10 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
                 {data.discordEnabled && (
                   <div className="bg-indigo-50 rounded-xl p-4 flex-1 min-w-[200px]">
                     <p className="text-xs font-semibold text-indigo-700 flex items-center gap-1 mb-1"><MessageSquare size={12} /> Community</p>
-                    <p className="text-xs text-indigo-600">{data.discordDescription}</p>
+                    <p className="text-xs text-indigo-600 mb-2">{data.discordDescription}</p>
+                    <Link href="/dashboard/self-paced/discord" className="text-xs font-bold text-indigo-700 underline hover:text-indigo-800 transition">
+                      Connect your Discord account →
+                    </Link>
                   </div>
                 )}
                 {data.weeklyWorkshop?.enabled && (

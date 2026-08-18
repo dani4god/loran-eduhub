@@ -42,9 +42,11 @@ export async function GET(
       locked,
       content: locked ? null : w.content,
       links: locked ? [] : w.links,
+      durationMinutes: locked ? null : w.exam.durationMinutes,
       questionCount: w.exam.questions.length,
       passed: attempt?.passed || false,
       lastScore: attempt?.examPercentage ?? null,
+      attemptsUsed: attempt?.attemptsUsed || 0,
       // Questions never sent with answers — same principle as the main
       // course library exams.
       questions: locked ? [] : w.exam.questions.map((q: any) => ({ _id: q._id, type: q.type, question: q.question, options: q.options })),

@@ -2,6 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { Layers, CheckCircle2, XCircle, Clock, HelpCircle } from 'lucide-react'
 
@@ -81,6 +82,10 @@ export default function SelfPacedCoursesReview() {
                   <span className="flex items-center gap-1"><HelpCircle size={11} /> {c.totalQuestions} questions</span>
                   <span>{c.price === 0 ? 'Free' : `₦${c.price.toLocaleString('en-NG')}`}</span>
                 </div>
+
+                <Link href={`/admin/self-paced-courses/${c._id}`} className="text-xs font-semibold text-blue-600 block mb-2 hover:underline">
+                  Review Full Content →
+                </Link>
 
                 {c.status === 'rejected' && c.rejectionReason && (
                   <p className="text-[11px] text-red-600 bg-red-50 rounded-lg p-2 mb-3">Rejected: {c.rejectionReason}</p>

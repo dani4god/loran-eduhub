@@ -5,8 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import Logo from './Logo'
 
-
-
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
@@ -23,9 +21,6 @@ export default function Navbar() {
     { href: '/tutors', label: 'Tutors' },
     { href: '/courses', label: 'Courses' },
     { href: '/about', label: 'About' },
-    { href: '/faq', label: 'FAQ' },
-    { href: '/self-paced', label: 'Self-Paced' },
-    { href: '/contact', label: 'Contact' },
   ]
 
   return (
@@ -68,6 +63,12 @@ export default function Navbar() {
               Tutor Login
             </Link>
             <Link
+              href="/auth/self-paced/login"
+              className="px-3.5 py-2 text-sm font-medium text-green-300 border border-green-400/30 rounded-lg hover:bg-green-500/10 hover:border-green-400/50 transition-all"
+            >
+              Self-Paced Login
+            </Link>
+            <Link
               href="/auth/student/register"
               className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/20"
             >
@@ -91,7 +92,7 @@ export default function Navbar() {
       </div>
 
       {/* Mobile menu */}
-      <div className={`lg:hidden transition-all duration-300 overflow-hidden ${isMobileOpen ? 'max-h-[32rem] opacity-100' : 'max-h-0 opacity-0'}`}>
+      <div className={`lg:hidden transition-all duration-300 overflow-hidden ${isMobileOpen ? 'max-h-[42rem] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="bg-gray-950 border-t border-white/10 px-4 py-4 space-y-1">
           {navLinks.map((link) => (
             <Link
@@ -119,6 +120,13 @@ export default function Navbar() {
               className="py-2.5 text-center text-sm font-medium text-purple-300 border border-purple-400/30 rounded-lg hover:bg-purple-500/10 transition-colors"
             >
               Tutor Login
+            </Link>
+            <Link
+              href="/auth/self-paced/login"
+              onClick={() => setIsMobileOpen(false)}
+              className="py-2.5 text-center text-sm font-medium text-green-300 border border-green-400/30 rounded-lg hover:bg-green-500/10 transition-colors"
+            >
+              Self-Paced Login
             </Link>
             <Link
               href="/auth/student/register"
