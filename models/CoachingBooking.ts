@@ -7,6 +7,9 @@ export interface ICoachingBooking extends Document {
   courseId: mongoose.Types.ObjectId
   slotId: mongoose.Types.ObjectId
   amountPaid: number
+  netAmount: number
+  commissionAmount: number
+  payoutLogged: boolean
   paystackReference?: string
   status: 'pending_payment' | 'confirmed'
   tutorReplyMessage?: string
@@ -23,6 +26,9 @@ const CoachingBookingSchema = new Schema<ICoachingBooking>(
     slotId: { type: Schema.Types.ObjectId, ref: 'TutorAvailabilitySlot', required: true },
     amountPaid: { type: Number, required: true },
     paystackReference: { type: String },
+    netAmount: { type: Number, default: 0 },
+    commissionAmount: { type: Number, default: 0 },
+    payoutLogged: { type: Boolean, default: false },
     status: { type: String, enum: ['pending_payment', 'confirmed'], default: 'pending_payment' },
     tutorReplyMessage: { type: String },
     tutorReplyLink: { type: String },

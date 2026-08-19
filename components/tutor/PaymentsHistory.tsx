@@ -8,6 +8,7 @@ interface PayoutRow {
   _id: string; studentName: string; courseName: string;
   grossAmount: number; commissionAmount: number; netAmount: number;
   status: string; paidAt: string | null; createdAt: string;
+  sourceModel?: string; // Add this field
 }
 
 const STATUS_STYLES: Record<string, { color: string; icon: any }> = {
@@ -25,7 +26,13 @@ export default function PaymentsHistory() {
   useEffect(() => {
     fetch('/api/tutor/payments')
       .then((r) => r.json())
-      .then((d) => { setPayments(d.payments || []); setTotals({ totalEarned: d.totalEarned || 0, totalPending: d.totalPending || 0 }); })
+      .then((d) => { 
+        setPayments(d.payments || []); 
+        setTotals({ 
+          totalEarned: d.totalEarned || 0, 
+          totalPending: d.totalPending || 0 
+        }); 
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -53,16 +60,29 @@ export default function PaymentsHistory() {
           payments.map((p) => {
             const s = STATUS_STYLES[p.status] || STATUS_STYLES.pending;
             const Icon = s.icon;
+            const sourceLabel = p.sourceModel === 'CoachingBooking' ? 'Coaching Session' : 'Course Enrollment';
+            
             return (
               <div key={p._id} className="p-4 flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}><Icon size={14} /></div>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}>
+                  <Icon size={14} />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{p.courseName}</p>
-                  <p className="text-xs text-gray-400 truncate">{p.studentName} · ₦{p.grossAmount.toLocaleString('en-NG')} gross</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{p.courseName}</p>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded-full">
+                      {sourceLabel}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 truncate">
+                    {p.studentName} · ₦{p.grossAmount.toLocaleString('en-NG')} gross
+                  </p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-bold text-gray-900">₦{p.netAmount.toLocaleString('en-NG')}</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.color}`}>{p.status}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.color}`}>
+                    {p.status}
+                  </span>
                 </div>
               </div>
             );

@@ -40,6 +40,14 @@ export default function SelfPacedCoursesReview() {
     if (res.ok) { toast.success('Course rejected'); setRejectingId(null); setReason(''); load() } else toast.error('Failed to reject')
   }
 
+  const unpublish = async (id: string, title: string) => {
+    if (!confirm(`Unpublish "${title}"? It will no longer be visible to students.`)) return
+    const res = await fetch(`/api/admin/self-paced-courses/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'unpublish' }),
+    })
+    if (res.ok) { toast.success('Course unpublished'); load() } else toast.error('Failed to unpublish')
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -106,6 +114,15 @@ export default function SelfPacedCoursesReview() {
                       <button onClick={() => setRejectingId(c._id)} className="flex-1 flex items-center justify-center gap-1 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-semibold"><XCircle size={12} /> Reject</button>
                     </div>
                   )
+                )}
+
+                {c.status === 'published' && (
+                  <button
+                    onClick={() => unpublish(c._id, c.title)}
+                    className="w-full flex items-center justify-center gap-1 py-2 bg-orange-50 text-orange-600 rounded-lg text-xs font-semibold hover:bg-orange-100 transition"
+                  >
+                    Unpublish Course
+                  </button>
                 )}
               </div>
             </div>

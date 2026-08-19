@@ -72,7 +72,7 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
     editorProps: {
       attributes: {
         class:
-          'prose prose-sm sm:prose-base max-w-none focus:outline-none min-h-[220px] px-4 py-3',
+          'tiptap-editor-content max-w-none focus:outline-none min-h-[220px] px-4 py-3',
       },
     },
   })

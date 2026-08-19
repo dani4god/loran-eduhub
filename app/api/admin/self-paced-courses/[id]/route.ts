@@ -15,7 +15,9 @@ export async function PATCH(
   }
 
   const { action, rejectionReason } = await req.json()
-  if (!['approve', 'reject'].includes(action)) {
+  
+  // Extended action list to include 'unpublish'
+  if (!['approve', 'reject', 'unpublish'].includes(action)) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }
 
@@ -23,21 +25,39 @@ export async function PATCH(
   const course = await SelfPacedCourse.findById(id)
   if (!course) return NextResponse.json({ error: 'Course not found' }, { status: 404 })
 
+  // Handle unpublish action
+  if (action === 'unpublish') {
+    if (course.status !== 'published') {
+      return NextResponse.json({ 
+        error: 'Only a published course can be unpublished' 
+      }, { status: 400 })
+    }
+    course.status = 'draft'
+    course.rejectionReason = undefined
+    await course.save()
+    return NextResponse.json({ success: true, status: course.status })
+  }
+
+  // Handle approve action
   if (action === 'approve') {
     course.status = 'published'
     course.rejectionReason = undefined
-  } else {
+  } 
+  // Handle reject action
+  else {
     if (!rejectionReason?.trim()) {
-      return NextResponse.json({ error: 'A rejection reason is required' }, { status: 400 })
+      return NextResponse.json({ 
+        error: 'A rejection reason is required' 
+      }, { status: 400 })
     }
     course.status = 'rejected'
     course.rejectionReason = rejectionReason.trim()
   }
+  
   await course.save()
 
   return NextResponse.json({ success: true, status: course.status })
 }
-
 
 export async function GET(
   req: NextRequest,

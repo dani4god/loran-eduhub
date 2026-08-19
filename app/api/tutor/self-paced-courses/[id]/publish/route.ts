@@ -1,4 +1,4 @@
-// app/api/tutor/self-paced-courses/[id]/publish/route.ts — full rewrite
+// app/api/tutor/self-paced-courses/[id]/publish/route.ts — full file
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -26,34 +26,43 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => ({}))
+  const desired = body.status
 
-  // Tutor un-publishing an already-live course — allowed directly, no
-  // re-approval needed to take something down.
-  if (body.status === 'draft') {
+  if (desired === 'draft') {
+    // Unpublish — allowed from 'published' only. Now editable again.
+    if (course.status !== 'published') {
+      return NextResponse.json({ error: 'Only a published course can be unpublished' }, { status: 400 })
+    }
     course.status = 'draft'
     await course.save()
     return NextResponse.json({ success: true, status: course.status })
   }
 
-  // Tutor submitting for approval — validation still applies before it's
-  // even allowed to queue for admin review.
-  if (course.weeks.length === 0) {
-    return NextResponse.json({ error: 'Add at least one week before submitting' }, { status: 400 })
-  }
-  if (!course.coverImageUrl) {
-    return NextResponse.json({ error: 'Upload a cover image before submitting' }, { status: 400 })
-  }
-  const weekWithoutQuestions = course.weeks.find((w: any) => w.exam.questions.length === 0)
-  if (weekWithoutQuestions) {
-    return NextResponse.json(
-      { error: `Week ${weekWithoutQuestions.weekNumber} has no exam questions — every week needs at least one` },
-      { status: 400 }
-    )
+  if (desired === 'pending_approval') {
+    // Submit (or resubmit) for review — allowed from 'draft' or 'rejected'.
+    if (!['draft', 'rejected'].includes(course.status)) {
+      return NextResponse.json({ error: 'This course cannot be submitted for review from its current status' }, { status: 400 })
+    }
+
+    if (course.weeks.length === 0) {
+      return NextResponse.json({ error: 'Add at least one week before submitting' }, { status: 400 })
+    }
+    if (!course.coverImageUrl) {
+      return NextResponse.json({ error: 'Upload a cover image before submitting' }, { status: 400 })
+    }
+    const weekWithoutQuestions = course.weeks.find((w: any) => w.exam.questions.length === 0)
+    if (weekWithoutQuestions) {
+      return NextResponse.json(
+        { error: `Week ${weekWithoutQuestions.weekNumber} has no exam questions — every week needs at least one` },
+        { status: 400 }
+      )
+    }
+
+    course.status = 'pending_approval'
+    course.rejectionReason = undefined
+    await course.save()
+    return NextResponse.json({ success: true, status: course.status })
   }
 
-  course.status = 'pending_approval'
-  course.rejectionReason = undefined
-  await course.save()
-
-  return NextResponse.json({ success: true, status: course.status })
+  return NextResponse.json({ error: 'Invalid status transition' }, { status: 400 })
 }

@@ -36,6 +36,8 @@ export async function GET(
 // Used for autosave — accepts a partial update, saves whatever fields
 // are present (title, description, coverImageUrl, price, weeks,
 // coaching/discord/workshop settings, certificate assets).
+// app/api/tutor/self-paced-courses/[id]/route.ts — PATCH handler, full replacement
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -50,6 +52,18 @@ export async function PATCH(
   const result = await getOwnedCourse(id, session.user.id)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status })
 
+  const course = result.course
+
+  // A published (live, student-facing) course cannot be edited directly —
+  // it must be unpublished first. This prevents content/exam questions
+  // from shifting under students mid-course.
+  if (course.status === 'published') {
+    return NextResponse.json(
+      { error: 'This course is published and cannot be edited. Unpublish it first, make your changes, then submit for review again.' },
+      { status: 400 }
+    )
+  }
+
   const body = await req.json()
   const allowedFields = [
     'title', 'description', 'coverImageUrl', 'price', 'weeks',
@@ -62,9 +76,12 @@ export async function PATCH(
     if (body[field] !== undefined) update[field] = body[field]
   }
 
-  const course = await SelfPacedCourse.findByIdAndUpdate(id, update, { new: true })
-  return NextResponse.json({ success: true, savedAt: new Date().toISOString(), course })
+  const updated = await SelfPacedCourse.findByIdAndUpdate(id, update, { new: true })
+  return NextResponse.json({ success: true, savedAt: new Date().toISOString(), course: updated })
 }
+
+// app/api/tutor/self-paced-courses/[id]/route.ts — DELETE handler, unchanged from earlier,
+// re-pasted for clarity that NO status check blocks deletion — only enrollment count does:
 
 export async function DELETE(
   req: NextRequest,
@@ -83,7 +100,7 @@ export async function DELETE(
   const activeCount = await SelfPacedEnrollment.countDocuments({ courseId: id })
   if (activeCount > 0) {
     return NextResponse.json(
-      { error: `Cannot delete — ${activeCount} student(s) have purchased this course.` },
+      { error: `Cannot delete — ${activeCount} student(s) have purchased this course. Unpublish it instead.` },
       { status: 400 }
     )
   }

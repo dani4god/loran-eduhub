@@ -3,6 +3,7 @@ import connectDB from '@/lib/mongodb'
 import Payment from '@/models/Payment'
 import PayoutLog from '@/models/PayoutLog'
 import PlatformSettings from '@/models/PlatformSettings'
+import CoachingBooking from '@/models/CoachingBooking'
 
 export const DEFAULT_COMMISSION_RATE = 0.15
 
@@ -67,6 +68,43 @@ export async function ensurePayoutLogs(): Promise<void> {
       } catch (err: any) {
         if (err.code !== 11000) throw err // ignore duplicate-key races only
       }
+    }
+  }
+}
+
+
+export async function ensureCoachingPayoutLogs(): Promise<void> {
+  await connectDB()
+  const rate = await getCommissionRate()
+
+  const unprocessed = await CoachingBooking.find({ status: 'confirmed', payoutLogged: { $ne: true } })
+
+  for (const booking of unprocessed as any[]) {
+    const claimed = await CoachingBooking.findOneAndUpdate(
+      { _id: booking._id, payoutLogged: { $ne: true } },
+      { payoutLogged: true },
+      { new: true }
+    )
+    if (!claimed) continue
+
+    const commission = Math.round(booking.amountPaid * rate)
+    const net = booking.amountPaid - commission
+
+    try {
+      await PayoutLog.create({
+        sourceModel: 'CoachingBooking',
+        bookingId: booking._id,
+        studentId: booking.selfPacedStudentId, // reused field, self-paced student in this case
+        tutorId: booking.tutorId,
+        courseId: booking.courseId,
+        grossAmount: booking.amountPaid,
+        commissionRate: rate,
+        commissionAmount: commission,
+        netAmount: net,
+        status: 'pending',
+      })
+    } catch (err: any) {
+      if (err.code !== 11000) throw err
     }
   }
 }
