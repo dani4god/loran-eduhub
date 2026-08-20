@@ -350,6 +350,15 @@ export const authOptions: NextAuthOptions = {
       }
       return true
     },
+    // ── FIX: Always honor callbackUrl after Discord sign-in ──
+    async redirect({ url, baseUrl }) {
+      // Always honor a same-origin callbackUrl exactly as requested — this is
+      // what makes signIn('discord', { callbackUrl: '/dashboard/self-paced/discord' })
+      // actually land there instead of silently falling back to baseUrl.
+      if (url.startsWith('/')) return `${baseUrl}${url}`
+      if (new URL(url).origin === baseUrl) return url
+      return baseUrl
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
 }
