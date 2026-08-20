@@ -7,6 +7,7 @@ export interface IPlatformSettings extends Document {
   commissionRate: number
   logoUrl?: string
   maintenanceMode: boolean
+  heroImageUrls: string[]
   updatedAt: Date
 }
 
@@ -16,6 +17,8 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
     commissionRate: { type: Number, required: true, default: 0.15, min: 0, max: 1 },
     logoUrl: { type: String, default: null },
     maintenanceMode: { type: Boolean, default: false },
+    heroImageUrls: { type: [String], default: [] },
+    updatedAt: { type: Date, default: Date.now }
   },
   { timestamps: true }
 )

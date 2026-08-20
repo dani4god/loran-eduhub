@@ -12,5 +12,7 @@ export async function getSiteSettings() {
   return {
     logoUrl: settings.logoUrl || null,
     maintenanceMode: settings.maintenanceMode,
+    heroImageUrls: settings.heroImageUrls || [],
+    updatedAt: settings.updatedAt
   }
 }

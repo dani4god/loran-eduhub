@@ -1,7 +1,10 @@
 // lib/email.ts
 import nodemailer from 'nodemailer';
+import Student from '@/models/Student'
+import SelfPacedStudent from '@/models/SelfPacedStudent'
 
-const transporter = nodemailer.createTransport({
+// lib/email.ts - Add these exports at the top
+export const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: process.env.SMTP_SECURE === 'true',
@@ -11,6 +14,8 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+
+// Keep all your existing sendEmail functions...
 export async function sendPasswordResetEmail(data: {
   email: string;
   name: string;
@@ -335,4 +340,85 @@ export async function sendNewsletterBatch(
   }
 
   return { sent, failed };
+}
+
+export async function sendCourseRejectedEmail(
+  tutorEmail: string, tutorName: string, courseTitle: string, reason: string
+) {
+  const html = `
+  <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto;">
+    <div style="background:#dc2626; padding:24px 32px; border-radius:12px 12px 0 0;">
+      <p style="color:#fecaca; font-size:11px; letter-spacing:1px; text-transform:uppercase; margin:0 0 6px;">Loran EduHub</p>
+      <h1 style="color:#fff; font-size:20px; margin:0;">Course Not Approved</h1>
+    </div>
+    <div style="padding:28px 32px; border:1px solid #e5e7eb; border-top:none; border-radius:0 0 12px 12px;">
+      <p style="font-size:14px; color:#1f2937;">Hi ${tutorName},</p>
+      <p style="font-size:14px; color:#374151; line-height:1.7;">Your self-paced course <strong>"${courseTitle}"</strong> was reviewed but could not be approved at this time.</p>
+      <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:10px; padding:16px 20px; margin:20px 0;">
+        <p style="font-size:13px; color:#991b1b; margin:0;"><strong>Reason:</strong> ${reason}</p>
+      </div>
+      <p style="font-size:14px; color:#374151; line-height:1.7;">You can make the necessary changes and resubmit the course for review from your tutor dashboard.</p>
+    </div>
+  </div>`
+  await transporter.sendMail({ from: process.env.SMTP_FROM, to: tutorEmail,  subject: `Course Update: "${courseTitle}" needs changes`, html })
+}
+
+export async function sendCourseApprovedEmail(
+  tutorEmail: string, tutorName: string, courseTitle: string, publicUrl: string
+) {
+  const html = `
+  <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#16a34a,#059669); padding:24px 32px; border-radius:12px 12px 0 0;">
+      <p style="color:#bbf7d0; font-size:11px; letter-spacing:1px; text-transform:uppercase; margin:0 0 6px;">Loran EduHub</p>
+      <h1 style="color:#fff; font-size:20px; margin:0;">Course Approved & Live!</h1>
+    </div>
+    <div style="padding:28px 32px; border:1px solid #e5e7eb; border-top:none; border-radius:0 0 12px 12px;">
+      <p style="font-size:14px; color:#1f2937;">Hi ${tutorName},</p>
+      <p style="font-size:14px; color:#374151; line-height:1.7;">Great news — your self-paced course <strong>"${courseTitle}"</strong> has been approved and is now live for students to purchase.</p>
+      <div style="text-align:center; margin:24px 0;">
+        <a href="${publicUrl}" style="display:inline-block; padding:12px 24px; background:#16a34a; color:#fff; font-weight:600; font-size:14px; text-decoration:none; border-radius:8px;">View Your Course</a>
+      </div>
+      <p style="font-size:13px; color:#6b7280;">Share this link on your social media pages to attract more students:</p>
+      <p style="font-size:13px; color:#2563eb; word-break:break-all;">${publicUrl}</p>
+    </div>
+  </div>`
+  await transporter.sendMail({ from: process.env.SMTP_FROM, to: tutorEmail,  subject: `Your course "${courseTitle}" is now live!`, html })
+}
+
+// Notifies EVERY student — regular and self-paced — that a new self-paced
+// course just went live. Uses the same batched sender built for the admin
+// newsletter feature, since this is effectively the same operation (one
+// email, many recipients).
+export async function notifyAllStudentsOfNewCourse(
+  courseTitle: string, tutorName: string, description: string, publicUrl: string
+) {
+  const [students, spStudents] = await Promise.all([
+    Student.find({}).populate('userId', 'email'),
+    SelfPacedStudent.find({}).populate('userId', 'email'),
+  ])
+
+  const emails = [
+    ...students.map((s: any) => s.userId?.email).filter(Boolean),
+    ...spStudents.map((s: any) => s.userId?.email).filter(Boolean),
+  ]
+  const uniqueEmails = [...new Set(emails)] as string[]
+  if (uniqueEmails.length === 0) return
+
+  const html = `
+  <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#2563eb,#4338ca); padding:24px 32px; border-radius:12px 12px 0 0;">
+      <p style="color:#bfdbfe; font-size:11px; letter-spacing:1px; text-transform:uppercase; margin:0 0 6px;">Loran EduHub</p>
+      <h1 style="color:#fff; font-size:20px; margin:0;">New Course Available!</h1>
+    </div>
+    <div style="padding:28px 32px; border:1px solid #e5e7eb; border-top:none; border-radius:0 0 12px 12px;">
+      <h2 style="font-size:18px; color:#111827; margin:0 0 6px;">${courseTitle}</h2>
+      <p style="font-size:13px; color:#6b7280; margin:0 0 14px;">by ${tutorName}</p>
+      <p style="font-size:14px; color:#374151; line-height:1.7;">${description || 'A brand new self-paced course is now available on Loran EduHub.'}</p>
+      <div style="text-align:center; margin:24px 0;">
+        <a href="${publicUrl}" style="display:inline-block; padding:12px 24px; background:#2563eb; color:#fff; font-weight:600; font-size:14px; text-decoration:none; border-radius:8px;">View Course</a>
+      </div>
+    </div>
+  </div>`
+
+  await sendNewsletterBatch(uniqueEmails, `New Course: ${courseTitle}`, html)
 }

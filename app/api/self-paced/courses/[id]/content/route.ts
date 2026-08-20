@@ -40,8 +40,12 @@ export async function GET(
       weekNumber: w.weekNumber,
       title: w.title,
       locked,
-      content: locked ? null : w.content,
-      links: locked ? [] : w.links,
+      pages: locked ? [] : w.pages.map((p: any) => ({ 
+        _id: p._id, 
+        title: p.title, 
+        content: p.content, 
+        links: p.links 
+      })),
       durationMinutes: locked ? null : w.exam.durationMinutes,
       questionCount: w.exam.questions.length,
       passed: attempt?.passed || false,
@@ -49,7 +53,12 @@ export async function GET(
       attemptsUsed: attempt?.attemptsUsed || 0,
       // Questions never sent with answers — same principle as the main
       // course library exams.
-      questions: locked ? [] : w.exam.questions.map((q: any) => ({ _id: q._id, type: q.type, question: q.question, options: q.options })),
+      questions: locked ? [] : w.exam.questions.map((q: any) => ({ 
+        _id: q._id, 
+        type: q.type, 
+        question: q.question, 
+        options: q.options 
+      })),
     }
   })
 

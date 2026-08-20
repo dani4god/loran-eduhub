@@ -104,29 +104,68 @@ export default function SelfPacedCoursesList() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {courses.map((c) => (
-              <Link key={c._id} href={`/dashboard/tutor/self-paced/${c._id}`} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-sm transition-all">
-                <div className="h-28 bg-gray-100">
-                  {c.coverImageUrl ? <img src={c.coverImageUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Layers className="w-8 h-8 text-gray-300" /></div>}
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      c.status === 'published' ? 'bg-green-100 text-green-700' :
-                      c.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-700' :
-                      c.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {c.status === 'published' ? <Eye size={10} /> : c.status === 'pending_approval' ? <Clock size={10} /> : <EyeOff size={10} />}
-                      {c.status === 'pending_approval' ? 'Pending Review' : c.status}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs font-semibold text-gray-600">
-                      <DollarSign size={11} /> {c.price === 0 ? 'Free' : `₦${c.price.toLocaleString('en-NG')}`}
-                    </span>
+              <div key={c._id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-sm transition-all">
+                <Link href={`/dashboard/tutor/self-paced/${c._id}`}>
+                  <div className="h-28 bg-gray-100">
+                    {c.coverImageUrl ? <img src={c.coverImageUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Layers className="w-8 h-8 text-gray-300" /></div>}
                   </div>
-                  <h3 className="font-bold text-gray-900 text-sm truncate">{c.title}</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{c.weekCount} week{c.weekCount !== 1 ? 's' : ''}</p>
-                </div>
-              </Link>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                        c.status === 'published' ? 'bg-green-100 text-green-700' :
+                        c.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-700' :
+                        c.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {c.status === 'published' ? <Eye size={10} /> : c.status === 'pending_approval' ? <Clock size={10} /> : <EyeOff size={10} />}
+                        {c.status === 'pending_approval' ? 'Pending Review' : c.status}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs font-semibold text-gray-600">
+                        <DollarSign size={11} /> {c.price === 0 ? 'Free' : `₦${c.price.toLocaleString('en-NG')}`}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm truncate">{c.title}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{c.weekCount} week{c.weekCount !== 1 ? 's' : ''}</p>
+                  </div>
+                </Link>
+
+                {/* Share Row - Only for published courses */}
+                {c.status === 'published' && (
+                  <div className="px-4 pb-4 flex items-center gap-1.5 pt-0">
+                    <span className="text-[10px] text-gray-400">Share:</span>
+                    {[
+                      { 
+                        label: 'X', 
+                        url: (link: string) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my course "${c.title}" on Loran EduHub`)}&url=${encodeURIComponent(link)}` 
+                      },
+                      { 
+                        label: 'WA', 
+                        url: (link: string) => `https://wa.me/?text=${encodeURIComponent(`Check out "${c.title}" on Loran EduHub: ${link}`)}` 
+                      },
+                      { 
+                        label: 'FB', 
+                        url: (link: string) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}` 
+                      },
+                      { 
+                        label: 'LinkedIn', 
+                        url: (link: string) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(link)}` 
+                      },
+                    ].map((s) => (
+                      <button
+                        key={s.label}
+                        onClick={(e) => { 
+                          e.preventDefault(); 
+                          const link = `${window.location.origin}/self-paced/${c._id}`;
+                          window.open(s.url(link), '_blank', 'width=600,height=400') 
+                        }}
+                        className="text-[10px] font-semibold text-blue-600 px-1.5 py-0.5 bg-blue-50 rounded hover:bg-blue-100 transition"
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

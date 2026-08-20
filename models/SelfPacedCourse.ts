@@ -10,12 +10,18 @@ export interface ISPQuestion {
   marks: number
 }
 
+export interface ISPPage {
+  _id?: mongoose.Types.ObjectId
+  title: string
+  content: string
+  links: { label: string; url: string }[]
+}
+
 export interface ISPWeek {
   _id?: mongoose.Types.ObjectId
   weekNumber: number
   title: string
-  content: string
-  links: { label: string; url: string }[]
+  pages: ISPPage[]
   exam: {
     durationMinutes: number
     questions: ISPQuestion[]
@@ -62,14 +68,22 @@ const SPQuestionSchema = new Schema<ISPQuestion>(
   { _id: true }
 )
 
+const SPPageSchema = new Schema<ISPPage>(
+  {
+    title: { type: String, required: true, trim: true },
+    content: { type: String, default: '' },
+    links: [{ label: String, url: String }],
+  },
+  { _id: true }
+)
+
 const SPWeekSchema = new Schema<ISPWeek>(
   {
     weekNumber: { type: Number, required: true },
     title: { type: String, required: true },
-    content: { type: String, default: '' },
-    links: [{ label: String, url: String }],
+    pages: [SPPageSchema],
     exam: {
-      durationMinutes: { type: Number, default: 60 },
+      durationMinutes: { type: Number, default: 20 },
       questions: [SPQuestionSchema],
     },
   },

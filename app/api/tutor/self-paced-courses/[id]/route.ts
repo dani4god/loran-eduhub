@@ -36,8 +36,6 @@ export async function GET(
 // Used for autosave — accepts a partial update, saves whatever fields
 // are present (title, description, coverImageUrl, price, weeks,
 // coaching/discord/workshop settings, certificate assets).
-// app/api/tutor/self-paced-courses/[id]/route.ts — PATCH handler, full replacement
-
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -65,8 +63,73 @@ export async function PATCH(
   }
 
   const body = await req.json()
+  
+  // Validate weeks structure if provided
+  if (body.weeks !== undefined) {
+    if (!Array.isArray(body.weeks)) {
+      return NextResponse.json(
+        { error: 'Weeks must be an array' },
+        { status: 400 }
+      )
+    }
+    
+    // Validate each week has required fields
+    for (let i = 0; i < body.weeks.length; i++) {
+      const week = body.weeks[i]
+      if (!week.weekNumber || !week.title) {
+        return NextResponse.json(
+          { error: `Week ${i + 1} is missing weekNumber or title` },
+          { status: 400 }
+        )
+      }
+      
+      // Validate pages if present (for multi-page weeks)
+      if (week.pages !== undefined) {
+        if (!Array.isArray(week.pages)) {
+          return NextResponse.json(
+            { error: `Week ${i + 1} pages must be an array` },
+            { status: 400 }
+          )
+        }
+        
+        for (let j = 0; j < week.pages.length; j++) {
+          const page = week.pages[j]
+          if (!page.title) {
+            return NextResponse.json(
+              { error: `Week ${i + 1}, Page ${j + 1} is missing a title` },
+              { status: 400 }
+            )
+          }
+          // content can be empty, but should exist
+          if (page.content === undefined) {
+            return NextResponse.json(
+              { error: `Week ${i + 1}, Page ${j + 1} is missing content` },
+              { status: 400 }
+            )
+          }
+        }
+      }
+      
+      // Validate exam structure if present
+      if (week.exam) {
+        if (week.exam.durationMinutes !== undefined && typeof week.exam.durationMinutes !== 'number') {
+          return NextResponse.json(
+            { error: `Week ${i + 1} exam duration must be a number` },
+            { status: 400 }
+          )
+        }
+        if (week.exam.questions !== undefined && !Array.isArray(week.exam.questions)) {
+          return NextResponse.json(
+            { error: `Week ${i + 1} exam questions must be an array` },
+            { status: 400 }
+          )
+        }
+      }
+    }
+  }
+
   const allowedFields = [
-    'title', 'description', 'coverImageUrl', 'price', 'weeks',
+    'title', 'description', 'coverImageUrl', 'price', 'category', 'weeks',
     'coachingEnabled', 'coachingHourlyRate', 'discordEnabled', 'discordDescription',
     'weeklyWorkshop', 'certificateSignatureUrl', 'certificateLogoUrl',
   ]
@@ -76,12 +139,22 @@ export async function PATCH(
     if (body[field] !== undefined) update[field] = body[field]
   }
 
+  // Ensure weeks are properly structured for multi-page format
+  if (update.weeks) {
+    update.weeks = update.weeks.map((week: any) => ({
+      weekNumber: week.weekNumber,
+      title: week.title,
+      pages: week.pages || [],
+      exam: {
+        durationMinutes: week.exam?.durationMinutes || 20,
+        questions: week.exam?.questions || [],
+      },
+    }))
+  }
+
   const updated = await SelfPacedCourse.findByIdAndUpdate(id, update, { new: true })
   return NextResponse.json({ success: true, savedAt: new Date().toISOString(), course: updated })
 }
-
-// app/api/tutor/self-paced-courses/[id]/route.ts — DELETE handler, unchanged from earlier,
-// re-pasted for clarity that NO status check blocks deletion — only enrollment count does:
 
 export async function DELETE(
   req: NextRequest,

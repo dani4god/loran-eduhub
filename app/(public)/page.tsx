@@ -2,6 +2,7 @@ import Link from 'next/link'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import AdCorner from '@/components/home/AdCorner'
+import HeroBackgroundSlider from '@/components/home/HeroBackgroundSlider'
 import {
   ShieldCheck, Clock, TrendingUp, Users, FileQuestion, CreditCard,
   ArrowRight, ScrollText, ClipboardList, Megaphone, Briefcase, Sparkles,
@@ -71,6 +72,16 @@ async function getFeaturedSelfPacedCourses(): Promise<SelfPacedCourseCard[]> {
   }
 }
 
+async function getHeroImages(): Promise<string[]> {
+  try {
+    const res = await fetch(`${process.env.NEXTAUTH_URL}/api/site-settings`, { cache: 'no-store' })
+    const data = await res.json()
+    return data.heroImageUrls || []
+  } catch {
+    return []
+  }
+}
+
 function getInitials(first: string, last: string) {
   return `${first?.[0] || ''}${last?.[0] || ''}`.toUpperCase()
 }
@@ -78,6 +89,7 @@ function getInitials(first: string, last: string) {
 export default async function HomePage() {
   const tutors = await getFeaturedTutors()
   const selfPacedCourses = await getFeaturedSelfPacedCourses()
+  const heroImages = await getHeroImages()
 
   return (
     <>
@@ -86,6 +98,12 @@ export default async function HomePage() {
       <main className="bg-gray-950">
         {/* ── HERO (reduced size) ── */}
         <section className="relative overflow-hidden bg-gradient-to-br from-gray-950 via-blue-950/60 to-purple-950/40 pt-24 pb-14 sm:pt-28 sm:pb-16">
+          {/* Hero Background Slider */}
+          <HeroBackgroundSlider images={heroImages} />
+
+          {/* Existing pattern div and blur circles — they render underneath 
+              the slider's gradient overlay when images exist, or serve as 
+              the sole background decoration when they don't */}
           <div
             className="absolute inset-0 opacity-[0.07]"
             style={{
@@ -95,7 +113,7 @@ export default async function HomePage() {
           <div className="absolute top-1/4 left-1/4 w-64 h-64 sm:w-72 sm:h-72 bg-blue-500/20 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-1/4 w-64 h-64 sm:w-72 sm:h-72 bg-purple-500/20 rounded-full blur-3xl" />
 
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3.5 py-1.5 mb-6">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-white/80 text-xs sm:text-sm font-medium">Now accepting new students</span>
