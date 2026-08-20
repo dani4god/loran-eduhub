@@ -1,7 +1,7 @@
-// app/dashboard/self-paced/discord/page.tsx — full rewrite
+// app/dashboard/self-paced/discord/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { signIn, signOut } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { MessageSquare, RefreshCw, CheckCircle, Smartphone, Monitor, DoorOpen } from 'lucide-react'
@@ -12,7 +12,8 @@ interface DiscordInfo {
   isConnected: boolean
 }
 
-export default function SelfPacedDiscordPage() {
+// Client component that uses useSearchParams
+function DiscordPageContent() {
   const searchParams = useSearchParams()
   const [info, setInfo] = useState<DiscordInfo | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -129,5 +130,21 @@ export default function SelfPacedDiscordPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Main page component with Suspense boundary
+export default function SelfPacedDiscordPage() {
+  return (
+    <Suspense fallback={
+      <div className="pt-16 lg:pt-0 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-500 text-sm mt-3">Loading...</p>
+        </div>
+      </div>
+    }>
+      <DiscordPageContent />
+    </Suspense>
   )
 }
