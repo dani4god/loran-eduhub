@@ -7,6 +7,7 @@ import SelfPacedStudent from '@/models/SelfPacedStudent'
 import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
 import SelfPacedCourse from '@/models/SelfPacedCourse'
 import SelfPacedCertificate from '@/models/SelfPacedCertificate'
+import SelfPacedCourseReview from '@/models/SelfPacedCourseReview'
 import Tutor from '@/models/Tutor'
 import { isCourseComplete, computeAverageScore, classifyScore } from '@/lib/selfPaced'
 import { generateCertificateNumber } from '@/lib/certificate'
@@ -32,8 +33,21 @@ export async function GET(
   const course = await SelfPacedCourse.findById(id)
   if (!course) return NextResponse.json({ error: 'Course not found' }, { status: 404 })
 
+  // Check if the course is complete
   if (!isCourseComplete(course, enrollment)) {
     return NextResponse.json({ error: 'Complete every week to unlock your certificate' }, { status: 400 })
+  }
+
+  // Check if the student has left a review for this course
+  const hasReviewed = await SelfPacedCourseReview.findOne({ 
+    selfPacedStudentId: student._id, 
+    courseId: id 
+  })
+  if (!hasReviewed) {
+    return NextResponse.json({ 
+      error: 'Please leave a course review before downloading your certificate', 
+      reviewRequired: true 
+    }, { status: 400 })
   }
 
   let certificate = enrollment.certificateId

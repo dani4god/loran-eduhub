@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { ArrowLeft, CheckCircle2, XCircle, HelpCircle, FileText } from 'lucide-react'
 import SelfPacedContent from '@/components/self-paced/SelfPacedContent'
+import CoursePublicReviews from '@/components/self-paced/CoursePublicReviews'
 
 export default function AdminReviewSelfPacedCourse() {
   const params = useParams()
@@ -137,6 +138,12 @@ export default function AdminReviewSelfPacedCourse() {
             </div>
           </div>
         ))}
+
+        {/* Student Reviews Section */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <p className="text-sm font-bold text-gray-900 mb-3">Student Reviews</p>
+          <CoursePublicReviews courseId={id} />
+        </div>
 
         {course.status === 'pending_approval' && (
           rejecting ? (

@@ -1,8 +1,9 @@
 // components/self-paced/CourseViewer.tsx
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import SelfPacedContent from '@/components/self-paced/SelfPacedContent'
@@ -12,6 +13,7 @@ import {
 } from 'lucide-react'
 
 export default function CourseViewer({ courseId }: { courseId: string }) {
+  const router = useRouter()
   const [data, setData] = useState<any>(null)
   const [activeWeek, setActiveWeek] = useState<number | null>(null)
   const [activePage, setActivePage] = useState(0)
@@ -23,6 +25,8 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<any>(null)
 
+  const contentRef = useRef<HTMLDivElement>(null)
+
   const load = useCallback(() => {
     fetch(`/api/self-paced/courses/${courseId}/content`).then((r) => r.json()).then((d) => {
       setData(d)
@@ -31,6 +35,11 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
   }, [courseId, activeWeek])
 
   useEffect(() => { load() }, [courseId])
+
+  // Scroll to top of content when state changes
+  useEffect(() => {
+    contentRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' })
+  }, [activeWeek, activePage, inExam, result])
 
   useEffect(() => {
     if (!inExam || secondsLeft <= 0) return
@@ -54,7 +63,31 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
     } finally { setSubmitting(false) }
   }
 
-  const downloadCert = () => window.open(`/api/self-paced/courses/${courseId}/certificate`, '_blank')
+  const downloadCert = async () => {
+    const res = await fetch(`/api/self-paced/courses/${courseId}/certificate`)
+    
+    if (res.status === 400) {
+      const data = await res.json()
+      if (data.reviewRequired) {
+        router.push(`/dashboard/self-paced/course/${courseId}/review`)
+        return
+      }
+      // Handle other 400 errors
+      alert(data.error || 'Certificate unavailable')
+      return
+    }
+    
+    if (res.ok) {
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      URL.revokeObjectURL(url)
+    } else {
+      const data = await res.json()
+      alert(data.error || 'Failed to download certificate')
+    }
+  }
+
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 
   if (loading || !data) return <><Navbar /><div className="min-h-screen flex items-center justify-center pt-16"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" /></div><Footer /></>
@@ -92,7 +125,7 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
                 {data.coachingEnabled && <Link href={`/dashboard/self-paced/course/${courseId}/book`} className="inline-block px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold">Book a Session</Link>}
               </div>
             ) : week ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-7 max-w-full overflow-x-hidden">
+              <div ref={contentRef} className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-7 max-w-full overflow-x-hidden">
                 {!inExam && !result && page && (
                   <>
                     <div className="flex items-center justify-between mb-1">
@@ -151,10 +184,56 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
                 )}
 
                 {result && !inExam && (
-                  <div className={`rounded-xl p-5 text-center ${result.passed ? 'bg-green-50 border border-green-100' : 'bg-orange-50 border border-orange-100'}`}>
-                    <p className="text-2xl font-bold mb-1">{result.percentage}%</p>
-                    <p className={`text-sm font-semibold mb-2 ${result.passed ? 'text-green-700' : 'text-orange-700'}`}>{result.passed ? 'Passed!' : `Needs ${result.passMark}% to pass`}</p>
-                    {!result.passed && <p className="text-xs text-gray-500">{result.attemptsRemaining > 0 ? `${result.attemptsRemaining} attempt(s) remaining` : 'No attempts remaining — course locked. Book coaching to unlock.'}</p>}
+                  <div className={`rounded-xl p-5 ${result.passed ? 'bg-green-50 border border-green-100' : 'bg-orange-50 border border-orange-100'}`}>
+                    <div className="text-center mb-4">
+                      <p className="text-3xl font-bold mb-1">{result.percentage}%</p>
+                      <p className="text-xs text-gray-500">You scored {result.score} out of {result.total}</p>
+                      <p className={`text-sm font-semibold mt-2 ${result.passed ? 'text-green-700' : 'text-orange-700'}`}>
+                        {result.passed ? '🎉 Passed!' : `Not quite — you need ${result.passMark}% to pass`}
+                      </p>
+                    </div>
+
+                    {!result.passed && (
+                      <div className="bg-white rounded-lg p-4 space-y-3">
+                        <p className="text-sm text-gray-700 font-medium">Here's what to do next:</p>
+                        <ol className="text-xs text-gray-600 space-y-2 list-decimal pl-4">
+                          <li>
+                            Go back and restudy <strong>Week {activeWeek}</strong> — click the week in the sidebar (or the button below) to review the material again.
+                          </li>
+                          <li>
+                            Make sure you understand each page before retaking the exam — you need <strong>{result.passMark}%</strong> to unlock Week {(activeWeek || 0) + 1}.
+                          </li>
+                          {data.coachingEnabled && (
+                            <li>
+                              Still stuck? <strong>Book a one-on-one session with {data.tutorName}</strong> — they can walk you through the concepts directly.
+                            </li>
+                          )}
+                        </ol>
+
+                        {result.attemptsRemaining > 0 ? (
+                          <p className="text-xs font-semibold text-orange-600">{result.attemptsRemaining} attempt{result.attemptsRemaining !== 1 ? 's' : ''} remaining</p>
+                        ) : (
+                          <p className="text-xs font-semibold text-red-600">No attempts remaining — this course is now locked. You'll need to book a session with your tutor to unlock it.</p>
+                        )}
+
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            onClick={() => { setActivePage(0); setResult(null) }}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white rounded-lg text-xs font-semibold"
+                          >
+                            Restudy Week {activeWeek}
+                          </button>
+                          {data.coachingEnabled && (
+                            <Link
+                              href={`/dashboard/self-paced/course/${courseId}/book`}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white rounded-lg text-xs font-semibold"
+                            >
+                              Book a Session with {data.tutorName}
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

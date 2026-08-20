@@ -11,7 +11,7 @@ import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
-import Image from '@tiptap/extension-image'
+import ResizableImage from '@/components/library/ResizableImageExtension'
 import { useEffect } from 'react'
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, List, ListOrdered,
@@ -65,7 +65,7 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
       TableRow,
       TableHeader,
       TableCell,
-      Image.configure({ HTMLAttributes: { class: 'rounded-lg max-w-full' } }),
+      ResizableImage.configure({ HTMLAttributes: { class: 'rounded-lg max-w-full' } }),
     ],
     content: value || '',
     onUpdate: ({ editor }) => onChange(editor.getHTML()),

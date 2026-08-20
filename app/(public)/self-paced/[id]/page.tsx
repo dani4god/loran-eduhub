@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
+import CoursePublicReviews from '@/components/self-paced/CoursePublicReviews'
 import { Layers, Clock, HelpCircle, DollarSign, MessageSquare, Calendar, User } from 'lucide-react'
 
 export default function SelfPacedCourseDetailPage() {
@@ -42,9 +43,14 @@ export default function SelfPacedCourseDetailPage() {
                 )}
               </div>
               <div className="flex items-center justify-between">
-                <span className={`text-lg font-bold ${course.isFree ? 'text-green-600' : 'text-blue-600'}`}>
-                  {course.isFree ? 'Free' : `₦${course.price.toLocaleString('en-NG')}`}
-                </span>
+                <div>
+                  <span className={`text-lg font-bold ${course.isFree ? 'text-green-600' : 'text-blue-600'}`}>
+                    {course.isFree ? 'Free' : `₦${course.price.toLocaleString('en-NG')}`}
+                  </span>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Want to know more about this course? <a href="#reviews" className="text-blue-600 underline">See what students say</a> before you purchase.
+                  </p>
+                </div>
                 <Link href={`/self-paced/${course._id}/purchase`} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700">
                   {course.isFree ? 'Get This Course' : 'Purchase This Course'}
                 </Link>
@@ -65,6 +71,11 @@ export default function SelfPacedCourseDetailPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Course Reviews Section */}
+          <div id="reviews" className="mb-6 scroll-mt-24">
+            <CoursePublicReviews courseId={id} />
           </div>
 
           {(course.coachingEnabled || course.discordEnabled || course.weeklyWorkshop?.enabled) && (
