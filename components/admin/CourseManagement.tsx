@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, X, Trash2, Edit3, BookOpen, Loader2 } from 'lucide-react';
+import { CATEGORY_TO_ROLE_GROUP } from '@/lib/discordRoleMap';
 
 interface Course {
   _id: string;
@@ -15,7 +16,7 @@ interface Course {
   isActive: boolean;
 }
 
-const emptyForm = { name: '', description: '', category: '', discordRoleGroup: '', syllabus: [''], isActive: true };
+const emptyForm = { name: '', description: '', category: '', syllabus: [''], isActive: true };
 
 export default function CourseManagement() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -34,7 +35,13 @@ export default function CourseManagement() {
   const startCreate = () => { setEditingId(null); setForm(emptyForm); setShowForm(true); };
   const startEdit = (c: Course) => {
     setEditingId(c._id);
-    setForm({ name: c.name, description: c.description, category: c.category, discordRoleGroup: c.discordRoleGroup, syllabus: c.syllabus.length ? c.syllabus : [''], isActive: c.isActive });
+    setForm({
+      name: c.name,
+      description: c.description,
+      category: c.category,
+      syllabus: c.syllabus.length ? c.syllabus : [''],
+      isActive: c.isActive,
+    });
     setShowForm(true);
   };
 
@@ -45,8 +52,8 @@ export default function CourseManagement() {
   const removeSyllabusItem = (i: number) => setForm({ ...form, syllabus: form.syllabus.filter((_, idx) => idx !== i) });
 
   const save = async () => {
-    if (!form.name.trim() || !form.category.trim() || !form.discordRoleGroup.trim()) {
-      toast.error('Name, category, and Discord role group are required');
+    if (!form.name.trim() || !form.category.trim()) {
+      toast.error('Name and category are required');
       return;
     }
     setSaving(true);
@@ -55,7 +62,13 @@ export default function CourseManagement() {
       const res = await fetch(url, {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name: form.name.trim(),
+          description: form.description.trim(),
+          category: form.category.trim(),
+          syllabus: form.syllabus.filter((s: string) => s.trim()),
+          isActive: form.isActive,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -93,35 +106,81 @@ export default function CourseManagement() {
       {showForm && (
         <div className="bg-white rounded-2xl border-2 border-red-100 p-4 sm:p-5 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Course name" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-            <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Category (e.g. tech, igcse)" className="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Course name"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+            />
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Category</label>
+              <select
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Select a category...</option>
+                {Object.keys(CATEGORY_TO_ROLE_GROUP).map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              {form.category && (
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Discord role group: <span className="font-medium text-gray-600">{CATEGORY_TO_ROLE_GROUP[form.category as keyof typeof CATEGORY_TO_ROLE_GROUP]}</span> (auto-assigned)
+                </p>
+              )}
+            </div>
           </div>
-          <input value={form.discordRoleGroup} onChange={(e) => setForm({ ...form, discordRoleGroup: e.target.value })} placeholder="Discord role group (e.g. Tech Innovations)" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Description" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={2}
+            placeholder="Description"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+          />
 
           <div>
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Syllabus</label>
             <div className="space-y-1.5">
               {form.syllabus.map((s, i) => (
                 <div key={i} className="flex gap-2">
-                  <input value={s} onChange={(e) => updateSyllabusItem(i, e.target.value)} placeholder={`Topic ${i + 1}`} className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+                  <input
+                    value={s}
+                    onChange={(e) => updateSyllabusItem(i, e.target.value)}
+                    placeholder={`Topic ${i + 1}`}
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                  />
                   {form.syllabus.length > 1 && (
-                    <button onClick={() => removeSyllabusItem(i)} className="text-gray-400 hover:text-red-500"><X size={16} /></button>
+                    <button onClick={() => removeSyllabusItem(i)} className="text-gray-400 hover:text-red-500">
+                      <X size={16} />
+                    </button>
                   )}
                 </div>
               ))}
             </div>
-            <button onClick={addSyllabusItem} className="mt-1.5 text-xs font-semibold text-red-600 flex items-center gap-1"><Plus size={12} /> Add topic</button>
+            <button onClick={addSyllabusItem} className="mt-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
+              <Plus size={12} /> Add topic
+            </button>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+            />
             Active (visible to tutors/students)
           </label>
 
           <div className="flex gap-2 pt-2">
-            <button onClick={() => setShowForm(false)} className="flex-1 py-2 text-gray-600 border border-gray-200 rounded-lg text-sm font-semibold">Cancel</button>
-            <button onClick={save} disabled={saving} className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1.5">
+            <button onClick={() => setShowForm(false)} className="flex-1 py-2 text-gray-600 border border-gray-200 rounded-lg text-sm font-semibold">
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
               {saving && <Loader2 size={14} className="animate-spin" />} {editingId ? 'Save Changes' : 'Create Course'}
             </button>
           </div>

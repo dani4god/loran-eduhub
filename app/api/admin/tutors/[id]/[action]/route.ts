@@ -1,4 +1,4 @@
-//api/admin/tutors/[id]/[action]/route.ts
+// app/api/admin/tutors/[id]/[action]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
@@ -56,55 +56,69 @@ export async function PATCH(
       )
     }
 
-    let newStatus:
-      | 'approved'
-      | 'disapproved'
-      | 'suspended'
-      | 'paused' = tutor.status as any
+    const body = await req.json().catch(() => ({}))
 
+    let newStatus: 'approved' | 'disapproved' | 'suspended' | 'paused' = tutor.status as any
     let message = ''
 
     switch (action) {
-      case 'approve':
+      case 'approve': {
+        // Check if course IDs were provided
+        const { courseIds } = body
+        if (!Array.isArray(courseIds) || courseIds.length === 0) {
+          return NextResponse.json(
+            { error: 'Select at least one course to assign this tutor before approving' },
+            { status: 400 }
+          )
+        }
+
+        // Only allow assigning courses the tutor actually applied for —
+        // prevents an admin from accidentally approving a tutor for a
+        // subject they never claimed to teach.
+        const appliedCourseIds = tutor.courses.map((c: any) => c.toString())
+        const invalid = courseIds.find((cid: string) => !appliedCourseIds.includes(cid))
+        if (invalid) {
+          return NextResponse.json(
+            { error: 'One or more selected courses were not part of this tutor\'s application' },
+            { status: 400 }
+          )
+        }
+
+        // Update tutor's courses to only the approved ones
+        tutor.courses = courseIds
         newStatus = 'approved'
         message = 'Tutor application approved successfully'
-      
+        
         // Activate user account
         await User.findByIdAndUpdate(tutor.userId, {
           isActive: true,
         })
-
         break
+      }
 
       case 'disapprove':
         newStatus = 'disapproved'
         message = 'Tutor application rejected'
-
-        // Deactivate user account
         await User.findByIdAndUpdate(tutor.userId, {
           isActive: false,
         })
-
         break
 
       case 'suspend':
         newStatus = 'suspended'
         message = 'Tutor account suspended'
-
-        // Deactivate user account
         await User.findByIdAndUpdate(tutor.userId, {
           isActive: false,
         })
-
         break
 
-      // inside the existing switch(action) block, add this case:
-
-        case 'pause':
-          newStatus = 'paused'
-          message = 'Tutor account paused'
-          await User.findByIdAndUpdate(tutor.userId, { isActive: false })
-          break
+      case 'pause':
+        newStatus = 'paused'
+        message = 'Tutor account paused'
+        await User.findByIdAndUpdate(tutor.userId, {
+          isActive: false,
+        })
+        break
 
       default:
         return NextResponse.json(
@@ -115,14 +129,10 @@ export async function PATCH(
 
     // Update tutor status
     tutor.status = newStatus
-
     await tutor.save()
 
-    // Send email
-    if (
-      newStatus === 'approved' ||
-      newStatus === 'disapproved'
-    ) {
+    // Send email for approval/disapproval only
+    if (newStatus === 'approved' || newStatus === 'disapproved') {
       await sendTutorApprovalEmail(
         tutor.email,
         `${tutor.firstName} ${tutor.lastName}`,
@@ -134,6 +144,7 @@ export async function PATCH(
       success: true,
       message,
       status: newStatus,
+      courses: tutor.courses,
     })
 
   } catch (error: any) {

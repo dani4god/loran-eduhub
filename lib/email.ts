@@ -135,7 +135,7 @@ export async function sendPasswordResetEmail(data: {
 }
 
 
-// lib/email.ts (add this function)
+// lib/email.ts (updated sendTutorApprovalEmail function)
 export async function sendTutorApprovalEmail(email: string, name: string, status: 'approved' | 'disapproved') {
   const isApproved = status === 'approved';
   const loginUrl = `${process.env.NEXTAUTH_URL}/auth/tutor/login`;
@@ -167,6 +167,13 @@ export async function sendTutorApprovalEmail(email: string, name: string, status
           <p>Your tutor application has been <strong>${status}</strong>.</p>
           ${isApproved ? `
             <p>You can now log in to your tutor dashboard and start managing your students.</p>
+            
+            <p style="font-size:14px; color:#374151; line-height:1.7;">
+              Please check the <strong>announcements channel on our Discord server</strong> for the schedule of a
+              short onboarding session with one of our team members — this will get you in tune with our vision
+              and goals, and up to speed with the functionalities available on your dashboard.
+            </p>
+            
             <div style="text-align: center;">
               <a href="${loginUrl}" class="button">Login to Dashboard</a>
             </div>
@@ -191,7 +198,6 @@ export async function sendTutorApprovalEmail(email: string, name: string, status
     html,
   });
 }
-
 export async function sendTutorApplicationEmail(data: {
   tutorName: string;
   tutorEmail: string;

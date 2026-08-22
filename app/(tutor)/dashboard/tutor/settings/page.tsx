@@ -1,8 +1,9 @@
+// app/(tutor)/dashboard/tutor/settings/page.tsx
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import ProfileSettings from "@/components/tutor/ProfileSettings";
-import CourseManagement from "@/components/tutor/CourseManagement";
+import MyAssignedCourses from "@/components/tutor/MyAssignedCourses";
 import TutorPricingSettings from "@/components/settings/TutorPricingSettings";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import ChangePasswordForm from "@/components/shared/ChangePasswordForm";
@@ -28,7 +29,7 @@ export default async function TutorSettingsPage() {
         </div>
 
         <ProfileSettings />
-        <CourseManagement />
+        <MyAssignedCourses />
         <TutorPricingSettings />
         <BankSettings />
         <SocialCampaignSettings />

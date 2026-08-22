@@ -45,3 +45,5 @@ export const ADMIN_ROLE_NAME = 'Admin'
 
 // The single fixed Loran EduHub Discord guild ID
 export const LORAN_GUILD_ID = process.env.DISCORD_GUILD_ID!
+
+export const COURSE_CATEGORIES = Object.keys(CATEGORY_TO_ROLE_GROUP) as (keyof typeof CATEGORY_TO_ROLE_GROUP)[]

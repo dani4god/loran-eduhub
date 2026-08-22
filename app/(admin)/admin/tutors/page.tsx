@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import ScheduleInterviewModal from '@/components/admin/ScheduleInterviewModal';
+import AdminTutorApprovalModal from '@/components/admin/AdminTutorApprovalModal';
 
 interface Tutor {
   _id: string;
@@ -61,6 +62,7 @@ export default function AdminTutors() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedTutor, setSelectedTutor] = useState<Tutor | null>(null);
   const [interviewTutor, setInterviewTutor] = useState<Tutor | null>(null);
+  const [approvingTutor, setApprovingTutor] = useState<Tutor | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
@@ -233,7 +235,10 @@ export default function AdminTutors() {
                       >
                         <CalendarClock size={16} />
                       </button>
-                      <button onClick={() => handleAction(tutor._id, 'approve')} disabled={actionLoading} className="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50">
+                      <button
+                        onClick={() => setApprovingTutor(tutor)}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                      >
                         <CheckCircle size={16} />
                       </button>
                       <button onClick={() => handleAction(tutor._id, 'disapprove')} disabled={actionLoading} className="p-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50">
@@ -390,8 +395,11 @@ export default function AdminTutors() {
                       Schedule Interview
                     </button>
                     <div className="flex gap-3">
-                      <button onClick={() => handleAction(selectedTutor._id, 'approve')} disabled={actionLoading} className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
-                        {actionLoading ? 'Processing...' : 'Approve'}
+                      <button
+                        onClick={() => setApprovingTutor(selectedTutor)}
+                        className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700"
+                      >
+                        Approve
                       </button>
                       <button onClick={() => handleAction(selectedTutor._id, 'disapprove')} disabled={actionLoading} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
                         {actionLoading ? 'Processing...' : 'Reject'}
@@ -429,6 +437,15 @@ export default function AdminTutors() {
       {/* Interview Modal */}
       {interviewTutor && (
         <ScheduleInterviewModal tutor={interviewTutor} onClose={() => setInterviewTutor(null)} />
+      )}
+
+      {/* Approval Modal */}
+      {approvingTutor && (
+        <AdminTutorApprovalModal
+          tutor={approvingTutor as any}
+          onClose={() => setApprovingTutor(null)}
+          onApproved={fetchTutors}
+        />
       )}
     </AdminLayout>
   );
