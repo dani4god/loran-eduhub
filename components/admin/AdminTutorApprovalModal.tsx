@@ -1,91 +1,198 @@
 // components/admin/AdminTutorApprovalModal.tsx
-'use client'
+'use client';
 
-import { useState } from 'react'
-import { X, CheckCircle2, Loader2 } from 'lucide-react'
+import { useState } from 'react';
+import { X, CheckCircle, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
-interface Course { _id: string; name: string; category: string }
-interface Props {
-  tutor: { _id: string; firstName: string; lastName: string; email: string; courses: Course[] } // courses = what they APPLIED for
-  onClose: () => void
-  onApproved: () => void
+interface Tutor {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  courses: { _id: string; name: string; category: string }[];
 }
 
-export default function AdminTutorApprovalModal({ tutor, onClose, onApproved }: Props) {
-  const [selected, setSelected] = useState<string[]>(tutor.courses.map((c) => c._id)) // default: all applied courses checked
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+interface AdminTutorApprovalModalProps {
+  tutor: Tutor;
+  onClose: () => void;
+  onApproved: () => void;
+}
 
-  const toggle = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]))
-  }
+export default function AdminTutorApprovalModal({
+  tutor,
+  onClose,
+  onApproved,
+}: AdminTutorApprovalModalProps) {
+  const [selected, setSelected] = useState<string[]>(
+    tutor.courses.map((c) => c._id)
+  );
+  const [loading, setLoading] = useState(false);
 
-  const approve = async () => {
+  const toggleCourse = (courseId: string) => {
+    setSelected((prev) =>
+      prev.includes(courseId)
+        ? prev.filter((id) => id !== courseId)
+        : [...prev, courseId]
+    );
+  };
+
+  const handleApprove = async () => {
     if (selected.length === 0) {
-      setError('Select at least one course')
-      return
+      toast.error('Please select at least one course to approve');
+      return;
     }
-    setSubmitting(true)
-    setError('')
+
+    setLoading(true);
     try {
+      // ✅ FIX: Use PATCH method instead of POST
       const res = await fetch(`/api/admin/tutors/${tutor._id}/approve`, {
-        method: 'POST',
+        method: 'PATCH',  // Changed from 'POST' to 'PATCH'
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ courseIds: selected }),
-      })
-      const data = await res.json()
+      });
+
+      const data = await res.json();
+      
       if (res.ok) {
-        onApproved()
-        onClose()
+        toast.success('Tutor approved successfully');
+        onApproved();
+        onClose();
       } else {
-        setError(data.error || 'Failed to approve')
+        toast.error(data.error || 'Failed to approve tutor');
       }
+    } catch (error) {
+      console.error('Approval error:', error);
+      toast.error('An error occurred during approval');
     } finally {
-      setSubmitting(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const handleSelectAll = () => {
+    if (selected.length === tutor.courses.length) {
+      setSelected([]);
+    } else {
+      setSelected(tutor.courses.map((c) => c._id));
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Assign Courses & Approve</h2>
-            <p className="text-xs text-gray-400">{tutor.firstName} {tutor.lastName} · {tutor.email}</p>
+            <h2 className="text-lg font-bold text-gray-900">Approve Tutor</h2>
+            <p className="text-sm text-gray-500">
+              {tutor.firstName} {tutor.lastName} · {tutor.email}
+            </p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} className="text-gray-500" /></button>
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
         </div>
 
-        <div className="p-5 space-y-3">
-          <p className="text-xs text-gray-500">
-            Select which of the courses this tutor applied for they'll actually be assigned to teach. All are checked by default.
-          </p>
-
-          <div className="space-y-1.5">
-            {tutor.courses.map((c) => (
-              <label key={c._id} className={`flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer ${selected.includes(c._id) ? 'border-blue-400 bg-blue-50' : 'border-gray-100'}`}>
-                <input type="checkbox" checked={selected.includes(c._id)} onChange={() => toggle(c._id)} />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{c.name}</p>
-                  <p className="text-[11px] text-gray-400">{c.category}</p>
-                </div>
-              </label>
-            ))}
-            {tutor.courses.length === 0 && <p className="text-sm text-gray-400">This tutor didn't select any courses during application.</p>}
+        {/* Body */}
+        <div className="p-5 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="mb-4">
+            <p className="text-sm text-gray-600 mb-3">
+              Select the courses this tutor should be approved to teach:
+            </p>
+            <button
+              onClick={handleSelectAll}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+            >
+              {selected.length === tutor.courses.length
+                ? 'Deselect All'
+                : 'Select All'}
+            </button>
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="space-y-2">
+            {tutor.courses.map((course) => {
+              const isSelected = selected.includes(course._id);
+              return (
+                <button
+                  key={course._id}
+                  onClick={() => toggleCourse(course._id)}
+                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 text-left transition ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">
+                      {course.name}
+                    </p>
+                    <p className="text-xs text-gray-500">{course.category}</p>
+                  </div>
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-500'
+                        : 'border-gray-300'
+                    }`}
+                  >
+                    {isSelected && (
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
+          {selected.length === 0 && (
+            <p className="text-xs text-red-500 mt-3">
+              ⚠️ You must select at least one course to approve this tutor.
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-100 p-4 flex gap-3">
           <button
-            onClick={approve}
-            disabled={submitting || tutor.courses.length === 0}
-            className="w-full flex items-center justify-center gap-1.5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50"
+            onClick={onClose}
+            className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
           >
-            {submitting ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-            {submitting ? 'Approving...' : `Approve with ${selected.length} Course${selected.length !== 1 ? 's' : ''}`}
+            Cancel
+          </button>
+          <button
+            onClick={handleApprove}
+            disabled={loading || selected.length === 0}
+            className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Approving...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4" />
+                Approve Tutor
+              </>
+            )}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
