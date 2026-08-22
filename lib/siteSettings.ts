@@ -13,6 +13,8 @@ export async function getSiteSettings() {
     logoUrl: settings.logoUrl || null,
     maintenanceMode: settings.maintenanceMode,
     heroImageUrls: settings.heroImageUrls || [],
-    updatedAt: settings.updatedAt
+    updatedAt: settings.updatedAt,
+    certificateSignatureUrl: settings.certificateSignatureUrl || null,
+    certificateLogoUrl: settings.certificateLogoUrl || null,
   }
 }

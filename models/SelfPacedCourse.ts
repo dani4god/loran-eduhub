@@ -51,7 +51,7 @@ export interface ISelfPacedCourse extends Document {
   discordEnabled: boolean
   discordDescription: string
   weeklyWorkshop: IWeeklyWorkshop
-  certificateSignatureUrl?: string
+  learningOutcomes: string[]
   certificateLogoUrl?: string
   createdAt: Date
   updatedAt: Date
@@ -112,7 +112,7 @@ const SelfPacedCourseSchema = new Schema<ISelfPacedCourse>(
       time: { type: String },
       description: { type: String },
     },
-    certificateSignatureUrl: { type: String },
+    learningOutcomes: { type: [String], default: [] },
     certificateLogoUrl: { type: String },
   },
   { timestamps: true }

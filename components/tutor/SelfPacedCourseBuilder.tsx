@@ -7,6 +7,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Plus, Trash2, Upload, Loader2, Eye, EyeOff, Save, Users,
   Calendar, MessageSquare, ChevronLeft, ChevronRight, AlertTriangle, PenTool,
+  X,
 } from 'lucide-react'
 import RichTextEditor from '@/components/library/RichTextEditor'
 import QuestionEditor from '@/components/library/QuestionEditor'
@@ -27,6 +28,8 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
   const [weeks, setWeeks] = useState<Week[]>([])
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
   const [selectedPage, setSelectedPage] = useState<number>(0)
+  const [learningOutcomes, setLearningOutcomes] = useState<string[]>([])
+  const [newOutcome, setNewOutcome] = useState('')
 
   const [coachingEnabled, setCoachingEnabled] = useState(false)
   const [coachingHourlyRate, setCoachingHourlyRate] = useState(0)
@@ -36,12 +39,8 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
   const [workshopDay, setWorkshopDay] = useState('')
   const [workshopTime, setWorkshopTime] = useState('')
   const [workshopDesc, setWorkshopDesc] = useState('')
-  const [certSignature, setCertSignature] = useState<string | null>(null)
-  const [certLogo, setCertLogo] = useState<string | null>(null)
 
   const [uploading, setUploading] = useState(false)
-  const [uploadingSig, setUploadingSig] = useState(false)
-  const [uploadingLogo, setUploadingLogo] = useState(false)
   const [bulkUploading, setBulkUploading] = useState(false)
   const [bulkResult, setBulkResult] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -54,12 +53,12 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
       setTitle(c.title); setDescription(c.description || ''); setCoverImageUrl(c.coverImageUrl);
       setPrice(c.price); setStatus(c.status);
       setWeeks(c.weeks.length ? c.weeks : []);
+      setLearningOutcomes(c.learningOutcomes || []);
       setCoachingEnabled(c.coachingEnabled); setCoachingHourlyRate(c.coachingHourlyRate);
       setDiscordEnabled(c.discordEnabled); setDiscordDescription(c.discordDescription || '');
       setWorkshopEnabled(c.weeklyWorkshop?.enabled || false);
       setWorkshopDay(c.weeklyWorkshop?.dayOfWeek || ''); setWorkshopTime(c.weeklyWorkshop?.time || '');
       setWorkshopDesc(c.weeklyWorkshop?.description || '');
-      setCertSignature(c.certificateSignatureUrl || null); setCertLogo(c.certificateLogoUrl || null);
     }).finally(() => setLoading(false))
   }, [courseId])
 
@@ -75,10 +74,9 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title, description, coverImageUrl, price, weeks,
+        title, description, coverImageUrl, price, weeks, learningOutcomes,
         coachingEnabled, coachingHourlyRate, discordEnabled, discordDescription,
         weeklyWorkshop: { enabled: workshopEnabled, dayOfWeek: workshopDay, time: workshopTime, description: workshopDesc },
-        certificateSignatureUrl: certSignature, certificateLogoUrl: certLogo,
       }),
     })
     if (res.ok) setSaveStatus('saved')
@@ -88,7 +86,7 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
     if (loading) return
     scheduleSave()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, description, coverImageUrl, price, weeks, coachingEnabled, coachingHourlyRate, discordEnabled, discordDescription, workshopEnabled, workshopDay, workshopTime, workshopDesc, certSignature, certLogo])
+  }, [title, description, coverImageUrl, price, weeks, learningOutcomes, coachingEnabled, coachingHourlyRate, discordEnabled, discordDescription, workshopEnabled, workshopDay, workshopTime, workshopDesc])
 
   const uploadFile = async (file: File, setter: (url: string) => void, loadingSetter: (b: boolean) => void) => {
     loadingSetter(true)
@@ -145,6 +143,14 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
     ;(next[weekIdx].pages[pageIdx] as any)[field] = value
     setWeeks(next)
   }
+
+  const addOutcome = () => {
+    if (!newOutcome.trim()) return
+    setLearningOutcomes([...learningOutcomes, newOutcome.trim()])
+    setNewOutcome('')
+  }
+
+  const removeOutcome = (i: number) => setLearningOutcomes(learningOutcomes.filter((_, idx) => idx !== i))
 
   const bulkUploadQuestions = async (file: File, mode: 'append' | 'replace') => {
     if (selectedWeek === null) return
@@ -342,6 +348,24 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Course description" className="w-full mt-3 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
             </div>
 
+            {/* Learning Outcomes Card */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Certificate Learning Outcomes</p>
+              <p className="text-xs text-gray-400 mb-3">These appear on the certificate students receive when they complete this course.</p>
+              <div className="space-y-1.5 mb-2">
+                {learningOutcomes.map((o, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-xs">
+                    <span className="flex-1">{o}</span>
+                    <button onClick={() => removeOutcome(i)}><X size={13} className="text-gray-400 hover:text-red-500" /></button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input value={newOutcome} onChange={(e) => setNewOutcome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addOutcome()} placeholder="e.g. Develop full stack web applications" className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs" />
+                <button onClick={addOutcome} className="px-3 py-2 bg-gray-900 text-white rounded-lg text-xs font-semibold shrink-0">Add</button>
+              </div>
+            </div>
+
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3"><input type="checkbox" checked={coachingEnabled} onChange={(e) => setCoachingEnabled(e.target.checked)} /> Offer 1-on-1 Coaching</label>
               {coachingEnabled && (
@@ -366,20 +390,6 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
                   <textarea value={workshopDesc} onChange={(e) => setWorkshopDesc(e.target.value)} placeholder="Description" rows={2} className="col-span-2 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 </div>
               )}
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1"><PenTool size={12} /> Certificate Assets</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
-                  {certSignature ? <img src={certSignature} className="h-10 mx-auto object-contain mb-1.5" /> : <Upload size={16} className="text-gray-300 mx-auto mb-1.5" />}
-                  <label className="text-xs font-semibold text-blue-600 cursor-pointer">{uploadingSig ? 'Uploading...' : 'Signature'}<input type="file" accept="image/*" className="hidden" disabled={uploadingSig} onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0], setCertSignature, setUploadingSig)} /></label>
-                </div>
-                <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
-                  {certLogo ? <img src={certLogo} className="h-10 mx-auto object-contain mb-1.5" /> : <Upload size={16} className="text-gray-300 mx-auto mb-1.5" />}
-                  <label className="text-xs font-semibold text-blue-600 cursor-pointer">{uploadingLogo ? 'Uploading...' : 'Logo'}<input type="file" accept="image/*" className="hidden" disabled={uploadingLogo} onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0], setCertLogo, setUploadingLogo)} /></label>
-                </div>
-              </div>
             </div>
           </div>
         )}

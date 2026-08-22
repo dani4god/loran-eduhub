@@ -10,13 +10,22 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { logoUrl, maintenanceMode, heroImageUrls } = await req.json()
+  const { 
+    logoUrl, 
+    maintenanceMode, 
+    heroImageUrls,
+    certificateSignatureUrl,
+    certificateLogoUrl 
+  } = await req.json()
+  
   await connectDB()
 
   const update: any = {}
   if (logoUrl !== undefined) update.logoUrl = logoUrl
   if (maintenanceMode !== undefined) update.maintenanceMode = maintenanceMode
   if (heroImageUrls !== undefined) update.heroImageUrls = heroImageUrls
+  if (certificateSignatureUrl !== undefined) update.certificateSignatureUrl = certificateSignatureUrl
+  if (certificateLogoUrl !== undefined) update.certificateLogoUrl = certificateLogoUrl
 
   const settings = await PlatformSettings.findOneAndUpdate(
     { key: 'global' },
@@ -24,5 +33,13 @@ export async function PATCH(req: NextRequest) {
     { upsert: true, new: true }
   )
 
-  return NextResponse.json({ success: true, logoUrl: settings.logoUrl, maintenanceMode: settings.maintenanceMode, heroImageUrls: settings.heroImageUrls, updatedAt: settings.updatedAt })
+  return NextResponse.json({ 
+    success: true, 
+    logoUrl: settings.logoUrl, 
+    maintenanceMode: settings.maintenanceMode, 
+    heroImageUrls: settings.heroImageUrls,
+    certificateSignatureUrl: settings.certificateSignatureUrl,
+    certificateLogoUrl: settings.certificateLogoUrl,
+    updatedAt: settings.updatedAt 
+  })
 }

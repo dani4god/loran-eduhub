@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Image as ImageIcon, Upload, AlertTriangle, Loader2, X, Plus } from 'lucide-react'
+import { Image as ImageIcon, Upload, AlertTriangle, Loader2, X, Plus, FileSignature } from 'lucide-react'
 
 export default function SiteSettingsPanel() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -12,6 +12,10 @@ export default function SiteSettingsPanel() {
   const [uploading, setUploading] = useState(false)
   const [uploadingHero, setUploadingHero] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [certSignature, setCertSignature] = useState<string | null>(null)
+  const [certLogo, setCertLogo] = useState<string | null>(null)
+  const [uploadingCertSig, setUploadingCertSig] = useState(false)
+  const [uploadingCertLogo, setUploadingCertLogo] = useState(false)
 
   useEffect(() => {
     fetch('/api/site-settings')
@@ -20,6 +24,8 @@ export default function SiteSettingsPanel() {
         setLogoUrl(d.logoUrl)
         setMaintenanceMode(d.maintenanceMode)
         setHeroImages(d.heroImageUrls || [])
+        setCertSignature(d.certificateSignatureUrl || null)
+        setCertLogo(d.certificateLogoUrl || null)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -83,6 +89,33 @@ export default function SiteSettingsPanel() {
       body: JSON.stringify({ heroImageUrls: next }),
     })
     toast.success('Hero image removed')
+  }
+
+  const uploadCertAsset = async (file: File, field: 'sig' | 'logo') => {
+    field === 'sig' ? setUploadingCertSig(true) : setUploadingCertLogo(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'image')
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (res.ok) {
+        const patch = field === 'sig' 
+          ? { certificateSignatureUrl: data.url } 
+          : { certificateLogoUrl: data.url }
+        field === 'sig' ? setCertSignature(data.url) : setCertLogo(data.url)
+        await fetch('/api/admin/settings/site', { 
+          method: 'PATCH', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(patch) 
+        })
+        toast.success(field === 'sig' ? 'Signature uploaded' : 'Logo uploaded')
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Upload failed')
+    } finally {
+      field === 'sig' ? setUploadingCertSig(false) : setUploadingCertLogo(false)
+    }
   }
 
   const toggleMaintenance = async () => {
@@ -160,6 +193,36 @@ export default function SiteSettingsPanel() {
           {uploadingHero ? 'Uploading...' : 'Add Hero Image'}
           <input type="file" accept="image/*" className="hidden" disabled={uploadingHero} onChange={(e) => e.target.files?.[0] && uploadHeroImage(e.target.files[0])} />
         </label>
+      </div>
+
+      {/* Self-Paced Course Certificate Card */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <p className="text-sm font-semibold text-gray-900 mb-1">Self-Paced Course Certificate</p>
+        <p className="text-xs text-gray-500 mb-4">
+          Applies to every self-paced course certificate platform-wide. Signed as <strong>Okeke Daniel, Academic Director</strong>.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-2">Signature</p>
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
+              {certSignature ? <img src={certSignature} className="h-12 mx-auto object-contain mb-1.5" /> : <div className="h-12" />}
+              <label className="text-xs font-semibold text-blue-600 cursor-pointer">
+                {uploadingCertSig ? 'Uploading...' : certSignature ? 'Change' : 'Upload'}
+                <input type="file" accept="image/*" className="hidden" disabled={uploadingCertSig} onChange={(e) => e.target.files?.[0] && uploadCertAsset(e.target.files[0], 'sig')} />
+              </label>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-2">Logo / Seal</p>
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center">
+              {certLogo ? <img src={certLogo} className="h-12 mx-auto object-contain mb-1.5" /> : <div className="h-12" />}
+              <label className="text-xs font-semibold text-blue-600 cursor-pointer">
+                {uploadingCertLogo ? 'Uploading...' : certLogo ? 'Change' : 'Upload'}
+                <input type="file" accept="image/*" className="hidden" disabled={uploadingCertLogo} onChange={(e) => e.target.files?.[0] && uploadCertAsset(e.target.files[0], 'logo')} />
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Maintenance Mode Section */}

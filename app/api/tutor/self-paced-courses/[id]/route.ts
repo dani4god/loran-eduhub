@@ -35,7 +35,7 @@ export async function GET(
 
 // Used for autosave — accepts a partial update, saves whatever fields
 // are present (title, description, coverImageUrl, price, weeks,
-// coaching/discord/workshop settings, certificate assets).
+// coaching/discord/workshop settings).
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -128,10 +128,11 @@ export async function PATCH(
     }
   }
 
+  // Updated allowedFields - certificate fields removed (now platform-wide)
   const allowedFields = [
-    'title', 'description', 'coverImageUrl', 'price', 'category', 'weeks',
+    'title', 'description', 'coverImageUrl', 'price', 'weeks', 'learningOutcomes',
     'coachingEnabled', 'coachingHourlyRate', 'discordEnabled', 'discordDescription',
-    'weeklyWorkshop', 'certificateSignatureUrl', 'certificateLogoUrl',
+    'weeklyWorkshop',
   ]
 
   const update: any = {}

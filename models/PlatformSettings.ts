@@ -9,6 +9,8 @@ export interface IPlatformSettings extends Document {
   maintenanceMode: boolean
   heroImageUrls: string[]
   updatedAt: Date
+  certificateSignatureUrl?: string
+  certificateLogoUrl?: string
 }
 
 const PlatformSettingsSchema = new Schema<IPlatformSettings>(
@@ -18,6 +20,8 @@ const PlatformSettingsSchema = new Schema<IPlatformSettings>(
     logoUrl: { type: String, default: null },
     maintenanceMode: { type: Boolean, default: false },
     heroImageUrls: { type: [String], default: [] },
+    certificateSignatureUrl: { type: String, default: null },
+    certificateLogoUrl: { type: String, default: null },
     updatedAt: { type: Date, default: Date.now }
   },
   { timestamps: true }

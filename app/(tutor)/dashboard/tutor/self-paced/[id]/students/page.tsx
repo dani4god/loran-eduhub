@@ -33,7 +33,11 @@ export default function SelfPacedStudentsPage() {
                 <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0"><User size={16} className="text-blue-500" /></div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{s.studentName}</p>
-                  <p className="text-xs text-gray-400">Week {s.unlockedWeek} · {s.averageScore}% avg · ₦{s.amountPaid.toLocaleString('en-NG')} paid</p>
+                  <p className="text-xs text-gray-400">
+                    Week {s.unlockedWeek} · {s.classification ? (
+                      <span className="font-semibold capitalize text-blue-600">{s.classification}</span>
+                    ) : 'In progress'} · ₦{s.amountPaid.toLocaleString('en-NG')} paid
+                  </p>
                 </div>
                 {s.locked ? (
                   <button onClick={() => unlock(s.enrollmentId)} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700">

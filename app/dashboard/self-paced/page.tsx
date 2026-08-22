@@ -37,7 +37,10 @@ export default function SelfPacedDashboard() {
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
                     <div className="h-full bg-blue-500" style={{ width: `${(c.completedWeeks / c.totalWeeks) * 100}%` }} />
                   </div>
-                  <p className="text-xs text-gray-400 mb-3">{c.completedWeeks}/{c.totalWeeks} weeks · {c.averageScore}% avg</p>
+                  <p className="text-xs text-gray-400 mb-3">
+                    {c.completedWeeks}/{c.totalWeeks} weeks
+                    {c.classification && <span className="font-semibold capitalize text-blue-600"> · {c.classification}</span>}
+                  </p>
 
                   {c.todos.length > 0 && (
                     <div className="space-y-1">

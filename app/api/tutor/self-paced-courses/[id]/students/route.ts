@@ -7,7 +7,7 @@ import Tutor from '@/models/Tutor'
 import SelfPacedCourse from '@/models/SelfPacedCourse'
 import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
 import SelfPacedStudent from '@/models/SelfPacedStudent'
-import { getUnlockedWeekNumber, computeAverageScore } from '@/lib/selfPaced'
+import { getUnlockedWeekNumber, computeAverageScore, isCourseComplete, classifyScore } from '@/lib/selfPaced'
 
 export async function GET(
   req: NextRequest,
@@ -31,13 +31,16 @@ export async function GET(
   const results = await Promise.all(
     enrollments.map(async (e: any) => {
       const student = await SelfPacedStudent.findById(e.selfPacedStudentId).select('firstName lastName phone')
+      const complete = isCourseComplete(course, e)
+      const classification = complete ? classifyScore(computeAverageScore(e)) : null
+      
       return {
         enrollmentId: e._id.toString(),
         studentName: student ? `${student.firstName} ${student.lastName}` : 'Unknown',
         studentPhone: student?.phone || '',
         unlockedWeek: getUnlockedWeekNumber(e),
         weeksPassed: e.weekProgress.filter((w: any) => w.passed).length,
-        averageScore: computeAverageScore(e),
+        classification, // 'distinction' | 'credit' | 'pass' | null (null = still in progress)
         locked: e.locked,
         lockedAtWeek: e.lockedAtWeek || null,
         amountPaid: e.amountPaid,

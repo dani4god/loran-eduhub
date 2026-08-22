@@ -1,4 +1,4 @@
-// app/api/tutor/self-paced-courses/[id]/publish/route.ts — full file
+// app/api/tutor/self-paced-courses/[id]/publish/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -44,12 +44,19 @@ export async function POST(
       return NextResponse.json({ error: 'This course cannot be submitted for review from its current status' }, { status: 400 })
     }
 
+    // Validation checks
     if (course.weeks.length === 0) {
       return NextResponse.json({ error: 'Add at least one week before submitting' }, { status: 400 })
     }
     if (!course.coverImageUrl) {
       return NextResponse.json({ error: 'Upload a cover image before submitting' }, { status: 400 })
     }
+    
+    // Check for learning outcomes
+    if (!course.learningOutcomes || course.learningOutcomes.length === 0) {
+      return NextResponse.json({ error: 'Add at least one course learning outcome before submitting' }, { status: 400 })
+    }
+    
     const weekWithoutQuestions = course.weeks.find((w: any) => w.exam.questions.length === 0)
     if (weekWithoutQuestions) {
       return NextResponse.json(

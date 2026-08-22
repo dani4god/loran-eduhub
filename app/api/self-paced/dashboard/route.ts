@@ -6,7 +6,7 @@ import connectDB from '@/lib/mongodb'
 import SelfPacedStudent from '@/models/SelfPacedStudent'
 import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
 import SelfPacedCourse from '@/models/SelfPacedCourse'
-import { getUnlockedWeekNumber, isCourseComplete, computeAverageScore, buildTodoList } from '@/lib/selfPaced'
+import { getUnlockedWeekNumber, isCourseComplete, computeAverageScore, buildTodoList, classifyScore } from '@/lib/selfPaced'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -25,6 +25,9 @@ export async function GET() {
       const course = await SelfPacedCourse.findById(e.courseId).select('title coverImageUrl weeks')
       if (!course) return null
 
+      const complete = isCourseComplete(course, e)
+      const avgScore = computeAverageScore(e)
+
       return {
         enrollmentId: e._id.toString(),
         courseId: course._id.toString(),
@@ -33,8 +36,8 @@ export async function GET() {
         totalWeeks: course.weeks.length,
         unlockedWeek: getUnlockedWeekNumber(e),
         completedWeeks: e.weekProgress.filter((w: any) => w.passed).length,
-        isComplete: isCourseComplete(course, e),
-        averageScore: computeAverageScore(e),
+        isComplete: complete,
+        classification: complete ? classifyScore(avgScore) : null,
         todos: buildTodoList(course, e),
         hasCertificate: !!e.certificateId,
       }

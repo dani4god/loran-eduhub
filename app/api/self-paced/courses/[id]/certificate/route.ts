@@ -8,10 +8,13 @@ import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
 import SelfPacedCourse from '@/models/SelfPacedCourse'
 import SelfPacedCertificate from '@/models/SelfPacedCertificate'
 import SelfPacedCourseReview from '@/models/SelfPacedCourseReview'
-import Tutor from '@/models/Tutor'
 import { isCourseComplete, computeAverageScore, classifyScore } from '@/lib/selfPaced'
 import { generateCertificateNumber } from '@/lib/certificate'
-import { renderCertificatePdf } from '@/lib/certificatePdf'
+import { renderSelfPacedCertificatePdf } from '@/lib/selfPacedCertificatePdf'
+import { getSiteSettings } from '@/lib/siteSettings'
+
+const SIGNATORY_NAME = 'Okeke Daniel'
+const SIGNATORY_TITLE = 'Academic Director'
 
 export async function GET(
   req: NextRequest,
@@ -33,21 +36,13 @@ export async function GET(
   const course = await SelfPacedCourse.findById(id)
   if (!course) return NextResponse.json({ error: 'Course not found' }, { status: 404 })
 
-  // Check if the course is complete
   if (!isCourseComplete(course, enrollment)) {
     return NextResponse.json({ error: 'Complete every week to unlock your certificate' }, { status: 400 })
   }
 
-  // Check if the student has left a review for this course
-  const hasReviewed = await SelfPacedCourseReview.findOne({ 
-    selfPacedStudentId: student._id, 
-    courseId: id 
-  })
+  const hasReviewed = await SelfPacedCourseReview.findOne({ selfPacedStudentId: student._id, courseId: id })
   if (!hasReviewed) {
-    return NextResponse.json({ 
-      error: 'Please leave a course review before downloading your certificate', 
-      reviewRequired: true 
-    }, { status: 400 })
+    return NextResponse.json({ error: 'Please leave a course review before downloading your certificate', reviewRequired: true }, { status: 400 })
   }
 
   let certificate = enrollment.certificateId
@@ -55,12 +50,13 @@ export async function GET(
     : null
 
   if (!certificate) {
-    const tutor = await Tutor.findById(course.tutorId)
-    if (!course.certificateSignatureUrl || !course.certificateLogoUrl) {
-      return NextResponse.json({ error: 'The tutor has not set up certificate assets for this course yet' }, { status: 400 })
+    const settings = await getSiteSettings()
+    if (!settings.certificateSignatureUrl || !settings.certificateLogoUrl) {
+      return NextResponse.json({ error: 'Certificate signature/logo has not been set up yet — please contact support' }, { status: 400 })
     }
 
-    const averageScore = computeAverageScore(enrollment)
+    const averageScore = computeAverageScore(enrollment) // used only to classify, never displayed
+
     certificate = await SelfPacedCertificate.create({
       selfPacedStudentId: student._id,
       courseId: course._id,
@@ -69,10 +65,11 @@ export async function GET(
       certificateNumber: generateCertificateNumber(),
       studentName: `${student.firstName} ${student.lastName}`,
       courseName: course.title,
-      tutorName: tutor ? `${tutor.firstName} ${tutor.lastName}` : 'Loran EduHub',
-      signatureUrl: course.certificateSignatureUrl,
-      logoUrl: course.certificateLogoUrl,
-      averageScore,
+      learningOutcomes: course.learningOutcomes || [],
+      signatureUrl: settings.certificateSignatureUrl,
+      logoUrl: settings.certificateLogoUrl,
+      signatoryName: SIGNATORY_NAME,
+      signatoryTitle: SIGNATORY_TITLE,
       classification: classifyScore(averageScore),
     })
 
@@ -81,19 +78,20 @@ export async function GET(
     await enrollment.save()
   }
 
-  // Reuses the same PDF renderer built for course-completion certificates —
-  // the shape it expects (studentName, courseName, tutorName, signatureUrl,
-  // logoUrl, averageScore, classification, certificateNumber, durationStart/End,
-  // issuedAt) matches closely enough that we pass enrollment dates as the
-  // duration range.
-  const pdfBuffer = await renderCertificatePdf({
-    ...certificate.toObject(),
-    durationStart: enrollment.createdAt,
-    durationEnd: enrollment.completedAt || new Date(),
+  const pdfBuffer = await renderSelfPacedCertificatePdf({
+    studentName: certificate.studentName,
+    courseName: certificate.courseName,
+    learningOutcomes: certificate.learningOutcomes,
+    logoUrl: certificate.logoUrl,
+    signatureUrl: certificate.signatureUrl,
+    signatoryName: certificate.signatoryName,
+    signatoryTitle: certificate.signatoryTitle,
+    classification: certificate.classification,
+    certificateNumber: certificate.certificateNumber,
     issuedAt: certificate.issuedAt,
-  } as any)
+  })
 
-  return new NextResponse(new Uint8Array(pdfBuffer), {
+  return new NextResponse(Uint8Array.from(pdfBuffer), {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${certificate.certificateNumber}.pdf"`,

@@ -10,10 +10,11 @@ export interface ISelfPacedCertificate extends Document {
   studentName: string
   nameEdited: boolean
   courseName: string
-  tutorName: string
+  learningOutcomes: string[]
   signatureUrl: string
   logoUrl: string
-  averageScore: number
+  signatoryName: string
+  signatoryTitle: string
   classification: 'distinction' | 'credit' | 'pass'
   issuedAt: Date
   createdAt: Date
@@ -29,10 +30,11 @@ const SelfPacedCertificateSchema = new Schema<ISelfPacedCertificate>(
     studentName: { type: String, required: true },
     nameEdited: { type: Boolean, default: false },
     courseName: { type: String, required: true },
-    tutorName: { type: String, required: true },
+    learningOutcomes: { type: [String], default: [] },
     signatureUrl: { type: String, required: true },
     logoUrl: { type: String, required: true },
-    averageScore: { type: Number, required: true },
+    signatoryName: { type: String, required: true, default: 'Okeke Daniel' },
+    signatoryTitle: { type: String, required: true, default: 'Academic Director' },
     classification: { type: String, enum: ['distinction', 'credit', 'pass'], required: true },
     issuedAt: { type: Date, default: Date.now },
   },
