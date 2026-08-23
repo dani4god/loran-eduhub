@@ -119,8 +119,9 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
   if (!editor) return null
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-100 bg-gray-50 px-2 py-1.5">
+    <div className="border border-gray-200 overflow-hidden bg-white rounded-xl">
+      {/* Sticky toolbar - stays visible while scrolling through content */}
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-gray-100 bg-gray-50 px-2 py-1.5">
         <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <Bold size={15} />
         </ToolBtn>
