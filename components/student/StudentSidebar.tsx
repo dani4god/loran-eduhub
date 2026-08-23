@@ -16,6 +16,7 @@ import {
   X,
   Menu,
   Wallet,
+  HelpCircle,
   Bell,
   HeadphonesIcon,
   ChevronRight,
@@ -47,6 +48,7 @@ const NAV_ITEMS = [
   { label: 'Reviews', href: '/dashboard/student/reviews', icon: Star },
   { label: 'Notifications', href: '/dashboard/student/notifications', icon: Bell },
   { href: '/dashboard/student/settings', label: 'Settings', icon: Settings },
+  { label: 'User Guide', href: '/dashboard/guide', icon: HelpCircle },
 ]
 
 function getInitials(name: string) {

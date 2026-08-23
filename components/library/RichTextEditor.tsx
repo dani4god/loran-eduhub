@@ -12,6 +12,7 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import ResizableImage from '@/components/library/ResizableImageExtension'
+import VideoEmbed, { isEmbeddableVideoUrl } from '@/components/library/VideoEmbedExtension'
 import { useEffect } from 'react'
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, List, ListOrdered,
@@ -66,6 +67,7 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
       TableHeader,
       TableCell,
       ResizableImage.configure({ HTMLAttributes: { class: 'rounded-lg max-w-full' } }),
+      VideoEmbed,
     ],
     content: value || '',
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -73,6 +75,18 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
       attributes: {
         class:
           'tiptap-editor-content max-w-none focus:outline-none min-h-[220px] px-4 py-3',
+      },
+      handlePaste: (view, event) => {
+        const text = event.clipboardData?.getData('text/plain')?.trim()
+        if (text && isEmbeddableVideoUrl(text)) {
+          event.preventDefault()
+          const { schema } = view.state
+          const node = schema.nodes.videoEmbed.create({ src: text })
+          const transaction = view.state.tr.replaceSelectionWith(node)
+          view.dispatch(transaction)
+          return true
+        }
+        return false
       },
     },
   })

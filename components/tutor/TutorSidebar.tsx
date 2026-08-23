@@ -22,6 +22,7 @@ import {
   Bell,
   Menu,
   Layers,
+  HelpCircle, 
   X,
   Megaphone,
   ScrollText,
@@ -43,6 +44,7 @@ const navItems = [
   { name: "Self-Paced Courses", href: "/dashboard/tutor/self-paced", icon: Layers },
   { name: "Coaching Bookings", href: "/dashboard/tutor/coaching-bookings", icon: MessageSquare },
   { name: "Settings", href: "/dashboard/tutor/settings", icon: Settings },
+  { name: "Help", href: "/dashboard/tutor/help", icon: HelpCircle },
 ];
 
 interface TutorSidebarProps {
