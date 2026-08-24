@@ -30,6 +30,7 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
   const [selectedPage, setSelectedPage] = useState<number>(0)
   const [learningOutcomes, setLearningOutcomes] = useState<string[]>([])
   const [newOutcome, setNewOutcome] = useState('')
+  const [previewVideoUrl, setPreviewVideoUrl] = useState('')
 
   const [coachingEnabled, setCoachingEnabled] = useState(false)
   const [coachingHourlyRate, setCoachingHourlyRate] = useState(0)
@@ -56,6 +57,7 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
       setLearningOutcomes(c.learningOutcomes || []);
       setCoachingEnabled(c.coachingEnabled); setCoachingHourlyRate(c.coachingHourlyRate);
       setDiscordEnabled(c.discordEnabled); setDiscordDescription(c.discordDescription || '');
+      setPreviewVideoUrl(c.previewVideoUrl || '');
       setWorkshopEnabled(c.weeklyWorkshop?.enabled || false);
       setWorkshopDay(c.weeklyWorkshop?.dayOfWeek || ''); setWorkshopTime(c.weeklyWorkshop?.time || '');
       setWorkshopDesc(c.weeklyWorkshop?.description || '');
@@ -76,6 +78,7 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
       body: JSON.stringify({
         title, description, coverImageUrl, price, weeks, learningOutcomes,
         coachingEnabled, coachingHourlyRate, discordEnabled, discordDescription,
+        previewVideoUrl,
         weeklyWorkshop: { enabled: workshopEnabled, dayOfWeek: workshopDay, time: workshopTime, description: workshopDesc },
       }),
     })
@@ -86,7 +89,7 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
     if (loading) return
     scheduleSave()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, description, coverImageUrl, price, weeks, learningOutcomes, coachingEnabled, coachingHourlyRate, discordEnabled, discordDescription, workshopEnabled, workshopDay, workshopTime, workshopDesc])
+  }, [title, description, coverImageUrl, price, weeks, learningOutcomes, coachingEnabled, coachingHourlyRate, discordEnabled, discordDescription, previewVideoUrl, workshopEnabled, workshopDay, workshopTime, workshopDesc])
 
   const uploadFile = async (file: File, setter: (url: string) => void, loadingSetter: (b: boolean) => void) => {
     loadingSetter(true)
@@ -346,6 +349,21 @@ export default function SelfPacedCourseBuilder({ courseId }: { courseId: string 
               <label className="text-xs text-gray-500 mb-1 block">Price (₦, 0 = free)</label>
               <input type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} className="w-40 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Course description" className="w-full mt-3 border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+            </div>
+
+            {/* Course Preview Video Card */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Course Preview Video (optional)</p>
+              <p className="text-xs text-gray-400 mb-3">
+                Paste a YouTube or Loom link describing this course. Shown to students on the public
+                course page before they purchase.
+              </p>
+              <input
+                value={previewVideoUrl}
+                onChange={(e) => setPreviewVideoUrl(e.target.value)}
+                placeholder="https://youtube.com/watch?v=... or https://loom.com/share/..."
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              />
             </div>
 
             {/* Learning Outcomes Card */}

@@ -47,6 +47,7 @@ export interface ISelfPacedCourse extends Document {
   sourceCourseId: mongoose.Types.ObjectId
   rejectionReason?: string
   coachingEnabled: boolean
+  previewVideoUrl?: string
   coachingHourlyRate: number
   discordEnabled: boolean
   discordDescription: string
@@ -114,6 +115,7 @@ const SelfPacedCourseSchema = new Schema<ISelfPacedCourse>(
     },
     learningOutcomes: { type: [String], default: [] },
     certificateLogoUrl: { type: String },
+    previewVideoUrl: { type: String, default: null }
   },
   { timestamps: true }
 )

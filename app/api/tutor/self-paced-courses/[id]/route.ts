@@ -131,7 +131,7 @@ export async function PATCH(
   // Updated allowedFields - certificate fields removed (now platform-wide)
   const allowedFields = [
     'title', 'description', 'coverImageUrl', 'price', 'weeks', 'learningOutcomes',
-    'coachingEnabled', 'coachingHourlyRate', 'discordEnabled', 'discordDescription',
+    'coachingEnabled', 'coachingHourlyRate', 'previewVideoUrl', 'discordEnabled', 'discordDescription',
     'weeklyWorkshop',
   ]
 
