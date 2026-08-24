@@ -13,13 +13,14 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import ResizableImage from '@/components/library/ResizableImageExtension'
 import VideoEmbed, { isEmbeddableVideoUrl } from '@/components/library/VideoEmbedExtension'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, List, ListOrdered,
   Quote, Code, Link as LinkIcon, Undo, Redo, Heading1, Heading2, Heading3,
   AlignLeft, AlignCenter, AlignRight, Table as TableIcon, Minus,
   ImagePlus,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 interface Props {
   value: string
@@ -54,6 +55,8 @@ function ToolBtn({
 }
 
 export default function RichTextEditor({ value, onChange, placeholder, resetKey }: Props) {
+  const isInitialLoad = useRef(true)
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -70,7 +73,30 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
       VideoEmbed,
     ],
     content: value || '',
-    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    onUpdate: ({ editor }) => {
+      // Clean up invalid video embeds before saving
+      let hasInvalid = false
+      const { state } = editor
+      const tr = state.tr
+      
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === 'videoEmbed' && !node.attrs.src) {
+          // Replace invalid node with a text node
+          const text = '[Invalid video embed - please re-add]'
+          const textNode = state.schema.text(text)
+          tr.replaceWith(pos, pos + node.nodeSize, textNode)
+          hasInvalid = true
+          return false
+        }
+      })
+      
+      if (hasInvalid) {
+        editor.view.dispatch(tr)
+        toast.error('Invalid video embed removed. Please re-add the video URL.')
+      }
+      
+      onChange(editor.getHTML())
+    },
     editorProps: {
       attributes: {
         class:
@@ -78,18 +104,75 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
       },
       handlePaste: (view, event) => {
         const text = event.clipboardData?.getData('text/plain')?.trim()
-        if (text && isEmbeddableVideoUrl(text)) {
-          event.preventDefault()
-          const { schema } = view.state
-          const node = schema.nodes.videoEmbed.create({ src: text })
-          const transaction = view.state.tr.replaceSelectionWith(node)
-          view.dispatch(transaction)
-          return true
+        
+        // Validate the URL
+        if (!text || typeof text !== 'string') {
+          return false
         }
-        return false
+
+        // Check if it's a valid video URL
+        if (!isEmbeddableVideoUrl(text)) {
+          return false
+        }
+
+        // Prevent pasting if it's already a video embed
+        const { state } = view
+        const { selection } = state
+        const node = selection.$from.node()
+        if (node && node.type.name === 'videoEmbed') {
+          return false
+        }
+
+        event.preventDefault()
+        const { schema } = view.state
+        const videoNode = schema.nodes.videoEmbed.create({ src: text })
+        const transaction = view.state.tr.replaceSelectionWith(videoNode)
+        view.dispatch(transaction)
+        
+        toast.success('Video embedded successfully!')
+        return true
       },
     },
   })
+
+  // Clean up invalid video embeds on load and when content changes
+  useEffect(() => {
+    if (!editor) return
+
+    // Skip cleanup on initial load to avoid removing valid content
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false
+      return
+    }
+
+    const cleanInvalidNodes = () => {
+      let hasInvalid = false
+      const { state } = editor
+      const tr = state.tr
+
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === 'videoEmbed') {
+          if (!node.attrs.src) {
+            // Replace invalid node with a text node
+            const text = '[Invalid video embed - please re-add]'
+            const textNode = state.schema.text(text)
+            tr.replaceWith(pos, pos + node.nodeSize, textNode)
+            hasInvalid = true
+            return false
+          }
+        }
+      })
+
+      if (hasInvalid) {
+        editor.view.dispatch(tr)
+        toast.error('Invalid video embed found and removed.')
+      }
+    }
+
+    // Run cleanup after a small delay to ensure editor is ready
+    const timer = setTimeout(cleanInvalidNodes, 100)
+    return () => clearTimeout(timer)
+  }, [editor])
 
   // Force-reload content only when switching to a different node (chapter/topic/subtopic),
   // not on every keystroke — otherwise the cursor position would jump on every character typed.
@@ -128,6 +211,21 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
       return
     }
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+  }
+
+  const insertVideo = () => {
+    if (!editor) return
+    
+    const url = window.prompt('Enter video URL (YouTube, Vimeo, Loom, etc.):')
+    if (!url) return
+    
+    if (!isEmbeddableVideoUrl(url)) {
+      toast.error('Invalid video URL. Please enter a valid YouTube, Vimeo, or Loom URL.')
+      return
+    }
+    
+    editor.commands.setVideoEmbed({ src: url })
+    toast.success('Video embedded successfully!')
   }
 
   if (!editor) return null
@@ -187,6 +285,9 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
         </ToolBtn>
         <ToolBtn onClick={insertImage} title="Insert image">
           <ImagePlus size={15} />
+        </ToolBtn>
+        <ToolBtn onClick={insertVideo} title="Insert video">
+          <div className="text-[15px] font-bold">▶</div>
         </ToolBtn>
         <ToolBtn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insert table">
           <TableIcon size={15} />

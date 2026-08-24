@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import connectDB from '@/lib/mongodb'
 import PlatformSettings from '@/models/PlatformSettings'
+import { invalidateSiteSettingsCache } from '@/lib/siteSettings'
 
 export async function PATCH(req: NextRequest) {
   const token = await getToken({ req })
@@ -32,7 +33,8 @@ export async function PATCH(req: NextRequest) {
     update,
     { upsert: true, new: true }
   )
-
+  invalidateSiteSettingsCache()
+  
   return NextResponse.json({ 
     success: true, 
     logoUrl: settings.logoUrl, 
