@@ -45,6 +45,7 @@ export interface ITutor extends Document {
   qualifications: IQualification[]
   profileImage?: string
   videoLink?: string
+  introVideoUrl?: string
   resume?: string
   pricing: IPricing 
   courses: mongoose.Types.ObjectId[]
@@ -81,6 +82,8 @@ const TutorSchema = new Schema<ITutor>(
       required: true,
       trim: true,
     },
+    
+    introVideoUrl: { type: String, default: null },
 
     lastName: {
       type: String,

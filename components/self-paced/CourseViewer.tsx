@@ -63,31 +63,40 @@ export default function CourseViewer({ courseId }: { courseId: string }) {
     } finally { setSubmitting(false) }
   }
 
+  // components/self-paced/CourseViewer.tsx — replace the existing downloadCert function
+
   const downloadCert = async () => {
-    const res = await fetch(`/api/self-paced/courses/${courseId}/certificate`)
-    
-    if (res.status === 400) {
-      const data = await res.json()
-      if (data.reviewRequired) {
-        router.push(`/dashboard/self-paced/course/${courseId}/review`)
+    try {
+      const res = await fetch(`/api/self-paced/courses/${courseId}/certificate`)
+
+      if (res.status === 400) {
+        const data = await res.json()
+        if (data.reviewRequired) {
+          router.push(`/dashboard/self-paced/course/${courseId}/review`)
+          return
+        }
+        alert(data.error || 'Could not download certificate')
         return
       }
-      // Handle other 400 errors
-      alert(data.error || 'Certificate unavailable')
-      return
-    }
-    
-    if (res.ok) {
+
+      if (!res.ok) {
+        alert('Failed to download certificate. Please try again.')
+        return
+      }
+
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'Certificate.pdf'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
       URL.revokeObjectURL(url)
-    } else {
-      const data = await res.json()
-      alert(data.error || 'Failed to download certificate')
+    } catch (err) {
+      alert('Something went wrong downloading your certificate.')
     }
   }
-
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 
   if (loading || !data) return <><Navbar /><div className="min-h-screen flex items-center justify-center pt-16"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" /></div><Footer /></>

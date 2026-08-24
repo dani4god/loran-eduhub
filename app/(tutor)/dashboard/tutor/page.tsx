@@ -8,6 +8,7 @@ import RecentStudents from "@/components/tutor/RecentStudents";
 import UpcomingExams from "@/components/tutor/UpcomingExams";
 import { getTutorDashboardData } from "@/lib/actions/tutor";
 import { Calendar, TrendingUp, Award, Sparkles, ChevronRight } from "lucide-react";
+import ContractPopup from '@/components/tutor/ContractPopup'
 
 export default async function TutorDashboard() {
   const session = await getServerSession();
@@ -19,85 +20,90 @@ export default async function TutorDashboard() {
   const dashboardData = await getTutorDashboardData(session.user.email);
 
   return (
-    <div className="pt-16 lg:pt-0 min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+    <>
+      <div className="pt-16 lg:pt-0 min-h-screen bg-gray-50">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 space-y-5">
 
-        {/* Welcome banner */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-lg">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-          <div className="relative px-4 sm:px-6 py-5 sm:py-7">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 backdrop-blur-sm rounded-full text-blue-100 text-xs mb-3">
-                  <Sparkles className="w-3 h-3" />
-                  <span>Welcome back</span>
+          {/* Welcome banner */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-lg">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+            <div className="relative px-4 sm:px-6 py-5 sm:py-7">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 backdrop-blur-sm rounded-full text-blue-100 text-xs mb-3">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Welcome back</span>
+                  </div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">
+                    {dashboardData.tutor.firstName}
+                  </h1>
+                  <p className="text-blue-100 text-xs sm:text-sm max-w-xl">
+                    Here's what's happening with your students today.
+                  </p>
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">
-                  {dashboardData.tutor.firstName}
-                </h1>
-                <p className="text-blue-100 text-xs sm:text-sm max-w-xl">
-                  Here's what's happening with your students today.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button className="px-3.5 sm:px-4 py-2 bg-white/15 backdrop-blur-sm hover:bg-white/25 text-white rounded-lg transition-all text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>View Schedule</span>
-                </button>
-                <Link
-                  href="/dashboard/tutor/exams/create"
-                  className="px-3.5 sm:px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 rounded-lg transition-all text-xs sm:text-sm font-semibold shadow-lg text-center"
-                >
-                  + Create Exam
-                </Link>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button className="px-3.5 sm:px-4 py-2 bg-white/15 backdrop-blur-sm hover:bg-white/25 text-white rounded-lg transition-all text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>View Schedule</span>
+                  </button>
+                  <Link
+                    href="/dashboard/tutor/exams/create"
+                    className="px-3.5 sm:px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 rounded-lg transition-all text-xs sm:text-sm font-semibold shadow-lg text-center"
+                  >
+                    + Create Exam
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Stats */}
-        <Suspense fallback={<StatsSkeleton />}>
-          <TutorStats data={dashboardData.stats} />
-        </Suspense>
-
-        {/* Main grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-          <Suspense fallback={<StudentsSkeleton />}>
-            <RecentStudents students={dashboardData.recentStudents} />
+          {/* Stats */}
+          <Suspense fallback={<StatsSkeleton />}>
+            <TutorStats data={dashboardData.stats} />
           </Suspense>
 
-          <Suspense fallback={<ExamsSkeleton />}>
-            <UpcomingExams exams={dashboardData.upcomingExams} />
-          </Suspense>
-        </div>
+          {/* Main grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            <Suspense fallback={<StudentsSkeleton />}>
+              <RecentStudents students={dashboardData.recentStudents} />
+            </Suspense>
 
-        {/* Quick actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <QuickActionCard
-            icon={Award}
-            title="Grade Pending"
-            description="Submissions awaiting grading"
-            color="bg-blue-50 text-blue-600"
-            link="/dashboard/tutor/grades"
-          />
-          <QuickActionCard
-            icon={TrendingUp}
-            title="Student Progress"
-            description="View overall performance"
-            color="bg-indigo-50 text-indigo-600"
-            link="/dashboard/tutor/students"
-          />
-          <QuickActionCard
-            icon={Calendar}
-            title="Schedule Exam"
-            description="Set up new assessment"
-            color="bg-purple-50 text-purple-600"
-            link="/dashboard/tutor/exams/create"
-          />
+            <Suspense fallback={<ExamsSkeleton />}>
+              <UpcomingExams exams={dashboardData.upcomingExams} />
+            </Suspense>
+          </div>
+
+          {/* Quick actions */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <QuickActionCard
+              icon={Award}
+              title="Grade Pending"
+              description="Submissions awaiting grading"
+              color="bg-blue-50 text-blue-600"
+              link="/dashboard/tutor/grades"
+            />
+            <QuickActionCard
+              icon={TrendingUp}
+              title="Student Progress"
+              description="View overall performance"
+              color="bg-indigo-50 text-indigo-600"
+              link="/dashboard/tutor/students"
+            />
+            <QuickActionCard
+              icon={Calendar}
+              title="Schedule Exam"
+              description="Set up new assessment"
+              color="bg-purple-50 text-purple-600"
+              link="/dashboard/tutor/exams/create"
+            />
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Contract Popup */}
+      <ContractPopup />
+    </>
   );
 }
 

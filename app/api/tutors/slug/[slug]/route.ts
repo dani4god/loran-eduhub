@@ -37,6 +37,7 @@ export async function GET(
       pricing: tutor.pricing,
       socialLinks: tutor.socialLinks || [],
       courses: (tutor.courses as any[]).map((c) => ({ _id: c._id.toString(), name: c.name, category: c.category })),
+      introVideoUrl: tutor.introVideoUrl || null,
     },
     rating: { average, count: reviews.length },
     reviews: reviews.map((r: any) => ({

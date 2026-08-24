@@ -1,9 +1,10 @@
-// app/api/tutor/profile/route.ts
-import { NextRequest, NextResponse } from 'next/server'
+// app/api/tutor/contract/status/route.ts
+import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import connectDB from '@/lib/mongodb'
 import Tutor from '@/models/Tutor'
+import TutorContractAck from '@/models/TutorContractAck'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -13,35 +14,27 @@ export async function GET() {
 
   await connectDB()
   const tutor = await Tutor.findOne({ userId: session.user.id })
-    .select('firstName lastName bio profileImage phone introVideoUrl courses')
-    .populate('courses', 'name category')
+  if (!tutor) return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
 
-  return NextResponse.json({ tutor })
+  const ack = await TutorContractAck.findOne({ tutorId: tutor._id })
+  return NextResponse.json({ acknowledged: !!ack })
 }
 
-export async function PATCH(req: NextRequest) {
+export async function POST() {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'tutor') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { bio, profileImage, phone, introVideoUrl } = await req.json()
-
   await connectDB()
   const tutor = await Tutor.findOne({ userId: session.user.id })
   if (!tutor) return NextResponse.json({ error: 'Tutor not found' }, { status: 404 })
 
-  if (bio !== undefined) {
-    if (bio.trim().length < 50) {
-      return NextResponse.json({ error: 'Bio must be at least 50 characters' }, { status: 400 })
-    }
-    tutor.bio = bio.trim()
-  }
-  if (profileImage !== undefined) tutor.profileImage = profileImage
-  if (phone !== undefined) tutor.phone = phone.trim()
-  if (introVideoUrl !== undefined) tutor.introVideoUrl = introVideoUrl.trim() || null
-
-  await tutor.save()
+  await TutorContractAck.findOneAndUpdate(
+    { tutorId: tutor._id },
+    { acknowledgedAt: new Date() },
+    { upsert: true }
+  )
 
   return NextResponse.json({ success: true })
 }

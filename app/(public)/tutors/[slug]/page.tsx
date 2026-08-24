@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import StarRating from '@/components/shared/StarRating'
+import PreviewVideoEmbed from '@/components/self-paced/PreviewVideoEmbed'
 import { BookOpen, ExternalLink, User, MessageSquare, ArrowRight } from 'lucide-react'
 
 interface TutorPricing { monthly: number; threeMonths: number; sixMonths: number; oneYear: number }
@@ -112,6 +113,13 @@ export default function TutorProfilePage() {
                         <ExternalLink size={12} /> {link.label}
                       </a>
                     ))}
+                  </div>
+                )}
+
+                {/* Intro Video Embed */}
+                {tutor.introVideoUrl && (
+                  <div className="mt-4 max-w-xl mx-auto sm:mx-0">
+                    <PreviewVideoEmbed url={tutor.introVideoUrl} />
                   </div>
                 )}
               </div>
