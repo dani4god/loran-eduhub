@@ -4,6 +4,7 @@ import Payment from '@/models/Payment'
 import PayoutLog from '@/models/PayoutLog'
 import PlatformSettings from '@/models/PlatformSettings'
 import CoachingBooking from '@/models/CoachingBooking'
+import LessonNotePurchase from '@/models/LessonNotePurchase'
 
 export const DEFAULT_COMMISSION_RATE = 0.15
 
@@ -55,6 +56,7 @@ export async function ensurePayoutLogs(): Promise<void> {
 
       try {
         await PayoutLog.create({
+          sourceModel: 'Payment',
           paymentId: payment._id,
           studentId: payment.studentId,
           tutorId: detail.tutorId,
@@ -71,7 +73,6 @@ export async function ensurePayoutLogs(): Promise<void> {
     }
   }
 }
-
 
 export async function ensureCoachingPayoutLogs(): Promise<void> {
   await connectDB()
@@ -107,4 +108,47 @@ export async function ensureCoachingPayoutLogs(): Promise<void> {
       if (err.code !== 11000) throw err
     }
   }
+}
+
+export async function ensureLessonNotePayoutLogs(): Promise<void> {
+  await connectDB()
+  const rate = await getCommissionRate()
+
+  const unprocessed = await LessonNotePurchase.find({ payoutLogged: { $ne: true } })
+
+  for (const purchase of unprocessed as any[]) {
+    const claimed = await LessonNotePurchase.findOneAndUpdate(
+      { _id: purchase._id, payoutLogged: { $ne: true } },
+      { payoutLogged: true },
+      { new: true }
+    )
+    if (!claimed) continue
+
+    const commission = Math.round(purchase.amountPaid * rate)
+    const net = purchase.amountPaid - commission
+
+    try {
+      await PayoutLog.create({
+        sourceModel: 'LessonNotePurchase',
+        purchaseId: purchase._id,
+        studentId: purchase.studentId || null, // anonymous buyers may not have a studentId
+        tutorId: purchase.tutorId,
+        courseId: purchase.lessonNoteId,
+        grossAmount: purchase.amountPaid,
+        commissionRate: rate,
+        commissionAmount: commission,
+        netAmount: net,
+        status: 'pending',
+      })
+    } catch (err: any) {
+      if (err.code !== 11000) throw err
+    }
+  }
+}
+
+// Helper function to process all payout sources
+export async function ensureAllPayoutLogs(): Promise<void> {
+  await ensurePayoutLogs()
+  await ensureCoachingPayoutLogs()
+  await ensureLessonNotePayoutLogs()
 }

@@ -1,15 +1,16 @@
 // models/PayoutLog.ts
 import mongoose, { Schema, Document, Model } from 'mongoose'
 
-export type PayoutSourceModel = 'Payment' | 'CoachingBooking'
+export type PayoutSourceModel = 'Payment' | 'CoachingBooking' | 'LessonNotePurchase'
 
 export interface IPayoutLog extends Document {
   sourceModel: PayoutSourceModel
   paymentId?: mongoose.Types.ObjectId
   bookingId?: mongoose.Types.ObjectId
-  studentId: mongoose.Types.ObjectId // may point to Student OR SelfPacedStudent, depending on sourceModel
+  purchaseId?: mongoose.Types.ObjectId
+  studentId: mongoose.Types.ObjectId // may point to Student OR SelfPacedStudent, OR null for anonymous lesson note purchases
   tutorId: mongoose.Types.ObjectId
-  courseId: mongoose.Types.ObjectId // may point to Course OR SelfPacedCourse, depending on sourceModel
+  courseId: mongoose.Types.ObjectId // may point to Course OR SelfPacedCourse OR LessonNote
   grossAmount: number
   commissionRate: number
   commissionAmount: number
@@ -26,10 +27,15 @@ export interface IPayoutLog extends Document {
 const PayoutLogSchema = new Schema<IPayoutLog>(
   {
     // Distinguishes what generated this payout — a regular course
-    // enrollment payment, or a coaching session booking. Everything
-    // downstream (admin payouts list, tutor payment history) branches on
+    // enrollment payment, a coaching session booking, or a lesson note purchase.
+    // Everything downstream (admin payouts list, tutor payment history) branches on
     // this to know which collections studentId/courseId actually point to.
-    sourceModel: { type: String, enum: ['Payment', 'CoachingBooking'], required: true, index: true },
+    sourceModel: { 
+      type: String, 
+      enum: ['Payment', 'CoachingBooking', 'LessonNotePurchase'], 
+      required: true, 
+      index: true 
+    },
 
     // Only set when sourceModel === 'Payment' — a coaching booking has no
     // Payment document, so this must be optional, not required.
@@ -38,23 +44,32 @@ const PayoutLogSchema = new Schema<IPayoutLog>(
     // Only set when sourceModel === 'CoachingBooking'.
     bookingId: { type: Schema.Types.ObjectId, ref: 'CoachingBooking' },
 
+    // Only set when sourceModel === 'LessonNotePurchase'.
+    purchaseId: { type: Schema.Types.ObjectId, ref: 'LessonNotePurchase' },
+
     // No `ref` pinned here intentionally — for a course-enrollment payout
     // this points to Student, for a coaching-booking payout it points to
-    // SelfPacedStudent. Whichever route reads this must check sourceModel
-    // first to know which collection to query.
-    studentId: { type: Schema.Types.ObjectId, required: true },
+    // SelfPacedStudent, for lesson note purchases it may be null (anonymous buyers).
+    // Whichever route reads this must check sourceModel first to know which 
+    // collection to query.
+    studentId: { type: Schema.Types.ObjectId, required: false },
 
     tutorId: { type: Schema.Types.ObjectId, ref: 'Tutor', required: true, index: true },
 
     // Same reasoning as studentId — Course for enrollment payouts,
-    // SelfPacedCourse for coaching payouts.
+    // SelfPacedCourse for coaching payouts, LessonNote for lesson note purchases.
     courseId: { type: Schema.Types.ObjectId, required: true },
 
     grossAmount: { type: Number, required: true },
     commissionRate: { type: Number, required: true, default: 0.15 },
     commissionAmount: { type: Number, required: true },
     netAmount: { type: Number, required: true },
-    status: { type: String, enum: ['pending', 'processing', 'paid', 'failed'], default: 'pending', index: true },
+    status: { 
+      type: String, 
+      enum: ['pending', 'processing', 'paid', 'failed'], 
+      default: 'pending', 
+      index: true 
+    },
     paystackTransferCode: { type: String },
     paystackTransferReference: { type: String },
     failureReason: { type: String },
@@ -63,7 +78,7 @@ const PayoutLogSchema = new Schema<IPayoutLog>(
   { timestamps: true }
 )
 
-// Two separate sparse-unique indexes, one per source type — sparse means
+// Three separate sparse-unique indexes, one per source type — sparse means
 // documents missing the indexed field (e.g. a CoachingBooking-sourced log
 // with no paymentId) are simply excluded from that index instead of
 // colliding on a shared `null` value, which is what would happen with a
@@ -74,6 +89,10 @@ PayoutLogSchema.index(
 )
 PayoutLogSchema.index(
   { sourceModel: 1, bookingId: 1 },
+  { unique: true, sparse: true }
+)
+PayoutLogSchema.index(
+  { sourceModel: 1, purchaseId: 1 },
   { unique: true, sparse: true }
 )
 

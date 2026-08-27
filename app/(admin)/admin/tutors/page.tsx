@@ -13,6 +13,7 @@ import {
 import AdminLayout from '@/components/admin/AdminLayout';
 import ScheduleInterviewModal from '@/components/admin/ScheduleInterviewModal';
 import AdminTutorApprovalModal from '@/components/admin/AdminTutorApprovalModal';
+import TutorCourseEditor from '@/components/admin/TutorCourseEditor';
 
 interface Tutor {
   _id: string;
@@ -368,6 +369,13 @@ export default function AdminTutors() {
                   </div>
                 </div>
               )}
+
+              {/* Tutor Course Editor */}
+              <TutorCourseEditor
+                tutorId={selectedTutor._id}
+                currentCourseIds={selectedTutor.courses.map((c: any) => c._id)}
+                onSaved={fetchTutors}
+              />
 
               <div className="flex flex-wrap gap-4">
                 {selectedTutor.videoLink && (

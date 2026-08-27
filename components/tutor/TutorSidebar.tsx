@@ -16,6 +16,7 @@ import {
   Settings,
   LogOut,
   Inbox,
+  FileText,
   ChevronLeft,
   ChevronRight,
   GraduationCap,
@@ -43,8 +44,10 @@ const navItems = [
   { name: "Payments", href: "/dashboard/tutor/payments", icon: Wallet },
   { name: "Self-Paced Courses", href: "/dashboard/tutor/self-paced", icon: Layers },
   { name: "Coaching Bookings", href: "/dashboard/tutor/coaching-bookings", icon: MessageSquare },
+  { name: "Sell Lesson Notes", href: "/dashboard/tutor/lesson-notes", icon: FileText },
   { name: "Settings", href: "/dashboard/tutor/settings", icon: Settings },
   { name: "User Guide", href: "/dashboard/guide", icon: HelpCircle },
+  
 ];
 
 interface TutorSidebarProps {

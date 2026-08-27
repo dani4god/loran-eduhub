@@ -36,7 +36,7 @@ export async function initializePaystackTransaction(
       email,
       amount: formatPaystackAmount(amount),
       reference,
-      callback_url: `${process.env.NEXTAUTH_URL}/payment/verify`,
+      callback_url: `${process.env.NEXTAUTH_URL}/payment/success`,
       metadata,
     }),
   })

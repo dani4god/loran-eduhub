@@ -9,6 +9,7 @@ import {
   LayoutDashboard, Users, GraduationCap, BookOpen, CreditCard,
   Settings, Shield, Ticket, Menu, X, LogOut, Wallet,
   Layers,
+  FileText, Radio, FileQuestion,
 } from 'lucide-react';
 
 const menuItems = [
@@ -22,6 +23,9 @@ const menuItems = [
   { href: '/admin/payouts', label: 'Payouts', icon: Wallet },
   { href: '/admin/admins', label: 'Admins', icon: Shield },
   { href: '/admin/self-paced-courses', label: 'Self-Paced Courses', icon: Layers, superAdminOnly: false },
+  { href: '/admin/lesson-notes', label: 'Lesson Notes', icon: FileText, superAdminOnly: false },
+  { href: '/admin/live-exams', label: 'Live Exams', icon: Radio, superAdminOnly: false },
+  { href: '/admin/exam-prep', label: 'Exam Prep', icon: FileQuestion, superAdminOnly: false },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 

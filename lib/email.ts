@@ -428,3 +428,37 @@ export async function notifyAllStudentsOfNewCourse(
 
   await sendNewsletterBatch(uniqueEmails, `New Course: ${courseTitle}`, html)
 }
+
+
+export async function sendLessonNoteRejectedEmail(tutorEmail: string, tutorName: string, title: string, reason: string) {
+  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+    <div style="background:#dc2626;padding:24px 32px;border-radius:12px 12px 0 0;">
+      <p style="color:#fecaca;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px;">Loran EduHub</p>
+      <h1 style="color:#fff;font-size:20px;margin:0;">Lesson Note Not Approved</h1>
+    </div>
+    <div style="padding:28px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+      <p style="font-size:14px;color:#1f2937;">Hi ${tutorName},</p>
+      <p style="font-size:14px;color:#374151;line-height:1.7;">Your lesson note <strong>"${title}"</strong> could not be approved.</p>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;margin:20px 0;">
+        <p style="font-size:13px;color:#991b1b;margin:0;"><strong>Reason:</strong> ${reason}</p>
+      </div>
+      <p style="font-size:14px;color:#374151;">You can edit and resubmit it from your dashboard.</p>
+    </div></div>`
+  await transporter.sendMail({ from: process.env.SMTP_FROM, to: tutorEmail, subject: `Lesson Note Update: "${title}" needs changes`, html })
+}
+
+export async function sendLessonNoteApprovedEmail(tutorEmail: string, tutorName: string, title: string, publicUrl: string) {
+  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+    <div style="background:linear-gradient(135deg,#16a34a,#059669);padding:24px 32px;border-radius:12px 12px 0 0;">
+      <p style="color:#bbf7d0;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px;">Loran EduHub</p>
+      <h1 style="color:#fff;font-size:20px;margin:0;">Lesson Note Approved & Live!</h1>
+    </div>
+    <div style="padding:28px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+      <p style="font-size:14px;color:#1f2937;">Hi ${tutorName},</p>
+      <p style="font-size:14px;color:#374151;line-height:1.7;">Your lesson note <strong>"${title}"</strong> is now live and available for purchase.</p>
+      <div style="text-align:center;margin:24px 0;">
+        <a href="${publicUrl}" style="display:inline-block;padding:12px 24px;background:#16a34a;color:#fff;font-weight:600;font-size:14px;text-decoration:none;border-radius:8px;">View Listing</a>
+      </div>
+    </div></div>`
+  await transporter.sendMail({ from: process.env.SMTP_FROM, to: tutorEmail, subject: `Your lesson note "${title}" is now live!`, html })
+}

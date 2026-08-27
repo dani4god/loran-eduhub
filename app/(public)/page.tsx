@@ -1,3 +1,4 @@
+// app/(public)/page.tsx
 import Link from 'next/link'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
@@ -475,6 +476,41 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
+        {/* ── EXAM PREP ADVERT ── */}
+        <section className="py-16 sm:py-20 bg-gradient-to-br from-indigo-600 to-purple-700">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3.5 py-1.5 mb-5">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-white/80 text-xs font-medium">Free Practice Tests</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-bold text-white mb-3">
+              Preparing for Local &amp; International Exams?
+            </h2>
+            <p className="text-indigo-100 text-sm sm:text-lg mb-8 max-w-xl mx-auto">
+              Take free JAMB, WAEC &amp; NECO practice questions and get up to speed — 
+              completely free to start.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/exam-prep/register"
+                className="px-7 py-3.5 bg-white text-indigo-700 font-bold rounded-xl hover:scale-105 transition-all hover:shadow-lg"
+              >
+                Register for Exams
+              </Link>
+              <Link
+                href="/exam-prep/take"
+                className="px-7 py-3.5 bg-white/10 border border-white/30 text-white font-bold rounded-xl hover:bg-white/20 transition-all hover:scale-105"
+              >
+                Take Free Practice Exams
+              </Link>
+            </div>
+            <p className="text-indigo-200/70 text-xs mt-5">
+              No credit card required. Start practicing instantly.
+            </p>
+          </div>
+        </section>
+
       </main>
       <Footer />
     </>

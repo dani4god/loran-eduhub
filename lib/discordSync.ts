@@ -5,6 +5,7 @@ import Course from '@/models/Course'
 import Student from '@/models/Student'
 import SelfPacedStudent from '@/models/SelfPacedStudent'
 import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
+import ExamPrepStudent from '@/models/ExamPrepStudent'
 import SelfPacedCourse from '@/models/SelfPacedCourse'
 import {
   getGuildRoles,
@@ -179,4 +180,23 @@ export async function syncSelfPacedStudentDiscordRoles(
   const finalNames = Array.from(targetNames)
   await SelfPacedStudent.findByIdAndUpdate(spStudentId, { discordRoles: finalNames })
   return finalNames
+}
+
+
+const EXAM_PREP_ROLE_NAME = 'Exam Preparation Student'
+
+export async function syncExamPrepStudentDiscordRoles(examPrepStudentId: string, discordId: string, accessToken?: string): Promise<string[]> {
+  const guildId = LORAN_GUILD_ID
+  if (!guildId) return []
+  const targetNames = [MEMBER_ROLE_NAME, EXAM_PREP_ROLE_NAME]
+  const guildRoles = await getGuildRoles(guildId)
+  const roleByName = new Map<string, string>(guildRoles.map((r: any) => [r.name, r.id]))
+  const targetRoleIds = targetNames.map((n) => roleByName.get(n)).filter(Boolean) as string[]
+  let member = await getGuildMember(guildId, discordId)
+  if (!member && accessToken) { await addMemberToGuild(guildId, discordId, accessToken); member = await getGuildMember(guildId, discordId) }
+  const currentRoleIds = new Set<string>(member?.roles || [])
+  const toAdd = targetRoleIds.filter((id) => !currentRoleIds.has(id))
+  await Promise.all(toAdd.map((id) => addRoleToMember(guildId, discordId, id).catch(() => {})))
+  await ExamPrepStudent.findByIdAndUpdate(examPrepStudentId, { discordRoles: targetNames })
+  return targetNames
 }
