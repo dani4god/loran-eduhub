@@ -7,7 +7,7 @@ import HeroBackgroundSlider from '@/components/home/HeroBackgroundSlider'
 import {
   ShieldCheck, Clock, TrendingUp, Users, FileQuestion, CreditCard,
   ArrowRight, ScrollText, ClipboardList, Megaphone, Briefcase, Sparkles,
-  Layers,
+  Layers, FileText,
 } from 'lucide-react'
 
 const STATS = [
@@ -53,6 +53,17 @@ interface SelfPacedCourseCard {
   weekCount: number
 }
 
+interface LessonNoteCard {
+  _id: string
+  title: string
+  coverImageUrl: string | null
+  price: number
+  isFree: boolean
+  tutorName: string
+  subject: string
+  studentClass: string
+}
+
 async function getFeaturedTutors(): Promise<TutorCard[]> {
   try {
     const res = await fetch(`${process.env.NEXTAUTH_URL}/api/tutors/all`, { cache: 'no-store' })
@@ -68,6 +79,18 @@ async function getFeaturedSelfPacedCourses(): Promise<SelfPacedCourseCard[]> {
     const res = await fetch(`${process.env.NEXTAUTH_URL}/api/self-paced/courses`, { cache: 'no-store' })
     const data = await res.json()
     return (data.courses || []).slice(0, 3)
+  } catch {
+    return []
+  }
+}
+
+async function getFeaturedLessonNotes(): Promise<LessonNoteCard[]> {
+  try {
+    const res = await fetch(`${process.env.NEXTAUTH_URL}/api/lesson-notes`, { cache: 'no-store' })
+    const data = await res.json()
+    // Filter only published notes and take first 3
+    const published = (data.notes || []).filter((n: any) => n.status === 'published')
+    return published.slice(0, 3)
   } catch {
     return []
   }
@@ -90,6 +113,7 @@ function getInitials(first: string, last: string) {
 export default async function HomePage() {
   const tutors = await getFeaturedTutors()
   const selfPacedCourses = await getFeaturedSelfPacedCourses()
+  const lessonNotes = await getFeaturedLessonNotes()
   const heroImages = await getHeroImages()
 
   return (
@@ -97,14 +121,10 @@ export default async function HomePage() {
       <Navbar />
       <AdCorner />
       <main className="bg-gray-950">
-        {/* ── HERO (reduced size) ── */}
+        {/* ── HERO ── */}
         <section className="relative overflow-hidden bg-gradient-to-br from-gray-950 via-blue-950/60 to-purple-950/40 pt-24 pb-14 sm:pt-28 sm:pb-16">
-          {/* Hero Background Slider */}
           <HeroBackgroundSlider images={heroImages} />
 
-          {/* Existing pattern div and blur circles — they render underneath 
-              the slider's gradient overlay when images exist, or serve as 
-              the sole background decoration when they don't */}
           <div
             className="absolute inset-0 opacity-[0.07]"
             style={{
@@ -210,7 +230,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── PRICING — no cards, tutor-driven messaging ── */}
+        {/* ── PRICING ── */}
         <section className="py-14 sm:py-20 lg:py-24">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-white/10 p-8 sm:p-12">
@@ -236,7 +256,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* ── FEATURED TUTORS (live data) ── */}
+        {/* ── FEATURED TUTORS ── */}
         <section className="py-16 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
@@ -346,6 +366,67 @@ export default async function HomePage() {
           </div>
         </section>
 
+        {/* ── LESSON NOTES SECTION ── */}
+        <section className="py-16 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+              <div>
+                <span className="text-amber-400 font-semibold text-xs sm:text-sm uppercase tracking-wider">Instant Learning</span>
+                <h2 className="font-heading font-bold text-2xl sm:text-4xl text-white mt-3">Lesson Notes</h2>
+                <p className="text-gray-400 text-sm mt-2 max-w-lg">
+                  Get instant access to high-quality lesson notes created by expert tutors — 
+                  no enrollment required, just purchase and download.
+                </p>
+              </div>
+              <Link href="/lesson-notes" className="inline-flex items-center gap-2 text-amber-400 font-semibold text-sm hover:gap-3 transition-all shrink-0">
+                Browse All Notes <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            {lessonNotes.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-10">New lesson notes are being added soon — check back shortly.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+                {lessonNotes.map((note) => (
+                  <Link
+                    key={note._id}
+                    href={`/lesson-notes/${note._id}`}
+                    className="group rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-amber-500/30 transition-all duration-300"
+                  >
+                    <div className="h-40 bg-white/5">
+                      {note.coverImageUrl ? (
+                        <img src={note.coverImageUrl} alt={note.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FileText className="w-8 h-8 text-gray-600" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <h3 className="font-heading font-bold text-white text-sm mb-1 truncate">{note.title}</h3>
+                      <p className="text-gray-500 text-xs mb-3">
+                        {note.tutorName} · {note.subject || 'General'} · {note.studentClass || 'All levels'}
+                      </p>
+                      <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${note.isFree ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-300'}`}>
+                        {note.isFree ? 'Free' : `₦${note.price.toLocaleString('en-NG')}`}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="text-center mt-10">
+              <Link
+                href="/lesson-notes"
+                className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/10 backdrop-blur-sm border border-white/30 text-white font-semibold rounded-xl hover:bg-white/20 transition-all text-sm sm:text-base"
+              >
+                Browse Lesson Notes <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
         {/* ── DISCORD + TUTOR TOOLING AD ── */}
         <section className="py-16 sm:py-20 lg:py-24">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -417,6 +498,40 @@ export default async function HomePage() {
           </div>
         </section>
 
+        {/* ── EXAM PREP ADVERT ── */}
+        <section className="py-16 sm:py-20 bg-gradient-to-br from-indigo-600 to-purple-700">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3.5 py-1.5 mb-5">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-white/80 text-xs font-medium">Free Practice Tests</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-bold text-white mb-3">
+              Preparing for Local &amp; International Exams?
+            </h2>
+            <p className="text-indigo-100 text-sm sm:text-lg mb-8 max-w-xl mx-auto">
+              Take free JAMB, WAEC &amp; NECO practice questions and get up to speed — 
+              completely free to start.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/exam-prep/register"
+                className="px-7 py-3.5 bg-white text-indigo-700 font-bold rounded-xl hover:scale-105 transition-all hover:shadow-lg"
+              >
+                Register for Exams
+              </Link>
+              <Link
+                href="/exam-prep/take"
+                className="px-7 py-3.5 bg-white/10 border border-white/30 text-white font-bold rounded-xl hover:bg-white/20 transition-all hover:scale-105"
+              >
+                Take Free Practice Exams
+              </Link>
+            </div>
+            <p className="text-indigo-200/70 text-xs mt-5">
+              No credit card required. Start practicing instantly.
+            </p>
+          </div>
+        </section>
+
         {/* ── SCHOLARSHIPS / JOB MARKET AD ── */}
         <section className="py-14 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -474,40 +589,6 @@ export default async function HomePage() {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* ── EXAM PREP ADVERT ── */}
-        <section className="py-16 sm:py-20 bg-gradient-to-br from-indigo-600 to-purple-700">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3.5 py-1.5 mb-5">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-white/80 text-xs font-medium">Free Practice Tests</span>
-            </div>
-            <h2 className="text-2xl sm:text-4xl font-bold text-white mb-3">
-              Preparing for Local &amp; International Exams?
-            </h2>
-            <p className="text-indigo-100 text-sm sm:text-lg mb-8 max-w-xl mx-auto">
-              Take free JAMB, WAEC &amp; NECO practice questions and get up to speed — 
-              completely free to start.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/exam-prep/register"
-                className="px-7 py-3.5 bg-white text-indigo-700 font-bold rounded-xl hover:scale-105 transition-all hover:shadow-lg"
-              >
-                Register for Exams
-              </Link>
-              <Link
-                href="/exam-prep/take"
-                className="px-7 py-3.5 bg-white/10 border border-white/30 text-white font-bold rounded-xl hover:bg-white/20 transition-all hover:scale-105"
-              >
-                Take Free Practice Exams
-              </Link>
-            </div>
-            <p className="text-indigo-200/70 text-xs mt-5">
-              No credit card required. Start practicing instantly.
-            </p>
           </div>
         </section>
 
