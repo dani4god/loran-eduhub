@@ -21,6 +21,7 @@ export default function LessonNotePurchasePage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [downloadRef, setDownloadRef] = useState<string | null>(null)
+  const [scriptLoaded, setScriptLoaded] = useState(false)
 
   useEffect(() => {
     fetch(`/api/lesson-notes/${id}/public`)
@@ -41,7 +42,9 @@ export default function LessonNotePurchasePage() {
     }
   }, [id, searchParams])
 
-  const submit = async () => {
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault() // Prevent form submission
+    
     if (!name.trim() || !email.trim()) {
       setError('Name and email are required')
       return
@@ -67,41 +70,43 @@ export default function LessonNotePurchasePage() {
         return
       }
 
-      // Wait for Paystack script to load
-      const checkPaystack = () => {
-        if (typeof window !== 'undefined' && window.PaystackPop) {
-          const handler = window.PaystackPop.setup({
-            key: data.publicKey,
-            email: data.email,
-            amount: Math.round(data.amount * 100),
-            ref: data.reference,
-            currency: 'NGN',
-            callback: async (r: any) => {
-              try {
-                const d = await verifyWithRetry(`/api/lesson-notes/${id}/verify?reference=${r.reference}`)
-                if (d.success) {
-                  setDownloadRef(r.reference)
-                } else {
-                  setError(`${d.error || 'Verification failed'} — don't pay again, reference: ${r.reference}`)
-                }
-              } catch {
-                setError(`Connection issue confirming payment — don't pay again, contact support with reference: ${r.reference}`)
-              } finally {
-                setSubmitting(false)
-              }
-            },
-            onClose: () => {
-              setSubmitting(false)
-            },
-          })
-          handler.openIframe()
-        } else {
-          // Paystack not loaded yet, retry after a delay
-          setTimeout(checkPaystack, 500)
-        }
+      // Check if Paystack is loaded
+      if (!scriptLoaded || !window.PaystackPop) {
+        setError('Payment system is still loading. Please wait a moment and try again.')
+        setSubmitting(false)
+        return
       }
 
-      checkPaystack()
+      try {
+        const handler = window.PaystackPop.setup({
+          key: data.publicKey,
+          email: data.email,
+          amount: Math.round(data.amount * 100),
+          ref: data.reference,
+          currency: 'NGN',
+          callback: async (r: any) => {
+            try {
+              const d = await verifyWithRetry(`/api/lesson-notes/${id}/verify?reference=${r.reference}`)
+              if (d.success) {
+                setDownloadRef(r.reference)
+              } else {
+                setError(`${d.error || 'Verification failed'} — don't pay again, reference: ${r.reference}`)
+              }
+            } catch {
+              setError(`Connection issue confirming payment — don't pay again, contact support with reference: ${r.reference}`)
+            } finally {
+              setSubmitting(false)
+            }
+          },
+          onClose: () => {
+            setSubmitting(false)
+          },
+        })
+        handler.openIframe()
+      } catch (err: any) {
+        setError('Could not open the payment window. Please refresh and try again.')
+        setSubmitting(false)
+      }
     } catch (err: any) {
       setError(err.message || 'Something went wrong')
       setSubmitting(false)
@@ -126,6 +131,12 @@ export default function LessonNotePurchasePage() {
                 <span className="text-2xl">⚠️</span>
               </div>
               <p className="text-sm text-red-600">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 text-sm text-blue-600 font-semibold hover:underline"
+              >
+                Try again
+              </button>
             </div>
           </div>
         </div>
@@ -136,7 +147,12 @@ export default function LessonNotePurchasePage() {
 
   return (
     <>
-      <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
+      <Script 
+        src="https://js.paystack.co/v1/inline.js" 
+        strategy="afterInteractive"
+        onLoad={() => setScriptLoaded(true)}
+        onError={() => setError('Failed to load payment system. Please refresh and try again.')}
+      />
       <Navbar />
       <div className="min-h-screen bg-gray-50 pt-24 pb-16">
         <div className="max-w-md mx-auto px-4 sm:px-6">
@@ -160,30 +176,32 @@ export default function LessonNotePurchasePage() {
               <p className="text-sm text-blue-600 font-semibold mb-5">
                 {note?.isFree ? 'Free' : `₦${note?.price?.toLocaleString('en-NG')}`}
               </p>
-              <div className="space-y-3">
+              <form onSubmit={submit} className="space-y-3">
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Full name"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
                 />
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
                   placeholder="Email (for your download link)"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
                 />
                 {error && <p className="text-xs text-red-600">{error}</p>}
                 <button
-                  onClick={submit}
+                  type="submit"
                   disabled={submitting || !note}
                   className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-blue-700 transition"
                 >
                   {submitting && <Loader2 size={15} className="animate-spin" />}
                   {!note ? 'Loading...' : note?.isFree ? 'Get Free Lesson Note' : `Pay ₦${note?.price?.toLocaleString('en-NG')}`}
                 </button>
-              </div>
+              </form>
             </div>
           )}
         </div>

@@ -32,7 +32,9 @@ function PurchaseContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const buy = async (course: any) => {
+  const buy = async (e: React.FormEvent, course: any) => {
+    e.preventDefault() // Prevent form submission
+    
     setBuyingId(course._id)
     try {
       const res = await fetch('/api/self-paced/purchase/quick', {
@@ -48,29 +50,57 @@ function PurchaseContent() {
         return
       }
 
-      const handler = window.PaystackPop.setup({
-        key: data.publicKey, email: data.email, amount: Math.round(data.amount * 100), ref: data.reference, currency: 'NGN',
-        callback: (r: any) => {
-          fetch(`/api/self-paced/purchase/quick/verify?reference=${r.reference}`).then((res) => res.json()).then((d) => {
-            setMessage(d.success ? 'Course added to your dashboard!' : d.error)
-            load()
-          }).finally(() => setBuyingId(null))
-        },
-        onClose: () => setBuyingId(null),
-      })
-      handler.openIframe()
-    } catch { setBuyingId(null) }
+      if (!scriptLoaded || !window.PaystackPop) {
+        setMessage('Payment system is still loading. Please wait a moment and try again.')
+        setBuyingId(null)
+        return
+      }
+
+      try {
+        const handler = window.PaystackPop.setup({
+          key: data.publicKey,
+          email: data.email,
+          amount: Math.round(data.amount * 100),
+          ref: data.reference,
+          currency: 'NGN',
+          callback: (r: any) => {
+            fetch(`/api/self-paced/purchase/quick/verify?reference=${r.reference}`)
+              .then((res) => res.json())
+              .then((d) => {
+                setMessage(d.success ? 'Course added to your dashboard!' : d.error)
+                load()
+              })
+              .finally(() => setBuyingId(null))
+          },
+          onClose: () => setBuyingId(null),
+        })
+        handler.openIframe()
+      } catch (err: any) {
+        setMessage('Could not open the payment window. Please refresh and try again.')
+        setBuyingId(null)
+      }
+    } catch { 
+      setBuyingId(null) 
+    }
   }
 
   return (
     <>
-      <Script src="https://js.paystack.co/v1/inline.js" onLoad={() => setScriptLoaded(true)} strategy="afterInteractive" />
+      <Script 
+        src="https://js.paystack.co/v1/inline.js" 
+        onLoad={() => setScriptLoaded(true)} 
+        strategy="afterInteractive" 
+      />
       <div className="pt-16 lg:pt-0 min-h-screen">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">Purchase Another Course</h1>
           <p className="text-sm text-gray-500 mb-5">Your account is already set up — just pick a course and confirm.</p>
 
-          {message && <p className="text-sm text-green-600 bg-green-50 rounded-lg p-3 mb-4">{message}</p>}
+          {message && (
+            <p className={`text-sm ${message.includes('added') ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'} rounded-lg p-3 mb-4`}>
+              {message}
+            </p>
+          )}
 
           {loading ? (
             <div className="py-16 text-center"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" /></div>
@@ -86,10 +116,16 @@ function PurchaseContent() {
                   <div className="p-4">
                     <h3 className="font-bold text-gray-900 text-sm">{c.title}</h3>
                     <p className="text-xs text-gray-400 mb-3">{c.tutorName} · {c.weekCount} weeks</p>
-                    <button onClick={() => buy(c)} disabled={buyingId === c._id} className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-                      {buyingId === c._id ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
-                      {c.isFree ? 'Get Free Course' : `Buy for ₦${c.price.toLocaleString('en-NG')}`}
-                    </button>
+                    <form onSubmit={(e) => buy(e, c)}>
+                      <button 
+                        type="submit"
+                        disabled={buyingId === c._id}
+                        className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition"
+                      >
+                        {buyingId === c._id ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
+                        {c.isFree ? 'Get Free Course' : `Buy for ₦${c.price.toLocaleString('en-NG')}`}
+                      </button>
+                    </form>
                   </div>
                 </div>
               ))}

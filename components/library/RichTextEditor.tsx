@@ -8,9 +8,9 @@ import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Table } from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { TableHeader } from '@tiptap/extension-table-header'
 import ResizableImage from '@/components/library/ResizableImageExtension'
 import VideoEmbed, { isEmbeddableVideoUrl } from '@/components/library/VideoEmbedExtension'
 import { useEffect, useRef } from 'react'
@@ -18,7 +18,7 @@ import {
   Bold, Italic, UnderlineIcon, Strikethrough, List, ListOrdered,
   Quote, Code, Link as LinkIcon, Undo, Redo, Heading1, Heading2, Heading3,
   AlignLeft, AlignCenter, AlignRight, Table as TableIcon, Minus,
-  ImagePlus,
+  ImagePlus, Rows3, Columns3, Trash2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -230,10 +230,12 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
 
   if (!editor) return null
 
+  const isTableActive = editor.isActive('table')
+
   return (
-    <div className="border border-gray-200 overflow-hidden bg-white rounded-xl">
+    <div className="relative border border-gray-200 overflow-hidden bg-white rounded-xl">
       {/* Sticky toolbar - stays visible while scrolling through content */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-gray-100 bg-gray-50 px-2 py-1.5">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-gray-100 bg-gray-50 px-2 py-1.5 shadow-sm">
         <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
           <Bold size={15} />
         </ToolBtn>
@@ -289,12 +291,39 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
         <ToolBtn onClick={insertVideo} title="Insert video">
           <div className="text-[15px] font-bold">▶</div>
         </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} title="Insert table">
+        <div className="w-px h-5 bg-gray-200 mx-1" />
+        
+        {/* Table buttons */}
+        <ToolBtn 
+          onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} 
+          title="Insert table"
+        >
           <TableIcon size={15} />
         </ToolBtn>
-        <ToolBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Divider">
-          <Minus size={15} />
-        </ToolBtn>
+        
+        {isTableActive && (
+          <>
+            <ToolBtn 
+              onClick={() => editor.chain().focus().addRowAfter().run()} 
+              title="Add row below"
+            >
+              <Rows3 size={15} />
+            </ToolBtn>
+            <ToolBtn 
+              onClick={() => editor.chain().focus().addColumnAfter().run()} 
+              title="Add column right"
+            >
+              <Columns3 size={15} />
+            </ToolBtn>
+            <ToolBtn 
+              onClick={() => editor.chain().focus().deleteTable().run()} 
+              title="Delete table"
+            >
+              <Trash2 size={15} />
+            </ToolBtn>
+          </>
+        )}
+        
         <div className="w-px h-5 bg-gray-200 mx-1" />
         <ToolBtn onClick={() => editor.chain().focus().undo().run()} title="Undo">
           <Undo size={15} />
@@ -303,7 +332,11 @@ export default function RichTextEditor({ value, onChange, placeholder, resetKey 
           <Redo size={15} />
         </ToolBtn>
       </div>
-      <EditorContent editor={editor} />
+      
+      {/* Editor content with max height and scroll */}
+      <div className="max-h-[600px] overflow-y-auto">
+        <EditorContent editor={editor} />
+      </div>
     </div>
   )
 }

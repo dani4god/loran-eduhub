@@ -100,7 +100,9 @@ export default function PaymentClient() {
   }, [intent])
 
   // ── Step 3: Open Paystack popup ──
-  const handlePay = () => {
+  const handlePay = (e: React.FormEvent) => {
+    e.preventDefault() // Prevent form submission
+    
     if (!initData || !scriptLoaded || !window.PaystackPop) {
       setError('Payment system not ready. Please wait and try again.')
       return
@@ -109,61 +111,65 @@ export default function PaymentClient() {
     setLoading(true)
     setError('')
 
-    const handler = window.PaystackPop.setup({
-      key: initData.publicKey,
-      email: initData.email,
-      amount: Math.round(initData.amount * 100),
-      ref: initData.reference,
-      currency: 'NGN',
-      callback: (response: any) => {
-        if (!intent) return
+    try {
+      const handler = window.PaystackPop.setup({
+        key: initData.publicKey,
+        email: initData.email,
+        amount: Math.round(initData.amount * 100),
+        ref: initData.reference,
+        currency: 'NGN',
+        callback: (response: any) => {
+          if (!intent) return
 
-        // Pass registration data to verify endpoint so it can create the account
-        const registrationData = encodeURIComponent(
-          JSON.stringify({
-            email: intent.email,
-            password: intent.password,
-            firstName: intent.firstName,
-            lastName: intent.lastName,
-            phone: intent.phone,
-            state: intent.state,
-            dateOfBirth: intent.dateOfBirth,
-            plan: intent.plan,
-            selections: intent.selections.map(s => ({
-              courseId: s.courseId,
-              tutorId: s.tutorId,
-            })),
-          })
-        )
+          // Pass registration data to verify endpoint so it can create the account
+          const registrationData = encodeURIComponent(
+            JSON.stringify({
+              email: intent.email,
+              password: intent.password,
+              firstName: intent.firstName,
+              lastName: intent.lastName,
+              phone: intent.phone,
+              state: intent.state,
+              dateOfBirth: intent.dateOfBirth,
+              plan: intent.plan,
+              selections: intent.selections.map(s => ({
+                courseId: s.courseId,
+                tutorId: s.tutorId,
+              })),
+            })
+          )
 
-        fetch(
-          `/api/payments/verify?reference=${encodeURIComponent(response.reference)}&data=${registrationData}`
-        )
-          .then(r => r.json())
-          .then(d => {
-            if (d.success) {
-              // Clear all registration data from sessionStorage
-              sessionStorage.removeItem('registrationIntent')
-              sessionStorage.removeItem('courseTutorSelections')
-              router.push(`/payment/success?groupId=${d.groupId}`)
-            } else {
-              setError(d.error || 'Verification failed. Please contact support.')
+          fetch(
+            `/api/payments/verify?reference=${encodeURIComponent(response.reference)}&data=${registrationData}`
+          )
+            .then(r => r.json())
+            .then(d => {
+              if (d.success) {
+                // Clear all registration data from sessionStorage
+                sessionStorage.removeItem('registrationIntent')
+                sessionStorage.removeItem('courseTutorSelections')
+                router.push(`/payment/success?groupId=${d.groupId}`)
+              } else {
+                setError(d.error || 'Verification failed. Please contact support.')
+                setLoading(false)
+              }
+            })
+            .catch(() => {
+              setError(
+                `Payment received but verification failed. Contact support with reference: ${response.reference}`
+              )
               setLoading(false)
-            }
-          })
-          .catch(() => {
-            setError(
-              `Payment received but verification failed. Contact support with reference: ${response.reference}`
-            )
-            setLoading(false)
-          })
-      },
-      onClose: () => {
-        setLoading(false)
-      },
-    })
-
-    handler.openIframe()
+            })
+        },
+        onClose: () => {
+          setLoading(false)
+        },
+      })
+      handler.openIframe()
+    } catch (err: any) {
+      setError('Could not open the payment window. Please refresh and try again.')
+      setLoading(false)
+    }
   }
 
   return (
@@ -225,31 +231,34 @@ export default function PaymentClient() {
               </div>
             )}
 
-            <button
-              onClick={handlePay}
-              disabled={loading || initializing || !initData || !!error}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-xl text-sm hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {initializing ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Preparing payment...
-                </>
-              ) : loading ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Creating your account...
-                </>
-              ) : (
-                `Pay ₦${Number(intent?.amount ?? 0).toLocaleString('en-NG')} with Paystack`
-              )}
-            </button>
+            {/* ── WRAPPED IN FORM ── */}
+            <form onSubmit={handlePay}>
+              <button
+                type="submit"
+                disabled={loading || initializing || !initData || !!error}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 text-white font-semibold rounded-xl text-sm hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {initializing ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Preparing payment...
+                  </>
+                ) : loading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Creating your account...
+                  </>
+                ) : (
+                  `Pay ₦${Number(intent?.amount ?? 0).toLocaleString('en-NG')} with Paystack`
+                )}
+              </button>
+            </form>
 
             <p className="text-center text-gray-400 text-xs mt-4">
               <Link href="/auth/student/register" className="hover:underline">

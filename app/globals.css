@@ -309,17 +309,43 @@ aside::-webkit-scrollbar-thumb:hover {
   color: inherit; 
   padding: 0; 
 }
-.sp-content table { 
-  display: block; 
-  overflow-x: auto; 
-  max-width: 100%; 
-  border-collapse: collapse; 
-  margin: 1em 0; 
+
+/* ── Table Styling for SP Content ── */
+.sp-content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1em 0;
+  overflow: hidden;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
 }
-.sp-content th, .sp-content td { 
-  border: 1px solid #e5e7eb; 
-  padding: 0.5em 0.75em; 
-  font-size: 0.85em; 
+.sp-content td,
+.sp-content th {
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  position: relative;
+  vertical-align: top;
+  min-width: 60px;
+}
+.sp-content th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  text-align: left;
+}
+.sp-content .selectedCell {
+  background-color: #dbeafe;
+}
+.sp-content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: #3b82f6;
+  cursor: col-resize;
+  pointer-events: all;
 }
 
 /* ── Tiptap editor content ── */
@@ -383,17 +409,43 @@ aside::-webkit-scrollbar-thumb:hover {
   color: inherit; 
   padding: 0; 
 }
-.tiptap-editor-content table { 
-  display: block; 
-  overflow-x: auto; 
-  max-width: 100%; 
-  border-collapse: collapse; 
-  margin: 1em 0; 
+
+/* ── Table Styling for Tiptap Editor ── */
+.tiptap-editor-content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1em 0;
+  overflow: hidden;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
 }
-.tiptap-editor-content th, .tiptap-editor-content td { 
-  border: 1px solid #e5e7eb; 
-  padding: 0.5em 0.75em; 
-  font-size: 0.85em; 
+.tiptap-editor-content td,
+.tiptap-editor-content th {
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  position: relative;
+  vertical-align: top;
+  min-width: 60px;
+}
+.tiptap-editor-content th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  text-align: left;
+}
+.tiptap-editor-content .selectedCell {
+  background-color: #dbeafe;
+}
+.tiptap-editor-content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: #3b82f6;
+  cursor: col-resize;
+  pointer-events: all;
 }
 
 .tiptap-editor-content .video-embed-wrapper,
