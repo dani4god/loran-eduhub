@@ -84,6 +84,32 @@ select:-webkit-autofill {
   transition: background-color 5000s ease-in-out 0s;
 }
 
+/* ── Global Placeholder Contrast Fix ── */
+::placeholder {
+  color: #6b7280 !important; /* gray-500, was defaulting to gray-400 in several forms */
+  opacity: 1;
+}
+
+/* ── Exam Prep Input Contrast Fix ── */
+.exam-prep-input {
+  color: #111827 !important; /* gray-900 */
+  border-color: #d1d5db !important; /* gray-300 instead of gray-200 */
+}
+
+/* Global input/select border contrast fix for mobile */
+input,
+select,
+textarea {
+  border-color: #d1d5db !important; /* gray-300 base, better contrast on mobile */
+}
+
+/* Override the border-color for dark mode */
+.dark input,
+.dark select,
+.dark textarea {
+  border-color: #4b5563 !important; /* gray-600 in dark mode */
+}
+
 /* ── Responsive Container ── */
 @media (max-width: 640px) {
   .container {

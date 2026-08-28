@@ -30,7 +30,6 @@ export default function ExamPrepLoginPage() {
       if (!res.ok) { setError(data.error); setLoading(false); return }
 
       if (data.requiresPayment) {
-        const settingsRes = await fetch('/api/admin/exam-prep/settings').catch(() => null)
         // public plans endpoint fallback
         const plansRes = await fetch('/api/exam-prep/plans')
         const plansData = await plansRes.json()
@@ -49,21 +48,49 @@ export default function ExamPrepLoginPage() {
 
   const subscribe = async (duration: string) => {
     if (!email.trim()) { setError('Enter your email to receive a receipt'); return }
-    const res = await fetch('/api/exam-prep/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regNumber: regNumber.trim(), duration, email }) })
+    setError('')
+
+    const res = await fetch('/api/exam-prep/subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regNumber: regNumber.trim(), duration, email }),
+    })
     const data = await res.json()
     if (!res.ok) { setError(data.error); return }
 
-    const handler = window.PaystackPop.setup({
-      key: data.publicKey, email: data.email, amount: Math.round(data.amount * 100), ref: data.reference, currency: 'NGN',
-      callback: async (r: any) => {
-        try {
-          const d = await verifyWithRetry(`/api/exam-prep/subscribe/verify?reference=${r.reference}`)
-          if (d.success) { localStorage.setItem('examPrepRegNumber', regNumber.trim()); router.push('/exam-prep/dashboard/take') }
-          else setError(d.error)
-        } catch { setError(`Connection issue — don't pay again, reference: ${r.reference}`) }
-      },
-    })
-    handler.openIframe()
+    // Guard against the popup script not being ready yet — this was the
+    // actual bug: clicking a plan before Paystack's script finished loading
+    // silently failed with no visible error.
+    if (typeof window === 'undefined' || !window.PaystackPop) {
+      setError('Payment system is still loading — please wait a moment and try again.')
+      return
+    }
+
+    try {
+      const handler = window.PaystackPop.setup({
+        key: data.publicKey,
+        email: data.email,
+        amount: Math.round(data.amount * 100),
+        ref: data.reference,
+        currency: 'NGN',
+        callback: async (r: any) => {
+          try {
+            const d = await verifyWithRetry(`/api/exam-prep/subscribe/verify?reference=${r.reference}`)
+            if (d.success) {
+              localStorage.setItem('examPrepRegNumber', regNumber.trim())
+              router.push('/exam-prep/dashboard/take')
+            } else {
+              setError(d.error || 'Verification failed')
+            }
+          } catch {
+            setError(`Connection issue confirming payment — don't pay again, reference: ${r.reference}`)
+          }
+        },
+        onClose: () => {},
+      })
+      handler.openIframe()
+    } catch (err: any) {
+      setError('Could not open the payment window. Please refresh and try again.')
+    }
   }
 
   const findRegNumber = async () => {

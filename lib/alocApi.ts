@@ -1,5 +1,5 @@
 // lib/alocApi.ts
-const ALOC_BASE = process.env.ALOC_API_URL || 'https://dev.aloc.com.ng/api/v1'
+const ALOC_BASE = 'https://dev.aloc.com.ng/api/v1'
 
 export interface AlocQuestion {
   id: string
@@ -13,124 +13,76 @@ export interface AlocQuestion {
   imageUrl?: string
 }
 
+async function fetchPage(params: {
+  examType: string
+  subject: string
+  year?: number
+  cursor?: string | null
+}): Promise<{ questions: AlocQuestion[]; nextCursor: string | null }> {
+  const apiKey = process.env.ALOC_API_KEY
+  if (!apiKey) throw new Error('ALOC_API_KEY is not configured')
+
+  const url = new URL(`${ALOC_BASE}/questions`)
+  url.searchParams.set('subject', params.subject.toLowerCase())
+  url.searchParams.set('examType', params.examType)
+  if (params.year) url.searchParams.set('year', String(params.year))
+  url.searchParams.set('limit', '15') // ALOC's per-request cap
+  if (params.cursor) url.searchParams.set('cursor', params.cursor)
+
+  const res = await fetch(url.toString(), { headers: { 'X-API-Key': apiKey } })
+  if (!res.ok) throw new Error(`ALOC API error: ${res.status}`)
+  const body = await res.json()
+
+  const items = body.data || []
+  const questions: AlocQuestion[] = items.map((item: any) => {
+    const q = item.question || item
+    return {
+      id: q.id,
+      text: q.text,
+      options: q.options,
+      correctAnswer: (q.correctAnswer || '').toLowerCase(),
+      examType: q.examType,
+      subject: q.subject,
+      year: q.year,
+      section: q.section,
+      imageUrl: q.imageUrl,
+    }
+  })
+
+  return { questions, nextCursor: body.pagination?.hasMore ? body.pagination.nextCursor : null }
+}
+
+// ALOC caps each request at 15 questions — two requests (15 + 15) reach the
+// full 30-question practice exam you asked for, deduped by question id.
 export async function fetchExamQuestions(params: {
   examType: 'jamb' | 'waec' | 'neco'
   subject: string
-  count?: number
   year?: number
+  count?: number
 }): Promise<AlocQuestion[]> {
-  const apiKey = process.env.ALOC_API_KEY
-  if (!apiKey) {
-    throw new Error('ALOC_API_KEY is not configured')
-  }
+  const target = params.count || 30
+  const collected: AlocQuestion[] = []
+  const seenIds = new Set<string>()
+  let cursor: string | null = null
+  let pages = 0
 
-  // API max is 15 - request exactly 15
-  const count = 15
-
-  try {
-    const url = new URL(`${ALOC_BASE}/questions`)
-    url.searchParams.set('subject', params.subject.toLowerCase())
-    url.searchParams.set('examType', params.examType)
-    url.searchParams.set('limit', '15')
-    if (params.year) url.searchParams.set('year', String(params.year))
-
-    console.log(`[ALOC API] Fetching 15 questions for ${params.examType} - ${params.subject}...`)
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
-
-    const res = await fetch(url.toString(), {
-      headers: { 
-        'X-API-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
+  while (collected.length < target && pages < 6) {
+    pages++
+    const { questions, nextCursor } = await fetchPage({
+      examType: params.examType, subject: params.subject, year: params.year, cursor,
     })
-
-    clearTimeout(timeoutId)
-
-    if (!res.ok) {
-      const errorText = await res.text()
-      throw new Error(`ALOC API error (${res.status}): ${errorText}`)
-    }
-
-    const body = await res.json()
-    
-    // Log the response structure for debugging
-    console.log(`[ALOC API] Response keys:`, Object.keys(body))
-    console.log(`[ALOC API] Has data:`, !!body.data, `data length:`, body.data?.length || 0)
-    console.log(`[ALOC API] Credits remaining:`, body.meta?.creditsRemaining || 'unknown')
-
-    // The API returns data in body.data
-    const items = body.data || body.questions || body.results || []
-    
-    if (!Array.isArray(items) || items.length === 0) {
-      console.error('[ALOC API] No items found in response:', JSON.stringify(body).substring(0, 500))
-      throw new Error(`No questions available for ${params.subject} (${params.examType})`)
-    }
-
-    const collected: AlocQuestion[] = []
-    const seenIds = new Set<string>()
-
-    for (const item of items) {
-      // The question might be nested or directly in the item
-      const q = item.question || item
-      
-      if (!q.id || seenIds.has(q.id)) continue
+    for (const q of questions) {
+      if (seenIds.has(q.id)) continue
       seenIds.add(q.id)
-
-      // Handle options - they come as { A: "text", B: "text", ... } or { a: "text", b: "text" }
-      let options = q.options
-      if (options) {
-        // Convert to lowercase keys
-        const normalizedOptions: Record<string, string> = {}
-        const keys = ['a', 'b', 'c', 'd']
-        for (const key of keys) {
-          normalizedOptions[key] = options[key.toLowerCase()] || options[key.toUpperCase()] || `Option ${key.toUpperCase()}`
-        }
-        options = normalizedOptions
-      } else {
-        // Fallback options
-        options = { a: 'Option A', b: 'Option B', c: 'Option C', d: 'Option D' }
-      }
-
-      // Ensure all options exist
-      if (!options.a) options.a = 'Option A'
-      if (!options.b) options.b = 'Option B'
-      if (!options.c) options.c = 'Option C'
-      if (!options.d) options.d = 'Option D'
-
-      // Get correct answer - could be "A", "a", "A)" etc.
-      let correctAnswer = (q.correctAnswer || '').toString().toLowerCase().trim()
-      // Extract first letter if it's something like "A)" or "A."
-      const match = correctAnswer.match(/^([a-d])/)
-      const validAnswer = match ? match[1] : 'a'
-
-      collected.push({
-        id: q.id,
-        text: q.text || q.question || 'Question text missing',
-        options,
-        correctAnswer: validAnswer,
-        examType: q.examType || params.examType,
-        subject: q.subject || params.subject,
-        year: q.year || params.year,
-        section: q.section || q.topic,
-        imageUrl: q.imageUrl || q.image,
-      })
+      collected.push(q)
+      if (collected.length >= target) break
     }
-
-    if (collected.length === 0) {
-      throw new Error(`No valid questions found for ${params.subject} (${params.examType})`)
-    }
-
-    console.log(`[ALOC API] Successfully collected ${collected.length} questions`)
-    return collected
-
-  } catch (error: any) {
-    console.error('[ALOC API] Error:', {
-      message: error.message,
-      name: error.name
-    })
-    throw new Error(`Failed to fetch questions: ${error.message}`)
+    cursor = nextCursor
+    if (!cursor) break
   }
+
+  return collected
 }
+
+// Adjust this range once you confirm which years ALOC actually has data for.
+export const ALOC_AVAILABLE_YEARS = Array.from({ length: 2024 - 2010 + 1 }, (_, i) => 2024 - i)

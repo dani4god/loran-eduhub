@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Radio, Plus, Trash2, Eye, EyeOff, Save, Loader2, X } from 'lucide-react'
+import { Radio, Plus, Trash2, Eye, EyeOff, Save, Loader2, X, Upload } from 'lucide-react'
 import QuestionEditor from '@/components/library/QuestionEditor'
 
 interface LiveExamItem {
@@ -129,6 +129,42 @@ function LiveExamEditModal({ exam, onClose, onSaved }: { exam: LiveExamItem; onC
   const [durationMinutes, setDurationMinutes] = useState(exam.durationMinutes)
   const [questions, setQuestions] = useState(exam.questions || [])
   const [saving, setSaving] = useState(false)
+  const [bulkUploading, setBulkUploading] = useState(false)
+  const [bulkResult, setBulkResult] = useState<string | null>(null)
+
+  const bulkUpload = async (file: File, mode: 'append' | 'replace') => {
+    setBulkUploading(true)
+    setBulkResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('mode', mode)
+      
+      const res = await fetch(`/api/admin/live-exams/${exam._id}/bulk-upload-questions`, { 
+        method: 'POST', 
+        body: formData 
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        setBulkResult(`Imported ${data.imported} question(s)${data.skipped > 0 ? `, skipped ${data.skipped}` : ''}.`)
+        
+        // Refresh questions from the server
+        const refreshed = await fetch(`/api/admin/live-exams/${exam._id}`).then((r) => r.json())
+        setQuestions(refreshed.exam.questions || [])
+        toast.success(`Questions ${mode === 'replace' ? 'replaced' : 'added'} successfully!`)
+      } else {
+        setBulkResult(`Failed: ${data.error || 'Unknown error'}`)
+        toast.error(data.error || 'Bulk upload failed')
+      }
+    } catch (error: any) {
+      setBulkResult(`Failed: ${error.message || 'Unknown error'}`)
+      toast.error('Bulk upload failed')
+    } finally {
+      setBulkUploading(false)
+    }
+  }
 
   const save = async () => {
     setSaving(true)
@@ -166,8 +202,35 @@ function LiveExamEditModal({ exam, onClose, onSaved }: { exam: LiveExamItem; onC
             </div>
           </div>
 
+          {/* Bulk Upload Section */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Bulk Upload Questions (Excel)</p>
+              <a href="/api/admin/live-exams/template" className="text-xs font-semibold text-blue-600 hover:underline">Download Template</a>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <label className={`px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition ${bulkUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {bulkUploading ? 'Uploading...' : 'Add to Existing'}
+                <input type="file" accept=".xlsx,.xls" className="hidden" disabled={bulkUploading} onChange={(e) => e.target.files?.[0] && bulkUpload(e.target.files[0], 'append')} />
+              </label>
+              <label className={`px-3 py-2 bg-white border border-red-300 rounded-lg text-xs font-semibold text-red-600 cursor-pointer hover:bg-red-50 transition ${bulkUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {bulkUploading ? 'Uploading...' : 'Replace All'}
+                <input type="file" accept=".xlsx,.xls" className="hidden" disabled={bulkUploading} onChange={(e) => e.target.files?.[0] && bulkUpload(e.target.files[0], 'replace')} />
+              </label>
+            </div>
+            {bulkResult && (
+              <p className={`text-xs ${bulkResult.startsWith('Failed') ? 'text-red-600' : 'text-green-700'}`}>
+                {bulkResult}
+              </p>
+            )}
+            <p className="text-[10px] text-gray-400">
+              Upload an Excel (.xlsx, .xls) or CSV file with columns: question, option_a, option_b, option_c, option_d, correct_answer (a/b/c/d)
+            </p>
+          </div>
+
+          {/* Questions Editor */}
           <div className="border-t border-gray-100 pt-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Exam Questions</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Exam Questions ({questions.length})</p>
             <QuestionEditor questions={questions as any} onChange={setQuestions} />
           </div>
 
