@@ -1,45 +1,131 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Script from 'next/script'
+import {
+  useState,
+} from 'react'
+
+import {
+  useRouter,
+} from 'next/navigation'
+
+import Link from 'next/link'
+
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
-import { verifyWithRetry } from '@/lib/verifyWithRetry'
-import { Loader2 } from 'lucide-react'
 
-declare global {
-  interface Window {
-    PaystackPop: any
-  }
+import {
+  Loader2,
+} from 'lucide-react'
+
+interface Plan {
+  duration: string
+  price: number
+  enabled?: boolean
+}
+
+const PLAN_LABELS:
+  Record<string, string> = {
+  trial:
+    '1 Week Free Trial',
+
+  monthly:
+    '1 Month',
+
+  '1month':
+    '1 Month',
+
+  '2months':
+    '2 Months',
+
+  '3months':
+    '3 Months',
+
+  '6months':
+    '6 Months',
+
+  '1year':
+    '1 Year',
+
+  life:
+    'Lifetime',
 }
 
 export default function ExamPrepLoginPage() {
   const router = useRouter()
 
-  const [regNumber, setRegNumber] = useState('')
-  const [forgotName, setForgotName] = useState('')
-  const [matches, setMatches] = useState<any[]>([])
-  const [showForgot, setShowForgot] = useState(false)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [
+    regNumber,
+    setRegNumber,
+  ] = useState('')
 
-  const [plans, setPlans] = useState<any[]>([])
-  const [showPlans, setShowPlans] = useState(false)
+  const [
+    forgotName,
+    setForgotName,
+  ] = useState('')
 
-  const [email, setEmail] = useState('')
-  const [subscribing, setSubscribing] = useState(false)
+  const [
+    matches,
+    setMatches,
+  ] = useState<any[]>([])
 
-  const [paystackLoaded, setPaystackLoaded] = useState(false)
+  const [
+    showForgot,
+    setShowForgot,
+  ] = useState(false)
 
-  /**
-   * Load Paystack and verify that the student has access.
-   */
-  const login = async (e: React.FormEvent) => {
+  const [
+    error,
+    setError,
+  ] = useState('')
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false)
+
+  const [
+    plans,
+    setPlans,
+  ] = useState<Plan[]>([])
+
+  const [
+    showPlans,
+    setShowPlans,
+  ] = useState(false)
+
+  const [
+    email,
+    setEmail,
+  ] = useState('')
+
+  const [
+    subscribing,
+    setSubscribing,
+  ] = useState(false)
+
+  const [
+    selectedDuration,
+    setSelectedDuration,
+  ] = useState<string | null>(
+    null
+  )
+
+  // =========================================================
+  // LOGIN
+  // =========================================================
+
+  const login = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault()
 
-    if (!regNumber.trim()) {
-      setError('Enter your registration number')
+    const cleanReg =
+      regNumber.trim()
+
+    if (!cleanReg) {
+      setError(
+        'Enter your registration number'
+      )
       return
     }
 
@@ -47,42 +133,92 @@ export default function ExamPrepLoginPage() {
     setError('')
 
     try {
-      const res = await fetch('/api/exam-prep/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          regNumber: regNumber.trim(),
-        }),
-      })
+      const response =
+        await fetch(
+          '/api/exam-prep/login',
+          {
+            method: 'POST',
 
-      const data = await res.json()
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
 
-      if (!res.ok) {
-        setError(data.error || 'Unable to continue')
-        setLoading(false)
+            body: JSON.stringify({
+              regNumber:
+                cleanReg,
+            }),
+          }
+        )
+
+      const data =
+        await response.json()
+
+      if (!response.ok) {
+        setError(
+          data.error ||
+            'Unable to continue'
+        )
         return
       }
 
-      if (data.requiresPayment) {
-        const plansRes = await fetch('/api/exam-prep/plans')
-        const plansData = await plansRes.json()
+      /**
+       * CRITICAL:
+       *
+       * Do NOT store registration number or
+       * enter the dashboard here if payment
+       * is still required.
+       */
+      if (
+        data.requiresPayment
+      ) {
+        const plansResponse =
+          await fetch(
+            '/api/exam-prep/plans',
+            {
+              cache:
+                'no-store',
+            }
+          )
 
-        setPlans(plansData.plans || [])
+        const plansData =
+          await plansResponse.json()
+
+        if (
+          !plansResponse.ok
+        ) {
+          setError(
+            plansData.error ||
+              'Unable to load subscription plans'
+          )
+          return
+        }
+
+        setPlans(
+          plansData.plans || []
+        )
+
         setShowPlans(true)
-        setLoading(false)
+
         return
       }
 
+      /**
+       * Student genuinely has access.
+       */
       localStorage.setItem(
         'examPrepRegNumber',
         data.student.regNumber
       )
 
-      router.push('/exam-prep/dashboard/take')
-    } catch (err) {
-      console.error('Exam prep login error:', err)
+      router.push(
+        '/exam-prep/dashboard/take'
+      )
+    } catch (error) {
+      console.error(
+        'Exam Prep login error:',
+        error
+      )
 
       setError(
         'Unable to connect to the server. Please try again.'
@@ -92,105 +228,10 @@ export default function ExamPrepLoginPage() {
     }
   }
 
-  /**
-   * Verify the Paystack transaction.
-   *
-   * Your existing endpoint:
-   * /api/exam-prep/subscribe/verify?reference=...
-   */
-  const verifyPayment = async (reference: string) => {
-    console.log(
-      '[Paystack] Verifying transaction:',
-      reference
-    )
+  // =========================================================
+  // SUBSCRIBE
+  // =========================================================
 
-    try {
-      const data = await verifyWithRetry(
-        `/api/exam-prep/subscribe/verify?reference=${encodeURIComponent(
-          reference
-        )}`
-      )
-
-      console.log(
-        '[Paystack] Verification response:',
-        data
-      )
-
-      if (data.success) {
-        localStorage.setItem(
-          'examPrepRegNumber',
-          regNumber.trim()
-        )
-
-        router.push('/exam-prep/dashboard/take')
-
-        return true
-      }
-
-      return false
-    } catch (err) {
-      console.error(
-        '[Paystack] Verification error:',
-        err
-      )
-
-      return false
-    }
-  }
-
-  /**
-   * Poll Paystack verification after the popup opens.
-   *
-   * This is useful with resumeTransaction() because the
-   * transaction itself was initialized on the server.
-   */
-  const pollPaymentStatus = async (
-    reference: string
-  ) => {
-    const maxAttempts = 60
-    const interval = 2000
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      console.log(
-        `[Paystack] Verification attempt ${
-          attempt + 1
-        }/${maxAttempts}`
-      )
-
-      const successful = await verifyPayment(reference)
-
-      if (successful) {
-        setSubscribing(false)
-        return
-      }
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, interval)
-      )
-    }
-
-    console.warn(
-      '[Paystack] Payment verification timed out'
-    )
-
-    setError(
-      'We could not confirm the payment yet. Please check your payment status before trying again.'
-    )
-
-    setSubscribing(false)
-  }
-
-  /**
-   * Start payment.
-   *
-   * Backend initializes the transaction and returns:
-   *
-   * accessCode
-   * authorizationUrl
-   * reference
-   * publicKey
-   * amount
-   */
   const subscribe = async (
     e: React.FormEvent,
     duration: string
@@ -199,333 +240,335 @@ export default function ExamPrepLoginPage() {
 
     if (!email.trim()) {
       setError(
-        'Enter your email to receive a receipt'
+        'Enter your email to receive your receipt'
+      )
+      return
+    }
+
+    if (!regNumber.trim()) {
+      setError(
+        'Registration number is missing. Please start again.'
       )
       return
     }
 
     setError('')
     setSubscribing(true)
+    setSelectedDuration(
+      duration
+    )
 
     try {
-      /*
-       * Make sure Paystack's V2 script has loaded.
-       */
-      if (!paystackLoaded || !window.PaystackPop) {
-        console.warn(
-          '[Paystack] Script not ready yet'
+      const response =
+        await fetch(
+          '/api/exam-prep/subscribe',
+          {
+            method: 'POST',
+
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
+
+            body: JSON.stringify({
+              regNumber:
+                regNumber.trim(),
+
+              duration,
+
+              email:
+                email.trim(),
+            }),
+          }
         )
 
-        setError(
-          'Payment system is still loading. Please wait a moment and try again.'
-        )
+      const data =
+        await response.json()
 
-        setSubscribing(false)
-        return
-      }
-
-      console.log(
-        '[Paystack] Initializing payment...'
-      )
-
-      const res = await fetch(
-        '/api/exam-prep/subscribe',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            regNumber: regNumber.trim(),
-            duration,
-            email: email.trim(),
-          }),
-        }
-      )
-
-      const data = await res.json()
-
-      console.log(
-        '[Paystack] Backend response:',
-        data
-      )
-
-      if (!res.ok) {
+      if (!response.ok) {
         setError(
           data.error ||
-            'Failed to initialize payment'
+            'Unable to initialize payment'
         )
-
-        setSubscribing(false)
         return
       }
 
-      /*
-       * If the plan doesn't require payment,
-       * grant access immediately.
+      /**
+       * Free trial / zero-priced plan OR
+       * student already has access.
        */
-      if (!data.requiresPayment) {
+      if (
+        data.requiresPayment ===
+        false
+      ) {
         localStorage.setItem(
           'examPrepRegNumber',
-          regNumber.trim()
+          data.regNumber ||
+            regNumber.trim()
         )
 
-        router.push('/exam-prep/dashboard/take')
+        router.push(
+          '/exam-prep/dashboard/take'
+        )
 
         return
       }
 
-      /*
-       * The backend must return an accessCode.
+      /**
+       * PAID PLAN:
+       *
+       * Paystack must give us its hosted
+       * checkout URL.
        */
-      if (!data.accessCode) {
+      if (
+        !data.authorizationUrl
+      ) {
         console.error(
-          '[Paystack] Missing accessCode:',
+          'Missing Paystack authorizationUrl:',
           data
         )
 
         setError(
-          'Payment was initialized incorrectly. No Paystack access code was returned.'
+          'Paystack did not return a checkout link. Please try again.'
         )
 
-        setSubscribing(false)
         return
       }
 
-      /*
-       * The backend must also return a reference.
+      /**
+       * IMPORTANT:
+       *
+       * No localStorage login.
+       * No dashboard redirect.
+       *
+       * The student is sent to Paystack first.
        */
-      if (!data.reference) {
-        console.error(
-          '[Paystack] Missing transaction reference:',
-          data
-        )
-
-        setError(
-          'Payment was initialized incorrectly. No transaction reference was returned.'
-        )
-
-        setSubscribing(false)
-        return
-      }
-
-      console.log(
-        '[Paystack] Access code:',
-        data.accessCode
+      window.location.assign(
+        data.authorizationUrl
       )
-
-      console.log(
-        '[Paystack] Reference:',
-        data.reference
-      )
-
-      /*
-       * Create the Paystack V2 popup.
-       */
-      const popup = new window.PaystackPop()
-
-      /*
-       * Start monitoring the transaction BEFORE opening
-       * the popup.
-       */
-      pollPaymentStatus(data.reference)
-
-      /*
-       * Resume the transaction that was initialized
-       * on your backend.
-       */
-      console.log(
-        '[Paystack] Opening payment popup...'
-      )
-
-      popup.resumeTransaction(
-        data.accessCode
-      )
-    } catch (err: any) {
+    } catch (error) {
       console.error(
-        '[Paystack] Payment initialization error:',
-        err
+        'Exam Prep payment error:',
+        error
       )
 
       setError(
-        err?.message ||
-          'Could not open the payment window. Please refresh and try again.'
+        'Could not initialize payment. Please try again.'
       )
-
+    } finally {
+      /**
+       * If the browser redirects to Paystack,
+       * this doesn't matter.
+       */
       setSubscribing(false)
     }
   }
 
-  /**
-   * Find registration number.
-   */
-  const findRegNumber = async (
-    e: React.FormEvent
-  ) => {
-    e.preventDefault()
+  // =========================================================
+  // FIND REGISTRATION NUMBER
+  // =========================================================
 
-    setError('')
+  const findRegNumber =
+    async (
+      e: React.FormEvent
+    ) => {
+      e.preventDefault()
 
-    try {
-      const res = await fetch(
-        '/api/exam-prep/forgot-reg',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fullName: forgotName,
-          }),
+      if (!forgotName.trim()) {
+        return
+      }
+
+      setError('')
+      setMatches([])
+
+      try {
+        const response =
+          await fetch(
+            '/api/exam-prep/forgot-reg',
+            {
+              method:
+                'POST',
+
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
+
+              body:
+                JSON.stringify({
+                  fullName:
+                    forgotName.trim(),
+                }),
+            }
+          )
+
+        const data =
+          await response.json()
+
+        if (!response.ok) {
+          setError(
+            data.error ||
+              'Failed to find registration number'
+          )
+          return
         }
-      )
 
-      const data = await res.json()
+        setMatches(
+          data.matches || []
+        )
 
-      setMatches(data.matches || [])
-    } catch (err) {
-      console.error(
-        'Find registration number error:',
-        err
-      )
-
-      setError(
-        'Failed to find registration number'
-      )
+        if (
+          !data.matches?.length
+        ) {
+          setError(
+            'No registration number found for that name.'
+          )
+        }
+      } catch {
+        setError(
+          'Failed to find registration number'
+        )
+      }
     }
-  }
 
   return (
     <>
-      {/* 
-        Paystack InlineJS V2
-
-        IMPORTANT:
-        Do NOT use /v1/inline.js anymore.
-      */}
-      <Script
-        src="https://js.paystack.co/v2/inline.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log(
-            '[Paystack] InlineJS V2 loaded'
-          )
-
-          setPaystackLoaded(true)
-        }}
-        onError={(error) => {
-          console.error(
-            '[Paystack] Failed to load InlineJS:',
-            error
-          )
-
-          setPaystackLoaded(false)
-          setError(
-            'Unable to load the payment system. Please refresh the page.'
-          )
-        }}
-      />
-
       <Navbar />
 
       <div className="min-h-screen bg-gray-50 pt-24 pb-16">
+
         <div className="max-w-md mx-auto px-4 sm:px-6">
 
           {showPlans ? (
+
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
 
               <h1 className="text-lg font-bold text-gray-900 mb-1">
                 Choose a Plan
               </h1>
 
-              <p className="text-sm text-gray-500 mb-4">
-                Practice exams require a subscription.
+              <p className="text-sm text-gray-500 mb-5">
+                Select your Exam Prep subscription.
+                Paid plans will take you to Paystack's
+                secure checkout.
               </p>
+
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                Receipt Email
+              </label>
 
               <input
                 type="email"
                 value={email}
                 onChange={(e) =>
-                  setEmail(e.target.value)
+                  setEmail(
+                    e.target.value
+                  )
                 }
-                placeholder="Your email"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 mb-3"
-                required
+                placeholder="you@example.com"
+                autoComplete="email"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 mb-4"
               />
 
-              {!paystackLoaded && (
-                <div className="mb-3 rounded-lg bg-yellow-50 border border-yellow-100 p-3 text-xs text-yellow-700">
-                  Payment system is loading...
+              {error && (
+                <div className="mb-4 bg-red-50 border border-red-100 rounded-lg p-3">
+
+                  <p className="text-xs text-red-600">
+                    {error}
+                  </p>
+
                 </div>
               )}
 
               <div className="space-y-2">
 
-                {plans.map((p) => (
-                  <form
-                    key={p.duration}
-                    onSubmit={(e) =>
-                      subscribe(
-                        e,
-                        p.duration
-                      )
-                    }
-                    className="block"
-                  >
-                    <button
-                      type="submit"
-                      disabled={
-                        subscribing ||
-                        !paystackLoaded
-                      }
-                      className="w-full flex items-center justify-between p-3.5 border border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
-                    >
+                {plans.map(
+                  (plan) => {
+                    const isThisPlanLoading =
+                      subscribing &&
+                      selectedDuration ===
+                        plan.duration
 
-                      <span className="text-sm font-semibold capitalize">
-
-                        {p.duration
-                          .replace(
-                            'months',
-                            ' Months'
+                    return (
+                      <form
+                        key={
+                          plan.duration
+                        }
+                        onSubmit={(
+                          e
+                        ) =>
+                          subscribe(
+                            e,
+                            plan.duration
                           )
-                          .replace(
-                            'month',
-                            ' Month'
-                          )}
+                        }
+                      >
 
-                        {subscribing && (
-                          <Loader2
-                            size={14}
-                            className="inline ml-2 animate-spin"
-                          />
-                        )}
+                        <button
+                          type="submit"
+                          disabled={
+                            subscribing
+                          }
+                          className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
+                        >
 
-                      </span>
+                          <span className="text-sm font-semibold text-gray-900">
 
-                      <span className="text-sm font-bold text-blue-600">
-                        ₦
-                        {Number(
-                          p.price
-                        ).toLocaleString(
-                          'en-NG'
-                        )}
-                      </span>
+                            {PLAN_LABELS[
+                              plan
+                                .duration
+                            ] ||
+                              plan.duration}
 
-                    </button>
-                  </form>
-                ))}
+                          </span>
+
+                          <span className="flex items-center gap-2">
+
+                            {isThisPlanLoading && (
+                              <Loader2
+                                size={
+                                  15
+                                }
+                                className="animate-spin text-blue-600"
+                              />
+                            )}
+
+                            <span className="text-sm font-bold text-blue-600">
+
+                              {Number(
+                                plan.price
+                              ) === 0
+                                ? 'FREE'
+                                : `₦${Number(
+                                    plan.price
+                                  ).toLocaleString(
+                                    'en-NG'
+                                  )}`}
+
+                            </span>
+
+                          </span>
+
+                        </button>
+
+                      </form>
+                    )
+                  }
+                )}
 
               </div>
 
-              {error && (
-                <p className="text-xs text-red-600 mt-3">
-                  {error}
-                </p>
-              )}
+              <p className="text-[11px] text-gray-400 mt-4 text-center">
+                Payments are securely processed by Paystack.
+              </p>
 
               <button
+                type="button"
                 onClick={() => {
-                  setShowPlans(false)
+                  setShowPlans(
+                    false
+                  )
+
                   setError('')
                 }}
                 className="w-full text-center text-xs text-gray-400 mt-3 hover:text-gray-600"
@@ -534,6 +577,7 @@ export default function ExamPrepLoginPage() {
               </button>
 
             </div>
+
           ) : (
 
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
@@ -543,17 +587,20 @@ export default function ExamPrepLoginPage() {
               </h1>
 
               <p className="text-sm text-gray-500 mb-5">
-                Enter your registration number to
-                continue.
+                Enter your registration number to continue.
               </p>
 
               <form
-                onSubmit={login}
+                onSubmit={
+                  login
+                }
                 className="space-y-3"
               >
 
                 <input
-                  value={regNumber}
+                  value={
+                    regNumber
+                  }
                   onChange={(e) =>
                     setRegNumber(
                       e.target.value
@@ -572,13 +619,17 @@ export default function ExamPrepLoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={
+                    loading
+                  }
                   className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-blue-700 transition"
                 >
 
                   {loading && (
                     <Loader2
-                      size={15}
+                      size={
+                        15
+                      }
                       className="animate-spin"
                     />
                   )}
@@ -590,6 +641,7 @@ export default function ExamPrepLoginPage() {
               </form>
 
               <button
+                type="button"
                 onClick={() =>
                   setShowForgot(
                     !showForgot
@@ -601,14 +653,21 @@ export default function ExamPrepLoginPage() {
               </button>
 
               {showForgot && (
+
                 <form
-                  onSubmit={findRegNumber}
+                  onSubmit={
+                    findRegNumber
+                  }
                   className="mt-3 space-y-2"
                 >
 
                   <input
-                    value={forgotName}
-                    onChange={(e) =>
+                    value={
+                      forgotName
+                    }
+                    onChange={(
+                      e
+                    ) =>
                       setForgotName(
                         e.target.value
                       )
@@ -620,53 +679,70 @@ export default function ExamPrepLoginPage() {
 
                   <button
                     type="submit"
-                    className="w-full py-2 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-gray-800 transition"
+                    className="w-full py-2 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-gray-800"
                   >
-                    Find My Registration
-                    Number
+                    Find My Registration Number
                   </button>
 
                   {matches.map(
-                    (m, i) => (
+                    (
+                      match,
+                      index
+                    ) => (
+
                       <div
-                        key={i}
-                        className="bg-gray-50 rounded-lg p-2.5 text-xs flex items-center justify-between"
+                        key={
+                          match.regNumber ||
+                          index
+                        }
+                        className="bg-gray-50 rounded-lg p-2.5 text-xs flex items-center justify-between gap-3"
                       >
 
                         <span>
-                          {m.fullName} ·{' '}
-                          {m.school}
+                          {
+                            match.fullName
+                          }{' '}
+                          ·{' '}
+                          {
+                            match.school
+                          }
                         </span>
 
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
                             setRegNumber(
-                              m.regNumber
+                              match.regNumber
                             )
-                          }
-                          className="text-blue-600 font-semibold hover:underline"
+
+                            setShowForgot(
+                              false
+                            )
+                          }}
+                          className="text-blue-600 font-semibold hover:underline shrink-0"
                         >
                           Use this
                         </button>
 
                       </div>
+
                     )
                   )}
 
                 </form>
+
               )}
 
               <p className="text-center text-xs text-gray-400 mt-4">
 
                 Not registered yet?{' '}
 
-                <a
+                <Link
                   href="/exam-prep/register"
                   className="text-blue-600 underline"
                 >
                   Register here
-                </a>
+                </Link>
 
               </p>
 
@@ -675,6 +751,7 @@ export default function ExamPrepLoginPage() {
           )}
 
         </div>
+
       </div>
 
       <Footer />
