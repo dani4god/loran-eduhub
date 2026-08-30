@@ -1,4 +1,3 @@
-// app/api/admin/lesson-notes/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import connectDB from '@/lib/mongodb'
@@ -32,12 +31,13 @@ export async function GET(
       _id: note._id.toString(),
       title: note.title ?? '',
       description: note.description ?? '',
-      content: note.content ?? '',
-      pages: note.pages ?? [],
       coverImageUrl: note.coverImageUrl ?? null,
+      previewVideoUrl: note.previewVideoUrl ?? null,
       price: note.price ?? 0,
       subject: note.subject ?? '',
       studentClass: note.studentClass ?? '',
+      category: note.category ?? '',
+      weeks: note.weeks ?? [],   // ← the actual content structure
       status: note.status,
       rejectionReason: note.rejectionReason ?? null,
       tutorName: tutor
@@ -45,7 +45,7 @@ export async function GET(
         : 'Unknown',
       tutorEmail: tutor?.email ?? '',
       purchaseCount: note.purchaseCount ?? 0,
-      purchases: [], // no separate Purchase collection — count is on the note
+      purchases: [],
       updatedAt: note.updatedAt,
       createdAt: note.createdAt,
     },
