@@ -1,3 +1,5 @@
+// app/api/lesson-notes/[id]/verify/route.ts
+
 import {
   NextRequest,
   NextResponse,
@@ -8,7 +10,6 @@ import mongoose from 'mongoose'
 import connectDB from '@/lib/mongodb'
 
 import LessonNote from '@/models/LessonNote'
-
 import LessonNotePurchase from '@/models/LessonNotePurchase'
 
 export async function GET(
@@ -24,6 +25,10 @@ export async function GET(
   try {
     const { id } =
       await params
+
+    // ========================================================
+    // VALIDATE LESSON NOTE ID
+    // ========================================================
 
     if (
       !mongoose.Types.ObjectId.isValid(
@@ -75,10 +80,17 @@ export async function GET(
 
     await connectDB()
 
-    // --------------------------------------------------------
-    // Return immediately if purchase already verified
-    // --------------------------------------------------------
+    // ========================================================
+    // IDEMPOTENCY
+    // ========================================================
 
+    /**
+     * Only the SAME Paystack reference is considered
+     * an already verified purchase.
+     *
+     * Buying the same lesson note again with a DIFFERENT
+     * Paystack reference will create another purchase.
+     */
     const existingPurchase =
       await LessonNotePurchase.findOne({
         lessonNoteId:
@@ -86,7 +98,7 @@ export async function GET(
 
         paystackReference:
           reference,
-      })
+      }).lean()
 
     if (
       existingPurchase
@@ -98,13 +110,21 @@ export async function GET(
         alreadyVerified:
           true,
 
+        purchaseId:
+          existingPurchase._id.toString(),
+
         reference,
       })
     }
 
+    // ========================================================
+    // LOAD LESSON NOTE
+    // ========================================================
+
     const note =
       await LessonNote.findOne({
         _id: id,
+
         status:
           'published',
       })
@@ -129,6 +149,10 @@ export async function GET(
         .PAYSTACK_SECRET_KEY
 
     if (!secretKey) {
+      console.error(
+        '[LESSON NOTE VERIFY] PAYSTACK_SECRET_KEY is missing'
+      )
+
       return NextResponse.json(
         {
           success:
@@ -143,9 +167,9 @@ export async function GET(
       )
     }
 
-    // --------------------------------------------------------
-    // Verify payment with Paystack
-    // --------------------------------------------------------
+    // ========================================================
+    // VERIFY WITH PAYSTACK
+    // ========================================================
 
     const verifyResponse =
       await fetch(
@@ -153,9 +177,15 @@ export async function GET(
           reference
         )}`,
         {
+          method:
+            'GET',
+
           headers: {
             Authorization:
               `Bearer ${secretKey}`,
+
+            'Content-Type':
+              'application/json',
           },
 
           cache:
@@ -168,8 +198,19 @@ export async function GET(
 
     if (
       !verifyResponse.ok ||
-      !verification?.status
+      verification?.status !==
+        true ||
+      !verification?.data
     ) {
+      console.error(
+        '[LESSON NOTE VERIFY] Paystack verification failed',
+        {
+          reference,
+          response:
+            verification,
+        }
+      )
+
       return NextResponse.json(
         {
           success:
@@ -188,8 +229,48 @@ export async function GET(
     const transaction =
       verification.data
 
+    // ========================================================
+    // VERIFY REFERENCE
+    // ========================================================
+
     if (
-      transaction?.status !==
+      String(
+        transaction.reference ||
+          ''
+      ) !==
+      reference
+    ) {
+      console.error(
+        '[LESSON NOTE VERIFY] Reference mismatch',
+        {
+          expected:
+            reference,
+
+          received:
+            transaction.reference,
+        }
+      )
+
+      return NextResponse.json(
+        {
+          success:
+            false,
+
+          error:
+            'Payment reference mismatch',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    // ========================================================
+    // VERIFY TRANSACTION STATUS
+    // ========================================================
+
+    if (
+      transaction.status !==
       'success'
     ) {
       return NextResponse.json(
@@ -206,15 +287,64 @@ export async function GET(
       )
     }
 
-    // --------------------------------------------------------
-    // Verify amount
-    // --------------------------------------------------------
+    // ========================================================
+    // VERIFY CURRENCY
+    // ========================================================
+
+    if (
+      String(
+        transaction.currency ||
+          ''
+      ).toUpperCase() !==
+      'NGN'
+    ) {
+      return NextResponse.json(
+        {
+          success:
+            false,
+
+          error:
+            'Invalid payment currency',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    // ========================================================
+    // VERIFY AMOUNT
+    // ========================================================
+
+    const notePrice =
+      Number(
+        note.price
+      )
+
+    if (
+      !Number.isFinite(
+        notePrice
+      ) ||
+      notePrice <= 0
+    ) {
+      return NextResponse.json(
+        {
+          success:
+            false,
+
+          error:
+            'Invalid lesson note price',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
 
     const expectedAmount =
       Math.round(
-        Number(
-          note.price
-        ) * 100
+        notePrice *
+          100
       )
 
     const paidAmount =
@@ -228,10 +358,12 @@ export async function GET(
       expectedAmount
     ) {
       console.error(
-        'Lesson note payment amount mismatch',
+        '[LESSON NOTE VERIFY] Amount mismatch',
         {
           reference,
+
           expectedAmount,
+
           paidAmount,
         }
       )
@@ -250,41 +382,35 @@ export async function GET(
       )
     }
 
-    if (
-      transaction.currency !==
-      'NGN'
-    ) {
-      return NextResponse.json(
-        {
-          success:
-            false,
-
-          error:
-            'Invalid payment currency',
-        },
-        {
-          status: 400,
-        }
-      )
-    }
-
-    // --------------------------------------------------------
-    // Verify metadata belongs to this note
-    // --------------------------------------------------------
+    // ========================================================
+    // VERIFY METADATA
+    // ========================================================
 
     const metadata =
-      transaction.metadata ||
-      {}
+      transaction.metadata &&
+      typeof transaction.metadata ===
+        'object'
+        ? transaction.metadata
+        : {}
 
     if (
       metadata.type !==
-      'lesson_note' ||
-      metadata.lessonNoteId !==
+        'lesson_note' ||
+      String(
+        metadata.lessonNoteId ||
+          ''
+      ) !==
         note._id.toString()
     ) {
       console.error(
-        'Lesson note metadata mismatch:',
-        metadata
+        '[LESSON NOTE VERIFY] Metadata mismatch',
+        {
+          reference,
+          metadata,
+
+          expectedLessonNoteId:
+            note._id.toString(),
+        }
       )
 
       return NextResponse.json(
@@ -301,22 +427,36 @@ export async function GET(
       )
     }
 
+    // ========================================================
+    // BUYER DETAILS
+    // ========================================================
+
     const buyerName =
       typeof metadata.buyerName ===
       'string'
         ? metadata.buyerName.trim()
         : ''
 
-    const buyerEmail =
+    const metadataEmail =
       typeof metadata.buyerEmail ===
       'string'
         ? metadata.buyerEmail
             .trim()
             .toLowerCase()
-        : transaction
-            ?.customer
-            ?.email ||
-          ''
+        : ''
+
+    const paystackEmail =
+      typeof transaction
+        ?.customer?.email ===
+      'string'
+        ? transaction.customer.email
+            .trim()
+            .toLowerCase()
+        : ''
+
+    const buyerEmail =
+      metadataEmail ||
+      paystackEmail
 
     if (
       !buyerName ||
@@ -336,33 +476,71 @@ export async function GET(
       )
     }
 
-    // --------------------------------------------------------
-    // Create purchase record
-    // --------------------------------------------------------
-
-    try {
-      await LessonNotePurchase.create({
-        lessonNoteId:
-          note._id,
-
-        tutorId:
-          note.tutorId,
-
-        buyerEmail,
-
-        buyerName,
-
-        amountPaid:
-          Number(
-            note.price
-          ),
-
-        paystackReference:
+    /**
+     * If Paystack supplied a customer email AND metadata supplied
+     * an email, make sure they agree.
+     */
+    if (
+      metadataEmail &&
+      paystackEmail &&
+      metadataEmail !==
+        paystackEmail
+    ) {
+      console.error(
+        '[LESSON NOTE VERIFY] Customer email mismatch',
+        {
           reference,
 
-        payoutLogged:
-          false,
-      })
+          metadataEmail,
+
+          paystackEmail,
+        }
+      )
+
+      return NextResponse.json(
+        {
+          success:
+            false,
+
+          error:
+            'Payment buyer email does not match',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    // ========================================================
+    // CREATE PURCHASE
+    // ========================================================
+
+    try {
+      const purchase =
+        await LessonNotePurchase.create({
+          lessonNoteId:
+            note._id,
+
+          tutorId:
+            note.tutorId,
+
+          buyerEmail,
+
+          buyerName,
+
+          amountPaid:
+            notePrice,
+
+          paystackReference:
+            reference,
+
+          payoutLogged:
+            false,
+        })
+
+      // ======================================================
+      // INCREMENT PURCHASE COUNT
+      // ======================================================
 
       await LessonNote.updateOne(
         {
@@ -376,16 +554,25 @@ export async function GET(
           },
         }
       )
+
+      return NextResponse.json({
+        success:
+          true,
+
+        alreadyVerified:
+          false,
+
+        purchaseId:
+          purchase._id.toString(),
+
+        reference,
+      })
     } catch (
       error: any
     ) {
-      /**
-       * Because paystackReference is unique,
-       * simultaneous verification attempts may cause
-       * Mongo duplicate-key error.
-       *
-       * If the purchase now exists, verification still succeeded.
-       */
+      // ======================================================
+      // DUPLICATE VERIFICATION RACE
+      // ======================================================
 
       if (
         error?.code ===
@@ -395,7 +582,7 @@ export async function GET(
           await LessonNotePurchase.findOne({
             paystackReference:
               reference,
-          })
+          }).lean()
 
         if (
           duplicatePurchase
@@ -404,26 +591,22 @@ export async function GET(
             success:
               true,
 
-            reference,
-
             alreadyVerified:
               true,
+
+            purchaseId:
+              duplicatePurchase._id.toString(),
+
+            reference,
           })
         }
       }
 
       throw error
     }
-
-    return NextResponse.json({
-      success:
-        true,
-
-      reference,
-    })
   } catch (error) {
     console.error(
-      'Lesson note verification error:',
+      '[LESSON NOTE VERIFY ERROR]',
       error
     )
 

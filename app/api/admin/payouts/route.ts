@@ -1,109 +1,710 @@
 // app/api/admin/payouts/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { getToken } from 'next-auth/jwt'
+
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server'
+
+import {
+  getToken,
+} from 'next-auth/jwt'
+
 import connectDB from '@/lib/mongodb'
+
 import PayoutLog from '@/models/PayoutLog'
+
 import Tutor from '@/models/Tutor'
+
 import Student from '@/models/Student'
+
 import SelfPacedStudent from '@/models/SelfPacedStudent'
+
 import Course from '@/models/Course'
+
+import SelfPacedCourse from '@/models/SelfPacedCourse'
+
+import LessonNote from '@/models/LessonNote'
+
 import LessonNotePurchase from '@/models/LessonNotePurchase'
-import { ensurePayoutLogs, ensureCoachingPayoutLogs, ensureLessonNotePayoutLogs } from '@/lib/payout'
 
-export async function GET(req: NextRequest) {
-  const token = await getToken({ req })
-  if (!token || token.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+import {
+  ensureAllPayoutLogs,
+} from '@/lib/payout'
+
+export async function GET(
+  req: NextRequest
+) {
+  try {
+    const token =
+      await getToken({
+        req,
+      })
+
+    if (
+      !token ||
+      token.role !==
+        'admin'
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Unauthorized',
+        },
+        {
+          status: 401,
+        }
+      )
+    }
+
+    await connectDB()
+
+    // ========================================================
+    // CREATE ANY MISSING PAYOUT LOGS
+    // ========================================================
+
+    await ensureAllPayoutLogs()
+
+    // ========================================================
+    // FILTER
+    // ========================================================
+
+    const {
+      searchParams,
+    } =
+      new URL(
+        req.url
+      )
+
+    const status =
+      searchParams.get(
+        'status'
+      ) ||
+      'pending'
+
+    const allowedStatuses =
+      [
+        'pending',
+        'processing',
+        'paid',
+        'failed',
+        'all',
+      ]
+
+    if (
+      !allowedStatuses.includes(
+        status
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Invalid payout status',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    const query =
+      status ===
+      'all'
+        ? {}
+        : {
+            status:
+              status as
+                | 'pending'
+                | 'processing'
+                | 'paid'
+                | 'failed',
+          }
+
+    const logs =
+      await PayoutLog.find(
+        query
+      )
+        .sort({
+          createdAt:
+            -1,
+        })
+        .limit(500)
+        .lean()
+
+    // ========================================================
+    // IDS
+    // ========================================================
+
+    const tutorIds = [
+      ...new Set(
+        logs
+          .map(
+            (log: any) =>
+              log.tutorId?.toString()
+          )
+          .filter(Boolean)
+      ),
+    ]
+
+    const regularStudentIds = [
+      ...new Set(
+        logs
+          .filter(
+            (log: any) =>
+              log.sourceModel ===
+                'Payment' &&
+              log.studentId
+          )
+          .map(
+            (log: any) =>
+              log.studentId.toString()
+          )
+      ),
+    ]
+
+    const selfPacedStudentIds = [
+      ...new Set(
+        logs
+          .filter(
+            (log: any) =>
+              log.sourceModel ===
+                'CoachingBooking' &&
+              log.studentId
+          )
+          .map(
+            (log: any) =>
+              log.studentId.toString()
+          )
+      ),
+    ]
+
+    const regularCourseIds = [
+      ...new Set(
+        logs
+          .filter(
+            (log: any) =>
+              log.sourceModel ===
+              'Payment'
+          )
+          .map(
+            (log: any) =>
+              log.courseId?.toString()
+          )
+          .filter(Boolean)
+      ),
+    ]
+
+    const selfPacedCourseIds = [
+      ...new Set(
+        logs
+          .filter(
+            (log: any) =>
+              log.sourceModel ===
+              'CoachingBooking'
+          )
+          .map(
+            (log: any) =>
+              log.courseId?.toString()
+          )
+          .filter(Boolean)
+      ),
+    ]
+
+    const lessonNoteIds = [
+      ...new Set(
+        logs
+          .filter(
+            (log: any) =>
+              log.sourceModel ===
+              'LessonNotePurchase'
+          )
+          .map(
+            (log: any) =>
+              log.courseId?.toString()
+          )
+          .filter(Boolean)
+      ),
+    ]
+
+    const purchaseIds = [
+      ...new Set(
+        logs
+          .filter(
+            (log: any) =>
+              log.sourceModel ===
+                'LessonNotePurchase' &&
+              log.purchaseId
+          )
+          .map(
+            (log: any) =>
+              log.purchaseId.toString()
+          )
+      ),
+    ]
+
+    // ========================================================
+    // FETCH RELATED DATA
+    // ========================================================
+
+    const [
+      tutors,
+      students,
+      selfPacedStudents,
+      courses,
+      selfPacedCourses,
+      lessonNotes,
+      lessonNotePurchases,
+    ] =
+      await Promise.all([
+        Tutor.find({
+          _id: {
+            $in:
+              tutorIds,
+          },
+        })
+          .select(
+            'firstName lastName bankDetails'
+          )
+          .lean(),
+
+        Student.find({
+          _id: {
+            $in:
+              regularStudentIds,
+          },
+        })
+          .select(
+            'firstName lastName email'
+          )
+          .lean(),
+
+        SelfPacedStudent.find({
+          _id: {
+            $in:
+              selfPacedStudentIds,
+          },
+        })
+          .select(
+            'firstName lastName email'
+          )
+          .lean(),
+
+        Course.find({
+          _id: {
+            $in:
+              regularCourseIds,
+          },
+        })
+          .select(
+            'name title'
+          )
+          .lean(),
+
+        SelfPacedCourse.find({
+          _id: {
+            $in:
+              selfPacedCourseIds,
+          },
+        })
+          .select(
+            'title name'
+          )
+          .lean(),
+
+        LessonNote.find({
+          _id: {
+            $in:
+              lessonNoteIds,
+          },
+        })
+          .select(
+            'title'
+          )
+          .lean(),
+
+        LessonNotePurchase.find({
+          _id: {
+            $in:
+              purchaseIds,
+          },
+        })
+          .select(
+            'buyerName buyerEmail paystackReference'
+          )
+          .lean(),
+      ])
+
+    // ========================================================
+    // MAPS
+    // ========================================================
+
+    const tutorById =
+      new Map(
+        tutors.map(
+          (tutor: any) => [
+            tutor._id.toString(),
+            tutor,
+          ]
+        )
+      )
+
+    const studentById =
+      new Map(
+        students.map(
+          (student: any) => [
+            student._id.toString(),
+            student,
+          ]
+        )
+      )
+
+    const selfPacedStudentById =
+      new Map(
+        selfPacedStudents.map(
+          (student: any) => [
+            student._id.toString(),
+            student,
+          ]
+        )
+      )
+
+    const courseById =
+      new Map(
+        courses.map(
+          (course: any) => [
+            course._id.toString(),
+            course,
+          ]
+        )
+      )
+
+    const selfPacedCourseById =
+      new Map(
+        selfPacedCourses.map(
+          (course: any) => [
+            course._id.toString(),
+            course,
+          ]
+        )
+      )
+
+    const lessonNoteById =
+      new Map(
+        lessonNotes.map(
+          (note: any) => [
+            note._id.toString(),
+            note,
+          ]
+        )
+      )
+
+    const purchaseById =
+      new Map(
+        lessonNotePurchases.map(
+          (purchase: any) => [
+            purchase._id.toString(),
+            purchase,
+          ]
+        )
+      )
+
+    // ========================================================
+    // SERIALIZE
+    // ========================================================
+
+    const results =
+      logs.map(
+        (log: any) => {
+          const tutor =
+            tutorById.get(
+              log.tutorId?.toString()
+            )
+
+          let studentName =
+            'Unknown Student'
+
+          let studentEmail:
+            string | null =
+            null
+
+          let itemName =
+            'Unknown Item'
+
+          let sourceLabel =
+            'Course Enrollment'
+
+          let paystackReference:
+            string | null =
+            null
+
+          // ==================================================
+          // PAYMENT
+          // ==================================================
+
+          if (
+            log.sourceModel ===
+            'Payment'
+          ) {
+            const student =
+              log.studentId
+                ? studentById.get(
+                    log.studentId.toString()
+                  )
+                : null
+
+            if (student) {
+              studentName =
+                `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+                'Unknown Student'
+
+              studentEmail =
+                student.email ||
+                null
+            }
+
+            const course =
+              courseById.get(
+                log.courseId?.toString()
+              )
+
+            itemName =
+              course?.name ||
+              course?.title ||
+              'Unknown Course'
+
+            sourceLabel =
+              'Course Enrollment'
+          }
+
+          // ==================================================
+          // COACHING
+          // ==================================================
+
+          if (
+            log.sourceModel ===
+            'CoachingBooking'
+          ) {
+            const student =
+              log.studentId
+                ? selfPacedStudentById.get(
+                    log.studentId.toString()
+                  )
+                : null
+
+            if (student) {
+              studentName =
+                `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+                'Unknown Student'
+
+              studentEmail =
+                student.email ||
+                null
+            }
+
+            const course =
+              selfPacedCourseById.get(
+                log.courseId?.toString()
+              )
+
+            itemName =
+              course?.title ||
+              course?.name ||
+              'Unknown Self-Paced Course'
+
+            sourceLabel =
+              'Coaching Session'
+          }
+
+          // ==================================================
+          // LESSON NOTE
+          // ==================================================
+
+          if (
+            log.sourceModel ===
+            'LessonNotePurchase'
+          ) {
+            const purchase =
+              log.purchaseId
+                ? purchaseById.get(
+                    log.purchaseId.toString()
+                  )
+                : null
+
+            studentName =
+              purchase?.buyerName ||
+              'Anonymous Buyer'
+
+            studentEmail =
+              purchase?.buyerEmail ||
+              null
+
+            paystackReference =
+              purchase?.paystackReference ||
+              null
+
+            const note =
+              lessonNoteById.get(
+                log.courseId?.toString()
+              )
+
+            itemName =
+              note?.title ||
+              'Unknown Lesson Note'
+
+            sourceLabel =
+              'Lesson Note Purchase'
+          }
+
+          return {
+            _id:
+              log._id.toString(),
+
+            sourceModel:
+              log.sourceModel,
+
+            sourceLabel,
+
+            tutorId:
+              log.tutorId.toString(),
+
+            tutorName:
+              tutor
+                ? `${tutor.firstName || ''} ${tutor.lastName || ''}`.trim()
+                : 'Unknown Tutor',
+
+            bankName:
+              tutor?.bankDetails
+                ?.bankName ||
+              null,
+
+            accountNumber:
+              tutor?.bankDetails
+                ?.accountNumber ||
+              null,
+
+            accountName:
+              tutor?.bankDetails
+                ?.accountName ||
+              null,
+
+            hasBankDetails:
+              Boolean(
+                tutor
+                  ?.bankDetails
+                  ?.accountNumber
+              ),
+
+            studentName,
+
+            studentEmail,
+
+            courseName:
+              itemName,
+
+            itemName,
+
+            grossAmount:
+              Number(
+                log.grossAmount
+              ),
+
+            commissionRate:
+              Number(
+                log.commissionRate
+              ),
+
+            commissionAmount:
+              Number(
+                log.commissionAmount
+              ),
+
+            netAmount:
+              Number(
+                log.netAmount
+              ),
+
+            status:
+              log.status,
+
+            failureReason:
+              log.failureReason ||
+              null,
+
+            paystackReference,
+
+            paidAt:
+              log.paidAt ||
+              null,
+
+            createdAt:
+              log.createdAt,
+          }
+        }
+      )
+
+    // ========================================================
+    // STATUS COUNTS
+    // ========================================================
+
+    const [
+      pendingCount,
+      processingCount,
+      paidCount,
+      failedCount,
+    ] =
+      await Promise.all([
+        PayoutLog.countDocuments({
+          status:
+            'pending',
+        }),
+
+        PayoutLog.countDocuments({
+          status:
+            'processing',
+        }),
+
+        PayoutLog.countDocuments({
+          status:
+            'paid',
+        }),
+
+        PayoutLog.countDocuments({
+          status:
+            'failed',
+        }),
+      ])
+
+    return NextResponse.json({
+      payouts:
+        results,
+
+      statusCounts: {
+        pending:
+          pendingCount,
+
+        processing:
+          processingCount,
+
+        paid:
+          paidCount,
+
+        failed:
+          failedCount,
+      },
+    })
+  } catch (error) {
+    console.error(
+      '[ADMIN PAYOUTS GET ERROR]',
+      error
+    )
+
+    return NextResponse.json(
+      {
+        error:
+          'Failed to load payouts',
+      },
+      {
+        status: 500,
+      }
+    )
   }
-
-  await connectDB()
-  await ensurePayoutLogs()
-  await ensureCoachingPayoutLogs()
-  await ensureLessonNotePayoutLogs()
-
-  const { searchParams } = new URL(req.url)
-  const status = searchParams.get('status') || 'pending'
-
-  const query: any = status !== 'all' ? { status } : {}
-  const logs = await PayoutLog.find(query).sort({ createdAt: -1 }).limit(200)
-
-  const tutorIds = [...new Set(logs.map((l: any) => l.tutorId.toString()))]
-  const studentIds = [...new Set(logs.map((l: any) => l.studentId).filter(Boolean).map((id: any) => id.toString()))]
-  const courseIds = [...new Set(logs.map((l: any) => l.courseId).filter(Boolean).map((id: any) => id.toString()))]
-  const purchaseIds = [...new Set(logs.filter((l: any) => l.sourceModel === 'LessonNotePurchase').map((l: any) => l.purchaseId.toString()))]
-
-  const [tutors, students, selfPacedStudents, courses, lessonNotePurchases] = await Promise.all([
-    Tutor.find({ _id: { $in: tutorIds } }).select('firstName lastName bankDetails'),
-    Student.find({ _id: { $in: studentIds } }).select('firstName lastName email'),
-    SelfPacedStudent.find({ _id: { $in: studentIds } }).select('firstName lastName email'),
-    Course.find({ _id: { $in: courseIds } }).select('name'),
-    LessonNotePurchase.find({ _id: { $in: purchaseIds } }).select('buyerName buyerEmail'),
-  ])
-
-  const tutorById = new Map(tutors.map((t: any) => [t._id.toString(), t]))
-  const studentById = new Map(students.map((s: any) => [s._id.toString(), s]))
-  const selfPacedStudentById = new Map(selfPacedStudents.map((s: any) => [s._id.toString(), s]))
-  const courseById = new Map(courses.map((c: any) => [c._id.toString(), c]))
-  const purchaseById = new Map(lessonNotePurchases.map((p: any) => [p._id.toString(), p]))
-
-  const results = logs.map((l: any) => {
-    const tutor = tutorById.get(l.tutorId.toString())
-    const course = courseById.get(l.courseId?.toString())
-    
-    // Determine student name based on source model
-    let studentName = 'Unknown Student'
-    let studentEmail = null
-    
-    if (l.sourceModel === 'CoachingBooking') {
-      const spStudent = selfPacedStudentById.get(l.studentId?.toString())
-      if (spStudent) {
-        studentName = `${spStudent.firstName} ${spStudent.lastName}`
-        studentEmail = spStudent.email
-      }
-    } else if (l.sourceModel === 'LessonNotePurchase') {
-      const purchase = purchaseById.get(l.purchaseId?.toString())
-      if (purchase) {
-        studentName = purchase.buyerName || 'Anonymous Buyer'
-        studentEmail = purchase.buyerEmail || null
-      }
-    } else {
-      const student = studentById.get(l.studentId?.toString())
-      if (student) {
-        studentName = `${student.firstName} ${student.lastName}`
-        studentEmail = student.email
-      }
-    }
-
-    return {
-      _id: l._id.toString(),
-      tutorId: l.tutorId.toString(),
-      tutorName: tutor ? `${tutor.firstName} ${tutor.lastName}` : 'Unknown Tutor',
-      bankName: tutor?.bankDetails?.bankName || null,
-      accountNumber: tutor?.bankDetails?.accountNumber || null,
-      accountName: tutor?.bankDetails?.accountName || null,
-      hasBankDetails: !!tutor?.bankDetails?.paystackRecipientCode,
-      studentName,
-      studentEmail,
-      courseName: course?.name || 'Unknown Course',
-      grossAmount: l.grossAmount,
-      commissionAmount: l.commissionAmount,
-      netAmount: l.netAmount,
-      status: l.status,
-      failureReason: l.failureReason || null,
-      paidAt: l.paidAt,
-      createdAt: l.createdAt,
-      sourceModel: l.sourceModel || 'Enrollment',
-    }
-  })
-
-  const [pendingCount, paidCount, failedCount] = await Promise.all([
-    PayoutLog.countDocuments({ status: 'pending' }),
-    PayoutLog.countDocuments({ status: 'paid' }),
-    PayoutLog.countDocuments({ status: 'failed' }),
-  ])
-
-  return NextResponse.json({
-    payouts: results,
-    statusCounts: { pending: pendingCount, paid: paidCount, failed: failedCount },
-  })
 }
