@@ -2,41 +2,59 @@
 
 import connectDB from '@/lib/mongodb'
 
-import Payment from '@/models/Payment'
-import PayoutLog from '@/models/PayoutLog'
 import PlatformSettings from '@/models/PlatformSettings'
+
+import Payment from '@/models/Payment'
 import CoachingBooking from '@/models/CoachingBooking'
 import LessonNotePurchase from '@/models/LessonNotePurchase'
+import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
 
-export const DEFAULT_COMMISSION_RATE =
+import PayoutLog from '@/models/PayoutLog'
+
+const DEFAULT_COMMISSION_RATE =
   0.15
 
-// ============================================================
-// COMMISSION
-// ============================================================
+/**
+ * ---------------------------------------------------------
+ * GET PLATFORM COMMISSION
+ * ---------------------------------------------------------
+ */
 
 export async function getCommissionRate(): Promise<number> {
   await connectDB()
 
-  const settings =
-    await PlatformSettings.findOneAndUpdate(
-      {
-        key: 'global',
-      },
-      {
-        $setOnInsert: {
-          commissionRate:
-            DEFAULT_COMMISSION_RATE,
+  let settings =
+    await PlatformSettings.findOne({
+      key: 'global',
+    })
+
+  if (!settings) {
+    settings =
+      await PlatformSettings.findOneAndUpdate(
+        {
+          key: 'global',
         },
-      },
-      {
-        upsert: true,
-        new: true,
-      }
-    )
+
+        {
+          $setOnInsert: {
+            key: 'global',
+
+            commissionRate:
+              DEFAULT_COMMISSION_RATE,
+          },
+        },
+
+        {
+          new: true,
+          upsert: true,
+        }
+      )
+  }
 
   const rate =
-    Number(settings.commissionRate)
+    Number(
+      settings?.commissionRate
+    )
 
   if (
     !Number.isFinite(rate) ||
@@ -49,9 +67,15 @@ export async function getCommissionRate(): Promise<number> {
   return rate
 }
 
+/**
+ * ---------------------------------------------------------
+ * UPDATE PLATFORM COMMISSION
+ * ---------------------------------------------------------
+ */
+
 export async function setCommissionRate(
   rate: number
-): Promise<number> {
+) {
   await connectDB()
 
   if (
@@ -64,70 +88,83 @@ export async function setCommissionRate(
     )
   }
 
-  const settings =
-    await PlatformSettings.findOneAndUpdate(
-      {
-        key: 'global',
-      },
-      {
-        $set: {
-          commissionRate: rate,
-        },
+  return PlatformSettings.findOneAndUpdate(
+    {
+      key: 'global',
+    },
 
-        $setOnInsert: {
-          key: 'global',
-        },
+    {
+      $set: {
+        commissionRate:
+          rate,
       },
-      {
-        upsert: true,
-        new: true,
-      }
-    )
+    },
 
-  return Number(
-    settings.commissionRate
+    {
+      new: true,
+      upsert: true,
+    }
   )
 }
 
-// ============================================================
-// MONEY HELPER
-// ============================================================
+/**
+ * ---------------------------------------------------------
+ * CALCULATE PAYOUT
+ * ---------------------------------------------------------
+ */
 
 function calculatePayout(
   grossAmount: number,
-  rate: number
+  commissionRate: number
 ) {
   const gross =
-    Math.round(
-      Number(grossAmount)
+    Number(grossAmount)
+
+  const rate =
+    Number(commissionRate)
+
+  const commissionAmount =
+    Number(
+      (
+        gross *
+        rate
+      ).toFixed(2)
     )
 
-  const commission =
-    Math.round(
-      gross * rate
+  const netAmount =
+    Number(
+      (
+        gross -
+        commissionAmount
+      ).toFixed(2)
     )
-
-  const net =
-    gross - commission
 
   return {
-    gross,
-    commission,
-    net,
+    grossAmount:
+      gross,
+
+    commissionRate:
+      rate,
+
+    commissionAmount,
+
+    netAmount,
   }
 }
 
-// ============================================================
-// REGULAR COURSE PAYMENTS
-// ============================================================
+/**
+ * =========================================================
+ * REGULAR COURSE PAYOUTS
+ * =========================================================
+ */
 
-export async function ensurePayoutLogs(): Promise<void> {
+export async function ensurePayoutLogs() {
   await connectDB()
 
-  const rate =
+  const commissionRate =
     await getCommissionRate()
 
-  const unprocessed =
+  const payments =
     await Payment.find({
       status: 'success',
 
@@ -136,91 +173,77 @@ export async function ensurePayoutLogs(): Promise<void> {
       },
     })
 
-  for (
-    const payment
-    of unprocessed as any[]
-  ) {
-    /**
-     * Atomically claim this payment.
-     *
-     * Only one concurrent request can change payoutLogged
-     * from not-true to true.
-     */
-    const claimed =
-      await Payment.findOneAndUpdate(
-        {
-          _id: payment._id,
-
-          payoutLogged: {
-            $ne: true,
-          },
-        },
-        {
-          $set: {
-            payoutLogged: true,
-          },
-        },
-        {
-          new: true,
-        }
-      )
-
-    if (!claimed) {
-      continue
-    }
-
+  for (const payment of payments) {
     try {
       const courseDetails =
         Array.isArray(
-          payment.courseDetails
+          (payment as any)
+            .courseDetails
         )
-          ? payment.courseDetails
+          ? (payment as any)
+              .courseDetails
           : []
 
-      for (
-        const detail
-        of courseDetails
+      /**
+       * If this payment has no course details,
+       * don't mark it as payoutLogged.
+       */
+      if (
+        courseDetails.length ===
+        0
       ) {
+        continue
+      }
+
+      for (
+        const detail of courseDetails
+      ) {
+        const tutorId =
+          detail?.tutorId
+
+        const courseId =
+          detail?.courseId
+
+        const amount =
+          Number(
+            detail?.amount ||
+              detail?.price ||
+              0
+          )
+
         if (
-          !detail?.tutorId ||
-          !detail?.courseId
+          !tutorId ||
+          !courseId ||
+          !Number.isFinite(
+            amount
+          ) ||
+          amount <= 0
         ) {
-          console.error(
-            '[PAYOUT] Payment course detail missing tutorId/courseId',
-            {
-              paymentId:
-                payment._id,
-              detail,
-            }
-          )
-
           continue
         }
 
-        const {
-          gross,
-          commission,
-          net,
-        } =
+        const existing =
+          await PayoutLog.findOne({
+            sourceModel:
+              'Payment',
+
+            paymentId:
+              payment._id,
+
+            tutorId,
+
+            courseId,
+          })
+
+        if (existing) {
+          continue
+        }
+
+        const payout =
           calculatePayout(
-            Number(
-              detail.planPrice
-            ),
-            rate
+            amount,
+            commissionRate
           )
-
-        if (gross <= 0) {
-          console.error(
-            '[PAYOUT] Invalid payment gross amount',
-            {
-              paymentId:
-                payment._id,
-              detail,
-            }
-          )
-
-          continue
-        }
 
         try {
           await PayoutLog.create({
@@ -231,61 +254,68 @@ export async function ensurePayoutLogs(): Promise<void> {
               payment._id,
 
             studentId:
-              payment.studentId ||
-              undefined,
+              (payment as any)
+                .studentId,
 
-            tutorId:
-              detail.tutorId,
+            tutorId,
 
-            courseId:
-              detail.courseId,
+            courseId,
 
-            grossAmount:
-              gross,
-
-            commissionRate:
-              rate,
-
-            commissionAmount:
-              commission,
-
-            netAmount:
-              net,
+            ...payout,
 
             status:
               'pending',
           })
-        } catch (
-          error: any
-        ) {
-          /**
-           * Duplicate key means the payout already exists.
-           * This is safe and idempotent.
-           */
+        } catch (error: any) {
           if (
             error?.code ===
             11000
           ) {
-            continue
+            const duplicate =
+              await PayoutLog.findOne({
+                sourceModel:
+                  'Payment',
+
+                paymentId:
+                  payment._id,
+
+                tutorId,
+
+                courseId,
+              })
+
+            if (duplicate) {
+              continue
+            }
           }
 
           throw error
         }
       }
-    } catch (error) {
+
       /**
-       * Something genuinely failed while constructing payout
-       * records. Release the claim so another request can retry.
+       * Only mark the Payment as logged
+       * once all its valid course payouts
+       * have been handled.
        */
-      await Payment.updateOne(
+      ;(payment as any).payoutLogged =
+        true
+
+      await payment.save()
+    } catch (error) {
+      ;(payment as any).payoutLogged =
+        false
+
+      await payment
+        .save()
+        .catch(() => {})
+
+      console.error(
+        '[REGULAR PAYMENT PAYOUT ERROR]',
         {
-          _id: payment._id,
-        },
-        {
-          $set: {
-            payoutLogged:
-              false,
-          },
+          paymentId:
+            payment._id,
+          error,
         }
       )
 
@@ -294,17 +324,169 @@ export async function ensurePayoutLogs(): Promise<void> {
   }
 }
 
-// ============================================================
-// COACHING PAYOUTS
-// ============================================================
+/**
+ * =========================================================
+ * SELF-PACED COURSE PAYOUTS
+ * =========================================================
+ */
 
-export async function ensureCoachingPayoutLogs(): Promise<void> {
+export async function ensureSelfPacedEnrollmentPayoutLogs() {
   await connectDB()
 
-  const rate =
+  const commissionRate =
     await getCommissionRate()
 
-  const unprocessed =
+  /**
+   * amountPaid > 0 means free courses
+   * are automatically excluded.
+   */
+  const enrollments =
+    await SelfPacedEnrollment.find({
+      payoutLogged: {
+        $ne: true,
+      },
+
+      amountPaid: {
+        $gt: 0,
+      },
+    })
+
+  for (
+    const enrollment of enrollments
+  ) {
+    try {
+      const existing =
+        await PayoutLog.findOne({
+          sourceModel:
+            'SelfPacedEnrollment',
+
+          selfPacedEnrollmentId:
+            enrollment._id,
+        })
+
+      if (existing) {
+        enrollment.payoutLogged =
+          true
+
+        await enrollment.save()
+
+        continue
+      }
+
+      const grossAmount =
+        Number(
+          enrollment.amountPaid ||
+            0
+        )
+
+      if (
+        !Number.isFinite(
+          grossAmount
+        ) ||
+        grossAmount <= 0
+      ) {
+        continue
+      }
+
+      const payout =
+        calculatePayout(
+          grossAmount,
+          commissionRate
+        )
+
+      try {
+        await PayoutLog.create({
+          sourceModel:
+            'SelfPacedEnrollment',
+
+          selfPacedEnrollmentId:
+            enrollment._id,
+
+          studentId:
+            enrollment.selfPacedStudentId,
+
+          tutorId:
+            enrollment.tutorId,
+
+          courseId:
+            enrollment.courseId,
+
+          ...payout,
+
+          status:
+            'pending',
+        })
+      } catch (error: any) {
+        /**
+         * Only consider E11000 harmless
+         * if the payout for this exact
+         * enrollment exists.
+         */
+        if (
+          error?.code ===
+          11000
+        ) {
+          const duplicate =
+            await PayoutLog.findOne({
+              sourceModel:
+                'SelfPacedEnrollment',
+
+              selfPacedEnrollmentId:
+                enrollment._id,
+            })
+
+          if (duplicate) {
+            enrollment.payoutLogged =
+              true
+
+            await enrollment.save()
+
+            continue
+          }
+        }
+
+        throw error
+      }
+
+      enrollment.payoutLogged =
+        true
+
+      await enrollment.save()
+    } catch (error) {
+      enrollment.payoutLogged =
+        false
+
+      await enrollment
+        .save()
+        .catch(() => {})
+
+      console.error(
+        '[SELF PACED PAYOUT ERROR]',
+        {
+          enrollmentId:
+            enrollment._id,
+          error,
+        }
+      )
+
+      throw error
+    }
+  }
+}
+
+/**
+ * =========================================================
+ * COACHING PAYOUTS
+ * =========================================================
+ */
+
+export async function ensureCoachingPayoutLogs() {
+  await connectDB()
+
+  const commissionRate =
+    await getCommissionRate()
+
+  const bookings =
     await CoachingBooking.find({
       status:
         'confirmed',
@@ -315,63 +497,47 @@ export async function ensureCoachingPayoutLogs(): Promise<void> {
     })
 
   for (
-    const booking
-    of unprocessed as any[]
+    const booking of bookings
   ) {
-    const claimed =
-      await CoachingBooking.findOneAndUpdate(
-        {
-          _id: booking._id,
-
-          status:
-            'confirmed',
-
-          payoutLogged: {
-            $ne: true,
-          },
-        },
-        {
-          $set: {
-            payoutLogged:
-              true,
-          },
-        },
-        {
-          new: true,
-        }
-      )
-
-    if (!claimed) {
-      continue
-    }
-
     try {
+      const existing =
+        await PayoutLog.findOne({
+          sourceModel:
+            'CoachingBooking',
+
+          bookingId:
+            booking._id,
+        })
+
+      if (existing) {
+        booking.payoutLogged =
+          true
+
+        await booking.save()
+
+        continue
+      }
+
+      const grossAmount =
+        Number(
+          booking.amountPaid ||
+            0
+        )
+
       if (
-        !booking.tutorId ||
-        !booking.courseId
+        !Number.isFinite(
+          grossAmount
+        ) ||
+        grossAmount <= 0
       ) {
-        throw new Error(
-          `Coaching booking ${booking._id} is missing tutorId or courseId`
-        )
+        continue
       }
 
-      const {
-        gross,
-        commission,
-        net,
-      } =
+      const payout =
         calculatePayout(
-          Number(
-            booking.amountPaid
-          ),
-          rate
+          grossAmount,
+          commissionRate
         )
-
-      if (gross <= 0) {
-        throw new Error(
-          `Coaching booking ${booking._id} has an invalid amount`
-        )
-      }
 
       try {
         await PayoutLog.create({
@@ -382,8 +548,7 @@ export async function ensureCoachingPayoutLogs(): Promise<void> {
             booking._id,
 
           studentId:
-            booking.selfPacedStudentId ||
-            undefined,
+            booking.selfPacedStudentId,
 
           tutorId:
             booking.tutorId,
@@ -391,43 +556,67 @@ export async function ensureCoachingPayoutLogs(): Promise<void> {
           courseId:
             booking.courseId,
 
-          grossAmount:
-            gross,
-
-          commissionRate:
-            rate,
-
-          commissionAmount:
-            commission,
-
-          netAmount:
-            net,
+          ...payout,
 
           status:
             'pending',
         })
-      } catch (
-        error: any
-      ) {
+      } catch (error: any) {
         if (
           error?.code ===
           11000
         ) {
-          continue
+          const duplicate =
+            await PayoutLog.findOne({
+              sourceModel:
+                'CoachingBooking',
+
+              bookingId:
+                booking._id,
+            })
+
+          if (duplicate) {
+            booking.payoutLogged =
+              true
+
+            await booking.save()
+
+            continue
+          }
         }
 
         throw error
       }
+
+      booking.payoutLogged =
+        true
+
+      /**
+       * Keep the booking's snapshot fields
+       * consistent with the payout calculation
+       * if those fields exist in the model.
+       */
+      booking.commissionAmount =
+        payout.commissionAmount
+
+      booking.netAmount =
+        payout.netAmount
+
+      await booking.save()
     } catch (error) {
-      await CoachingBooking.updateOne(
+      booking.payoutLogged =
+        false
+
+      await booking
+        .save()
+        .catch(() => {})
+
+      console.error(
+        '[COACHING PAYOUT ERROR]',
         {
-          _id: booking._id,
-        },
-        {
-          $set: {
-            payoutLogged:
-              false,
-          },
+          bookingId:
+            booking._id,
+          error,
         }
       )
 
@@ -436,17 +625,19 @@ export async function ensureCoachingPayoutLogs(): Promise<void> {
   }
 }
 
-// ============================================================
-// LESSON NOTE PAYOUTS
-// ============================================================
+/**
+ * =========================================================
+ * LESSON NOTE PAYOUTS
+ * =========================================================
+ */
 
-export async function ensureLessonNotePayoutLogs(): Promise<void> {
+export async function ensureLessonNotePayoutLogs() {
   await connectDB()
 
-  const rate =
+  const commissionRate =
     await getCommissionRate()
 
-  const unprocessed =
+  const purchases =
     await LessonNotePurchase.find({
       payoutLogged: {
         $ne: true,
@@ -454,73 +645,47 @@ export async function ensureLessonNotePayoutLogs(): Promise<void> {
     })
 
   for (
-    const purchase
-    of unprocessed as any[]
+    const purchase of purchases
   ) {
-    /**
-     * Every LessonNotePurchase document is independent.
-     *
-     * Purchase A:
-     * reference = ABC
-     *
-     * Purchase B:
-     * reference = XYZ
-     *
-     * Even if both are for the same LessonNote,
-     * both generate their own PayoutLog.
-     */
-    const claimed =
-      await LessonNotePurchase.findOneAndUpdate(
-        {
-          _id:
-            purchase._id,
-
-          payoutLogged: {
-            $ne: true,
-          },
-        },
-        {
-          $set: {
-            payoutLogged:
-              true,
-          },
-        },
-        {
-          new: true,
-        }
-      )
-
-    if (!claimed) {
-      continue
-    }
-
     try {
+      const existing =
+        await PayoutLog.findOne({
+          sourceModel:
+            'LessonNotePurchase',
+
+          purchaseId:
+            purchase._id,
+        })
+
+      if (existing) {
+        purchase.payoutLogged =
+          true
+
+        await purchase.save()
+
+        continue
+      }
+
+      const grossAmount =
+        Number(
+          purchase.amountPaid ||
+            0
+        )
+
       if (
-        !purchase.tutorId ||
-        !purchase.lessonNoteId
+        !Number.isFinite(
+          grossAmount
+        ) ||
+        grossAmount <= 0
       ) {
-        throw new Error(
-          `Lesson note purchase ${purchase._id} is missing tutorId or lessonNoteId`
-        )
+        continue
       }
 
-      const {
-        gross,
-        commission,
-        net,
-      } =
+      const payout =
         calculatePayout(
-          Number(
-            purchase.amountPaid
-          ),
-          rate
+          grossAmount,
+          commissionRate
         )
-
-      if (gross <= 0) {
-        throw new Error(
-          `Lesson note purchase ${purchase._id} has an invalid amount`
-        )
-      }
 
       try {
         await PayoutLog.create({
@@ -530,67 +695,76 @@ export async function ensureLessonNotePayoutLogs(): Promise<void> {
           purchaseId:
             purchase._id,
 
-          /**
-           * Your current LessonNotePurchase model may not have
-           * studentId. Leave it absent when the purchase was
-           * public/anonymous.
-           */
-          studentId:
-            purchase.studentId ||
-            undefined,
-
           tutorId:
             purchase.tutorId,
 
+          /**
+           * For lesson-note payouts,
+           * courseId is intentionally
+           * the LessonNote ID.
+           */
           courseId:
             purchase.lessonNoteId,
 
-          grossAmount:
-            gross,
-
-          commissionRate:
-            rate,
-
-          commissionAmount:
-            commission,
-
-          netAmount:
-            net,
+          ...payout,
 
           status:
             'pending',
         })
-      } catch (
-        error: any
-      ) {
+      } catch (error: any) {
         /**
-         * If this exact purchase already has a PayoutLog,
-         * that is fine.
+         * Very important:
+         *
+         * Don't treat every E11000 as a
+         * successful duplicate.
+         *
+         * Confirm that THIS exact purchase
+         * already has its payout.
          */
         if (
           error?.code ===
           11000
         ) {
-          continue
+          const duplicate =
+            await PayoutLog.findOne({
+              sourceModel:
+                'LessonNotePurchase',
+
+              purchaseId:
+                purchase._id,
+            })
+
+          if (duplicate) {
+            purchase.payoutLogged =
+              true
+
+            await purchase.save()
+
+            continue
+          }
         }
 
         throw error
       }
+
+      purchase.payoutLogged =
+        true
+
+      await purchase.save()
     } catch (error) {
-      /**
-       * A genuine failure occurred.
-       * Release payoutLogged so it can be retried.
-       */
-      await LessonNotePurchase.updateOne(
+      purchase.payoutLogged =
+        false
+
+      await purchase
+        .save()
+        .catch(() => {})
+
+      console.error(
+        '[LESSON NOTE PAYOUT ERROR]',
         {
-          _id:
+          purchaseId:
             purchase._id,
-        },
-        {
-          $set: {
-            payoutLogged:
-              false,
-          },
+          error,
         }
       )
 
@@ -599,12 +773,16 @@ export async function ensureLessonNotePayoutLogs(): Promise<void> {
   }
 }
 
-// ============================================================
-// ALL PAYOUT SOURCES
-// ============================================================
+/**
+ * =========================================================
+ * ENSURE EVERYTHING
+ * =========================================================
+ */
 
-export async function ensureAllPayoutLogs(): Promise<void> {
+export async function ensureAllPayoutLogs() {
   await ensurePayoutLogs()
+
+  await ensureSelfPacedEnrollmentPayoutLogs()
 
   await ensureCoachingPayoutLogs()
 

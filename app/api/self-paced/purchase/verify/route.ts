@@ -1,3 +1,5 @@
+// app/api/self-paced/purchase/verify/route.ts
+
 import {
   NextRequest,
   NextResponse,
@@ -12,7 +14,13 @@ import SelfPacedStudent from '@/models/SelfPacedStudent'
 import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
 import SelfPacedCourse from '@/models/SelfPacedCourse'
 
-import { syncSelfPacedStudentDiscordRoles } from '@/lib/discordSync'
+import {
+  syncSelfPacedStudentDiscordRoles,
+} from '@/lib/discordSync'
+
+import {
+  ensureSelfPacedEnrollmentPayoutLogs,
+} from '@/lib/payout'
 
 async function verifyWithPaystack(
   reference: string
@@ -26,27 +34,31 @@ async function verifyWithPaystack(
     )
   }
 
-  const res = await fetch(
-    `https://api.paystack.co/transaction/verify/${encodeURIComponent(
-      reference
-    )}`,
-    {
-      headers: {
-        Authorization:
-          `Bearer ${secret}`,
-      },
+  const res =
+    await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(
+        reference
+      )}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${secret}`,
+        },
 
-      cache:
-        'no-store',
-    }
-  )
+        cache:
+          'no-store',
+      }
+    )
 
   const data =
     await res.json()
 
   return {
-    ok: res.ok,
-    body: data,
+    ok:
+      res.ok,
+
+    body:
+      data,
   }
 }
 
@@ -56,17 +68,24 @@ export async function GET(
   try {
     const {
       searchParams,
-    } = new URL(req.url)
+    } =
+      new URL(
+        req.url
+      )
 
     const reference =
       searchParams
-        .get('reference')
+        .get(
+          'reference'
+        )
         ?.trim()
 
     if (!reference) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Reference is required',
         },
@@ -80,7 +99,8 @@ export async function GET(
 
     const {
       ok,
-      body: verification,
+      body:
+        verification,
     } =
       await verifyWithPaystack(
         reference
@@ -93,7 +113,9 @@ export async function GET(
     ) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             verification?.message ||
             'Could not verify payment',
@@ -107,13 +129,21 @@ export async function GET(
     const transaction =
       verification.data
 
+    /**
+     * -------------------------------------------------------
+     * VERIFY STATUS
+     * -------------------------------------------------------
+     */
+
     if (
       transaction.status !==
       'success'
     ) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             `Payment not confirmed (status: ${
               transaction.status ||
@@ -126,13 +156,50 @@ export async function GET(
       )
     }
 
+    /**
+     * -------------------------------------------------------
+     * VERIFY REFERENCE
+     * -------------------------------------------------------
+     */
+
     if (
-      transaction.currency !==
+      String(
+        transaction.reference ||
+          ''
+      ) !== reference
+    ) {
+      return NextResponse.json(
+        {
+          success:
+            false,
+
+          error:
+            'Payment reference mismatch',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    /**
+     * -------------------------------------------------------
+     * VERIFY CURRENCY
+     * -------------------------------------------------------
+     */
+
+    if (
+      String(
+        transaction.currency ||
+          ''
+      ).toUpperCase() !==
       'NGN'
     ) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Invalid payment currency',
         },
@@ -142,8 +209,15 @@ export async function GET(
       )
     }
 
+    /**
+     * -------------------------------------------------------
+     * VERIFY METADATA
+     * -------------------------------------------------------
+     */
+
     const metadata =
-      transaction.metadata || {}
+      transaction.metadata ||
+      {}
 
     if (
       metadata.type !==
@@ -151,7 +225,9 @@ export async function GET(
     ) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Invalid transaction type',
         },
@@ -192,7 +268,9 @@ export async function GET(
     ) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Invalid payment metadata',
         },
@@ -202,6 +280,12 @@ export async function GET(
       )
     }
 
+    /**
+     * -------------------------------------------------------
+     * COURSE
+     * -------------------------------------------------------
+     */
+
     const course =
       await SelfPacedCourse.findById(
         courseId
@@ -210,7 +294,9 @@ export async function GET(
     if (!course) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Course not found',
         },
@@ -220,23 +306,50 @@ export async function GET(
       )
     }
 
+    const coursePrice =
+      Number(
+        course.price
+      )
+
+    if (
+      !Number.isFinite(
+        coursePrice
+      ) ||
+      coursePrice <= 0
+    ) {
+      return NextResponse.json(
+        {
+          success:
+            false,
+
+          error:
+            'Invalid paid course amount',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
     const expectedAmount =
       Math.round(
-        Number(
-          course.price
-        ) * 100
+        coursePrice *
+          100
       )
 
     if (
       Number(
         transaction.amount
-      ) !== expectedAmount
+      ) !==
+      expectedAmount
     ) {
       console.error(
         'Self-paced amount mismatch',
         {
           reference,
+
           expectedAmount,
+
           actualAmount:
             transaction.amount,
         }
@@ -244,7 +357,9 @@ export async function GET(
 
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Payment amount mismatch',
         },
@@ -254,16 +369,26 @@ export async function GET(
       )
     }
 
+    /**
+     * -------------------------------------------------------
+     * STUDENT
+     * -------------------------------------------------------
+     */
+
     const student =
       await SelfPacedStudent.findOne({
-        _id: studentId,
+        _id:
+          studentId,
+
         userId,
       })
 
     if (!student) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Student account not found',
         },
@@ -273,6 +398,12 @@ export async function GET(
       )
     }
 
+    /**
+     * -------------------------------------------------------
+     * USER
+     * -------------------------------------------------------
+     */
+
     const user =
       await User.findById(
         userId
@@ -281,7 +412,9 @@ export async function GET(
     if (!user) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'User account not found',
         },
@@ -291,8 +424,16 @@ export async function GET(
       )
     }
 
+    /**
+     * -------------------------------------------------------
+     * VERIFY CUSTOMER EMAIL
+     * -------------------------------------------------------
+     */
+
     const transactionEmail =
-      transaction?.customer?.email
+      transaction
+        ?.customer
+        ?.email
         ?.toLowerCase()
         ?.trim()
 
@@ -309,7 +450,9 @@ export async function GET(
     ) {
       return NextResponse.json(
         {
-          success: false,
+          success:
+            false,
+
           error:
             'Payment email does not match the student account',
         },
@@ -319,9 +462,11 @@ export async function GET(
       )
     }
 
-    // --------------------------------------------------------
-    // Idempotency
-    // --------------------------------------------------------
+    /**
+     * =======================================================
+     * IDEMPOTENCY
+     * =======================================================
+     */
 
     const existing =
       await SelfPacedEnrollment.findOne({
@@ -333,6 +478,35 @@ export async function GET(
       })
 
     if (existing) {
+      /**
+       * If a paid enrollment already exists,
+       * it should belong to the same Paystack
+       * payment.
+       */
+      if (
+        Number(
+          existing.amountPaid ||
+            0
+        ) >
+          0 &&
+        existing.paystackReference &&
+        existing.paystackReference !==
+          reference
+      ) {
+        return NextResponse.json(
+          {
+            success:
+              false,
+
+            error:
+              'This course has already been purchased with a different payment reference',
+          },
+          {
+            status: 409,
+          }
+        )
+      }
+
       if (!user.isActive) {
         user.isActive =
           true
@@ -340,54 +514,171 @@ export async function GET(
         await user.save()
       }
 
+      /**
+       * Repair payout if enrollment exists
+       * but payout creation previously failed.
+       */
+      if (
+        Number(
+          existing.amountPaid ||
+            0
+        ) > 0
+      ) {
+        await ensureSelfPacedEnrollmentPayoutLogs()
+          .catch(
+            (
+              error
+            ) => {
+              console.error(
+                'Self-paced payout reconciliation failed:',
+                error
+              )
+            }
+          )
+      }
+
+      if (
+        student.discordId
+      ) {
+        await syncSelfPacedStudentDiscordRoles(
+          student._id.toString(),
+          student.discordId
+        ).catch(
+          (
+            error
+          ) => {
+            console.error(
+              'Self-paced Discord sync failed:',
+              error
+            )
+          }
+        )
+      }
+
       return NextResponse.json({
-        success: true,
+        success:
+          true,
+
         alreadyProcessed:
           true,
+
+        enrollmentId:
+          existing._id.toString(),
       })
     }
 
+    /**
+     * =======================================================
+     * CREATE ENROLLMENT
+     * =======================================================
+     */
+
+    let enrollment
+
     try {
-      await SelfPacedEnrollment.create({
-        selfPacedStudentId:
-          student._id,
+      enrollment =
+        await SelfPacedEnrollment.create({
+          selfPacedStudentId:
+            student._id,
 
-        courseId:
-          course._id,
+          courseId:
+            course._id,
 
-        tutorId:
-          course.tutorId,
+          tutorId:
+            course.tutorId,
 
-        amountPaid:
-          Number(
-            transaction.amount
-          ) / 100,
+          amountPaid:
+            Number(
+              transaction.amount
+            ) /
+            100,
 
-        paystackReference:
-          reference,
+          paystackReference:
+            reference,
 
-        weekProgress: [],
-      })
-    } catch (error: any) {
-      /*
+          payoutLogged:
+            false,
+
+          weekProgress:
+            [],
+        })
+    } catch (
+      error: any
+    ) {
+      /**
        * Unique index:
        *
        * selfPacedStudentId + courseId
+       *
+       * OR duplicate Paystack reference.
+       *
+       * Confirm the actual enrollment rather
+       * than blindly treating every E11000 as
+       * a successful callback.
        */
-
       if (
         error?.code ===
         11000
       ) {
-        return NextResponse.json({
-          success: true,
-          alreadyProcessed:
-            true,
-        })
+        const duplicate =
+          await SelfPacedEnrollment.findOne({
+            selfPacedStudentId:
+              student._id,
+
+            courseId:
+              course._id,
+          })
+
+        if (
+          duplicate &&
+          (
+            !duplicate.paystackReference ||
+            duplicate.paystackReference ===
+              reference
+          )
+        ) {
+          if (
+            !user.isActive
+          ) {
+            user.isActive =
+              true
+
+            await user.save()
+          }
+
+          await ensureSelfPacedEnrollmentPayoutLogs()
+            .catch(
+              (
+                payoutError
+              ) => {
+                console.error(
+                  'Self-paced payout reconciliation failed:',
+                  payoutError
+                )
+              }
+            )
+
+          return NextResponse.json({
+            success:
+              true,
+
+            alreadyProcessed:
+              true,
+
+            enrollmentId:
+              duplicate._id.toString(),
+          })
+        }
       }
 
       throw error
     }
+
+    /**
+     * -------------------------------------------------------
+     * ACTIVATE ACCOUNT
+     * -------------------------------------------------------
+     */
 
     if (!user.isActive) {
       user.isActive =
@@ -396,24 +687,68 @@ export async function GET(
       await user.save()
     }
 
-    if (student.discordId) {
+    /**
+     * -------------------------------------------------------
+     * CREATE TUTOR PAYOUT
+     * -------------------------------------------------------
+     *
+     * Don't fail the student's successful
+     * purchase if payout logging temporarily
+     * fails.
+     *
+     * payoutLogged stays false and the
+     * reconciliation system can recover it.
+     */
+
+    await ensureSelfPacedEnrollmentPayoutLogs()
+      .catch(
+        (
+          error
+        ) => {
+          console.error(
+            'Could not create self-paced tutor payout:',
+            error
+          )
+        }
+      )
+
+    /**
+     * -------------------------------------------------------
+     * DISCORD
+     * -------------------------------------------------------
+     */
+
+    if (
+      student.discordId
+    ) {
       await syncSelfPacedStudentDiscordRoles(
         student._id.toString(),
         student.discordId
-      ).catch((error) => {
-        console.error(
-          'Self-paced Discord sync failed:',
+      ).catch(
+        (
           error
-        )
-      })
+        ) => {
+          console.error(
+            'Self-paced Discord sync failed:',
+            error
+          )
+        }
+      )
     }
 
     return NextResponse.json({
-      success: true,
+      success:
+        true,
+
       alreadyProcessed:
         false,
+
+      enrollmentId:
+        enrollment._id.toString(),
     })
-  } catch (error: any) {
+  } catch (
+    error: any
+  ) {
     console.error(
       'Self-paced purchase verify error:',
       error
@@ -421,7 +756,8 @@ export async function GET(
 
     return NextResponse.json(
       {
-        success: false,
+        success:
+          false,
 
         error:
           error?.message ||

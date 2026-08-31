@@ -8,37 +8,55 @@ import mongoose, {
 
 export type PayoutSourceModel =
   | 'Payment'
+  | 'SelfPacedEnrollment'
   | 'CoachingBooking'
   | 'LessonNotePurchase'
 
 export interface IPayoutLog extends Document {
   sourceModel: PayoutSourceModel
 
+  /**
+   * Regular course payment
+   */
   paymentId?: mongoose.Types.ObjectId
+
+  /**
+   * Self-paced course purchase
+   */
+  selfPacedEnrollmentId?: mongoose.Types.ObjectId
+
+  /**
+   * Coaching session
+   */
   bookingId?: mongoose.Types.ObjectId
+
+  /**
+   * Lesson-note purchase
+   */
   purchaseId?: mongoose.Types.ObjectId
 
+  /**
+   * Optional because lesson-note purchases
+   * may be made without a Student record.
+   */
   studentId?: mongoose.Types.ObjectId
 
   tutorId: mongoose.Types.ObjectId
 
   /**
-   * Depending on sourceModel:
+   * This points to:
    *
-   * Payment
-   * -> Course
-   *
-   * CoachingBooking
-   * -> SelfPacedCourse
-   *
-   * LessonNotePurchase
-   * -> LessonNote
+   * Payment              -> Course
+   * SelfPacedEnrollment  -> SelfPacedCourse
+   * CoachingBooking      -> SelfPacedCourse
+   * LessonNotePurchase   -> LessonNote
    */
   courseId: mongoose.Types.ObjectId
 
   grossAmount: number
 
   commissionRate: number
+
   commissionAmount: number
 
   netAmount: number
@@ -50,6 +68,7 @@ export interface IPayoutLog extends Document {
     | 'failed'
 
   paystackTransferCode?: string
+
   paystackTransferReference?: string
 
   failureReason?: string
@@ -65,21 +84,24 @@ const PayoutLogSchema =
     {
       sourceModel: {
         type: String,
-
         enum: [
           'Payment',
+          'SelfPacedEnrollment',
           'CoachingBooking',
           'LessonNotePurchase',
         ],
-
         required: true,
-
         index: true,
       },
 
       paymentId: {
         type: Schema.Types.ObjectId,
         ref: 'Payment',
+      },
+
+      selfPacedEnrollmentId: {
+        type: Schema.Types.ObjectId,
+        ref: 'SelfPacedEnrollment',
       },
 
       bookingId: {
@@ -92,22 +114,8 @@ const PayoutLogSchema =
         ref: 'LessonNotePurchase',
       },
 
-      /**
-       * Intentionally no ref.
-       *
-       * Payment:
-       * Student
-       *
-       * CoachingBooking:
-       * SelfPacedStudent
-       *
-       * LessonNotePurchase:
-       * may be missing because lesson-note purchases
-       * can be anonymous/public purchases.
-       */
       studentId: {
         type: Schema.Types.ObjectId,
-        required: false,
       },
 
       tutorId: {
@@ -117,13 +125,10 @@ const PayoutLogSchema =
         index: true,
       },
 
-      /**
-       * Intentionally no ref because this field can point
-       * to different collections depending on sourceModel.
-       */
       courseId: {
         type: Schema.Types.ObjectId,
         required: true,
+        index: true,
       },
 
       grossAmount: {
@@ -135,7 +140,6 @@ const PayoutLogSchema =
       commissionRate: {
         type: Number,
         required: true,
-        default: 0.15,
         min: 0,
         max: 1,
       },
@@ -154,16 +158,13 @@ const PayoutLogSchema =
 
       status: {
         type: String,
-
         enum: [
           'pending',
           'processing',
           'paid',
           'failed',
         ],
-
         default: 'pending',
-
         index: true,
       },
 
@@ -188,19 +189,14 @@ const PayoutLogSchema =
     }
   )
 
-// ============================================================
-// UNIQUE PAYOUT IDENTITIES
-// ============================================================
-
 /**
- * A Payment can contain several courseDetails.
+ * ---------------------------------------------------------
+ * REGULAR COURSE PAYMENT
+ * ---------------------------------------------------------
  *
- * Therefore one Payment can legitimately generate multiple
- * tutor payouts.
+ * One payout per:
  *
- * Identity:
- *
- * Payment + Tutor + Course
+ * payment + tutor + course
  */
 PayoutLogSchema.index(
   {
@@ -210,8 +206,11 @@ PayoutLogSchema.index(
   },
   {
     unique: true,
+
     partialFilterExpression: {
-      sourceModel: 'Payment',
+      sourceModel:
+        'Payment',
+
       paymentId: {
         $exists: true,
       },
@@ -220,7 +219,36 @@ PayoutLogSchema.index(
 )
 
 /**
- * A coaching booking represents exactly one coaching payout.
+ * ---------------------------------------------------------
+ * SELF-PACED COURSE PURCHASE
+ * ---------------------------------------------------------
+ *
+ * One payout per SelfPacedEnrollment.
+ */
+PayoutLogSchema.index(
+  {
+    selfPacedEnrollmentId: 1,
+  },
+  {
+    unique: true,
+
+    partialFilterExpression: {
+      sourceModel:
+        'SelfPacedEnrollment',
+
+      selfPacedEnrollmentId: {
+        $exists: true,
+      },
+    },
+  }
+)
+
+/**
+ * ---------------------------------------------------------
+ * COACHING
+ * ---------------------------------------------------------
+ *
+ * One payout per coaching booking.
  */
 PayoutLogSchema.index(
   {
@@ -228,8 +256,11 @@ PayoutLogSchema.index(
   },
   {
     unique: true,
+
     partialFilterExpression: {
-      sourceModel: 'CoachingBooking',
+      sourceModel:
+        'CoachingBooking',
+
       bookingId: {
         $exists: true,
       },
@@ -238,11 +269,11 @@ PayoutLogSchema.index(
 )
 
 /**
- * Every LessonNotePurchase is a separate transaction.
+ * ---------------------------------------------------------
+ * LESSON NOTE
+ * ---------------------------------------------------------
  *
- * If the same user buys the same lesson note twice using two
- * different Paystack references, there must be TWO purchases
- * and therefore TWO payout records.
+ * One payout per lesson-note purchase.
  */
 PayoutLogSchema.index(
   {
@@ -250,8 +281,11 @@ PayoutLogSchema.index(
   },
   {
     unique: true,
+
     partialFilterExpression: {
-      sourceModel: 'LessonNotePurchase',
+      sourceModel:
+        'LessonNotePurchase',
+
       purchaseId: {
         $exists: true,
       },
@@ -259,31 +293,18 @@ PayoutLogSchema.index(
   }
 )
 
-// ============================================================
-// QUERY INDEXES
-// ============================================================
-
 PayoutLogSchema.index({
   tutorId: 1,
   status: 1,
   createdAt: -1,
 })
 
-PayoutLogSchema.index({
-  status: 1,
-  createdAt: -1,
-})
-
-PayoutLogSchema.index({
-  sourceModel: 1,
-  createdAt: -1,
-})
-
-const PayoutLog: Model<IPayoutLog> =
-  mongoose.models.PayoutLog ||
-  mongoose.model<IPayoutLog>(
-    'PayoutLog',
-    PayoutLogSchema
-  )
+const PayoutLog:
+  Model<IPayoutLog> =
+    mongoose.models.PayoutLog ||
+    mongoose.model<IPayoutLog>(
+      'PayoutLog',
+      PayoutLogSchema
+    )
 
 export default PayoutLog

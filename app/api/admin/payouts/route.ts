@@ -16,28 +16,55 @@ import PayoutLog from '@/models/PayoutLog'
 import Tutor from '@/models/Tutor'
 
 import Student from '@/models/Student'
-
 import SelfPacedStudent from '@/models/SelfPacedStudent'
 
 import Course from '@/models/Course'
-
 import SelfPacedCourse from '@/models/SelfPacedCourse'
 
 import LessonNote from '@/models/LessonNote'
-
 import LessonNotePurchase from '@/models/LessonNotePurchase'
 
 import {
   ensureAllPayoutLogs,
 } from '@/lib/payout'
 
+function getSourceLabel(
+  sourceModel: string
+) {
+  switch (sourceModel) {
+    case 'Payment':
+      return 'Course Enrollment'
+
+    case 'SelfPacedEnrollment':
+      return 'Self-Paced Course'
+
+    case 'CoachingBooking':
+      return 'Coaching Session'
+
+    case 'LessonNotePurchase':
+      return 'Lesson Note Purchase'
+
+    default:
+      return 'Payment'
+  }
+}
+
 export async function GET(
   req: NextRequest
 ) {
   try {
+    /**
+     * ======================================================
+     * AUTH
+     * ======================================================
+     */
+
     const token =
       await getToken({
         req,
+        secret:
+          process.env
+            .NEXTAUTH_SECRET,
       })
 
     if (
@@ -56,17 +83,32 @@ export async function GET(
       )
     }
 
+    /**
+     * ======================================================
+     * DATABASE
+     * ======================================================
+     */
+
     await connectDB()
 
-    // ========================================================
-    // CREATE ANY MISSING PAYOUT LOGS
-    // ========================================================
-
+    /**
+     * Make sure every valid transaction
+     * has a corresponding payout record.
+     *
+     * Handles:
+     *
+     * Payment
+     * SelfPacedEnrollment
+     * CoachingBooking
+     * LessonNotePurchase
+     */
     await ensureAllPayoutLogs()
 
-    // ========================================================
-    // FILTER
-    // ========================================================
+    /**
+     * ======================================================
+     * QUERY PARAMS
+     * ======================================================
+     */
 
     const {
       searchParams,
@@ -76,22 +118,22 @@ export async function GET(
       )
 
     const status =
-      searchParams.get(
-        'status'
-      ) ||
+      searchParams
+        .get('status')
+        ?.trim()
+        .toLowerCase() ||
       'pending'
 
-    const allowedStatuses =
-      [
-        'pending',
-        'processing',
-        'paid',
-        'failed',
-        'all',
-      ]
+    const validStatuses = [
+      'pending',
+      'processing',
+      'paid',
+      'failed',
+      'all',
+    ]
 
     if (
-      !allowedStatuses.includes(
+      !validStatuses.includes(
         status
       )
     ) {
@@ -106,155 +148,246 @@ export async function GET(
       )
     }
 
-    const query =
-      status ===
+    /**
+     * ======================================================
+     * PAYOUT FILTER
+     * ======================================================
+     */
+
+    const filter:
+      Record<
+        string,
+        any
+      > = {}
+
+    if (
+      status !==
       'all'
-        ? {}
-        : {
-            status:
-              status as
-                | 'pending'
-                | 'processing'
-                | 'paid'
-                | 'failed',
-          }
+    ) {
+      filter.status =
+        status
+    }
+
+    /**
+     * ======================================================
+     * FETCH PAYOUTS
+     * ======================================================
+     */
 
     const logs =
       await PayoutLog.find(
-        query
+        filter
       )
         .sort({
           createdAt:
             -1,
         })
-        .limit(500)
         .lean()
 
-    // ========================================================
-    // IDS
-    // ========================================================
+    /**
+     * ======================================================
+     * COLLECT RELATED IDS
+     * ======================================================
+     */
 
     const tutorIds = [
       ...new Set(
         logs
           .map(
-            (log: any) =>
+            (
+              log: any
+            ) =>
               log.tutorId?.toString()
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       ),
     ]
 
+    /**
+     * Regular course students
+     */
     const regularStudentIds = [
       ...new Set(
         logs
           .filter(
-            (log: any) =>
-              log.sourceModel ===
-                'Payment' &&
-              log.studentId
-          )
-          .map(
-            (log: any) =>
-              log.studentId.toString()
-          )
-      ),
-    ]
-
-    const selfPacedStudentIds = [
-      ...new Set(
-        logs
-          .filter(
-            (log: any) =>
-              log.sourceModel ===
-                'CoachingBooking' &&
-              log.studentId
-          )
-          .map(
-            (log: any) =>
-              log.studentId.toString()
-          )
-      ),
-    ]
-
-    const regularCourseIds = [
-      ...new Set(
-        logs
-          .filter(
-            (log: any) =>
+            (
+              log: any
+            ) =>
               log.sourceModel ===
               'Payment'
           )
           .map(
-            (log: any) =>
-              log.courseId?.toString()
+            (
+              log: any
+            ) =>
+              log.studentId?.toString()
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       ),
     ]
 
+    /**
+     * Self-paced students are used for:
+     *
+     * SelfPacedEnrollment
+     * CoachingBooking
+     */
+    const selfPacedStudentIds = [
+      ...new Set(
+        logs
+          .filter(
+            (
+              log: any
+            ) =>
+              log.sourceModel ===
+                'SelfPacedEnrollment' ||
+              log.sourceModel ===
+                'CoachingBooking'
+          )
+          .map(
+            (
+              log: any
+            ) =>
+              log.studentId?.toString()
+          )
+          .filter(
+            Boolean
+          )
+      ),
+    ]
+
+    /**
+     * Regular Course IDs
+     */
+    const regularCourseIds = [
+      ...new Set(
+        logs
+          .filter(
+            (
+              log: any
+            ) =>
+              log.sourceModel ===
+              'Payment'
+          )
+          .map(
+            (
+              log: any
+            ) =>
+              log.courseId?.toString()
+          )
+          .filter(
+            Boolean
+          )
+      ),
+    ]
+
+    /**
+     * Self-paced Course IDs
+     *
+     * Used by:
+     *
+     * SelfPacedEnrollment
+     * CoachingBooking
+     */
     const selfPacedCourseIds = [
       ...new Set(
         logs
           .filter(
-            (log: any) =>
+            (
+              log: any
+            ) =>
               log.sourceModel ===
-              'CoachingBooking'
+                'SelfPacedEnrollment' ||
+              log.sourceModel ===
+                'CoachingBooking'
           )
           .map(
-            (log: any) =>
+            (
+              log: any
+            ) =>
               log.courseId?.toString()
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       ),
     ]
 
+    /**
+     * LessonNote IDs are stored
+     * inside PayoutLog.courseId
+     * for lesson-note purchases.
+     */
     const lessonNoteIds = [
       ...new Set(
         logs
           .filter(
-            (log: any) =>
+            (
+              log: any
+            ) =>
               log.sourceModel ===
               'LessonNotePurchase'
           )
           .map(
-            (log: any) =>
+            (
+              log: any
+            ) =>
               log.courseId?.toString()
           )
-          .filter(Boolean)
+          .filter(
+            Boolean
+          )
       ),
     ]
 
+    /**
+     * LessonNotePurchase IDs
+     */
     const purchaseIds = [
       ...new Set(
         logs
           .filter(
-            (log: any) =>
+            (
+              log: any
+            ) =>
               log.sourceModel ===
-                'LessonNotePurchase' &&
-              log.purchaseId
+              'LessonNotePurchase'
           )
           .map(
-            (log: any) =>
-              log.purchaseId.toString()
+            (
+              log: any
+            ) =>
+              log.purchaseId?.toString()
+          )
+          .filter(
+            Boolean
           )
       ),
     ]
 
-    // ========================================================
-    // FETCH RELATED DATA
-    // ========================================================
+    /**
+     * ======================================================
+     * FETCH RELATED RECORDS
+     * ======================================================
+     */
 
     const [
       tutors,
-      students,
+      regularStudents,
       selfPacedStudents,
-      courses,
+      regularCourses,
       selfPacedCourses,
       lessonNotes,
       lessonNotePurchases,
     ] =
       await Promise.all([
+        /**
+         * Tutors
+         */
         Tutor.find({
           _id: {
             $in:
@@ -262,10 +395,20 @@ export async function GET(
           },
         })
           .select(
-            'firstName lastName bankDetails'
+            [
+              'firstName',
+              'lastName',
+              'email',
+              'phone',
+              'bankDetails',
+              'status',
+            ].join(' ')
           )
           .lean(),
 
+        /**
+         * Regular students
+         */
         Student.find({
           _id: {
             $in:
@@ -277,6 +420,9 @@ export async function GET(
           )
           .lean(),
 
+        /**
+         * Self-paced students
+         */
         SelfPacedStudent.find({
           _id: {
             $in:
@@ -288,6 +434,9 @@ export async function GET(
           )
           .lean(),
 
+        /**
+         * Regular courses
+         */
         Course.find({
           _id: {
             $in:
@@ -299,6 +448,9 @@ export async function GET(
           )
           .lean(),
 
+        /**
+         * Self-paced courses
+         */
         SelfPacedCourse.find({
           _id: {
             $in:
@@ -310,6 +462,9 @@ export async function GET(
           )
           .lean(),
 
+        /**
+         * Lesson notes
+         */
         LessonNote.find({
           _id: {
             $in:
@@ -321,6 +476,9 @@ export async function GET(
           )
           .lean(),
 
+        /**
+         * Lesson-note purchases
+         */
         LessonNotePurchase.find({
           _id: {
             $in:
@@ -328,29 +486,39 @@ export async function GET(
           },
         })
           .select(
-            'buyerName buyerEmail paystackReference'
+            [
+              'buyerName',
+              'buyerEmail',
+              'paystackReference',
+            ].join(' ')
           )
           .lean(),
       ])
 
-    // ========================================================
-    // MAPS
-    // ========================================================
+    /**
+     * ======================================================
+     * MAPS
+     * ======================================================
+     */
 
     const tutorById =
       new Map(
         tutors.map(
-          (tutor: any) => [
+          (
+            tutor: any
+          ) => [
             tutor._id.toString(),
             tutor,
           ]
         )
       )
 
-    const studentById =
+    const regularStudentById =
       new Map(
-        students.map(
-          (student: any) => [
+        regularStudents.map(
+          (
+            student: any
+          ) => [
             student._id.toString(),
             student,
           ]
@@ -360,17 +528,21 @@ export async function GET(
     const selfPacedStudentById =
       new Map(
         selfPacedStudents.map(
-          (student: any) => [
+          (
+            student: any
+          ) => [
             student._id.toString(),
             student,
           ]
         )
       )
 
-    const courseById =
+    const regularCourseById =
       new Map(
-        courses.map(
-          (course: any) => [
+        regularCourses.map(
+          (
+            course: any
+          ) => [
             course._id.toString(),
             course,
           ]
@@ -380,7 +552,9 @@ export async function GET(
     const selfPacedCourseById =
       new Map(
         selfPacedCourses.map(
-          (course: any) => [
+          (
+            course: any
+          ) => [
             course._id.toString(),
             course,
           ]
@@ -390,34 +564,48 @@ export async function GET(
     const lessonNoteById =
       new Map(
         lessonNotes.map(
-          (note: any) => [
+          (
+            note: any
+          ) => [
             note._id.toString(),
             note,
           ]
         )
       )
 
-    const purchaseById =
+    const lessonNotePurchaseById =
       new Map(
         lessonNotePurchases.map(
-          (purchase: any) => [
+          (
+            purchase: any
+          ) => [
             purchase._id.toString(),
             purchase,
           ]
         )
       )
 
-    // ========================================================
-    // SERIALIZE
-    // ========================================================
+    /**
+     * ======================================================
+     * FORMAT PAYOUTS
+     * ======================================================
+     */
 
-    const results =
+    const payouts =
       logs.map(
-        (log: any) => {
+        (
+          log: any
+        ) => {
           const tutor =
             tutorById.get(
               log.tutorId?.toString()
             )
+
+          const studentId =
+            log.studentId?.toString()
+
+          const itemId =
+            log.courseId?.toString()
 
           let studentName =
             'Unknown Student'
@@ -429,130 +617,233 @@ export async function GET(
           let itemName =
             'Unknown Item'
 
-          let sourceLabel =
-            'Course Enrollment'
-
           let paystackReference:
             string | null =
             null
 
-          // ==================================================
-          // PAYMENT
-          // ==================================================
+          /**
+           * =================================================
+           * REGULAR COURSE ENROLLMENT
+           * =================================================
+           */
 
           if (
             log.sourceModel ===
             'Payment'
           ) {
-            const student =
-              log.studentId
-                ? studentById.get(
-                    log.studentId.toString()
-                  )
-                : null
+            if (
+              studentId
+            ) {
+              const student =
+                regularStudentById.get(
+                  studentId
+                )
 
-            if (student) {
-              studentName =
-                `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
-                'Unknown Student'
+              if (
+                student
+              ) {
+                studentName =
+                  `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+                  'Unknown Student'
 
-              studentEmail =
-                student.email ||
-                null
+                studentEmail =
+                  student.email ||
+                  null
+              }
             }
 
-            const course =
-              courseById.get(
-                log.courseId?.toString()
-              )
+            if (
+              itemId
+            ) {
+              const course =
+                regularCourseById.get(
+                  itemId
+                )
 
-            itemName =
-              course?.name ||
-              course?.title ||
-              'Unknown Course'
-
-            sourceLabel =
-              'Course Enrollment'
+              if (
+                course
+              ) {
+                itemName =
+                  course.name ||
+                  course.title ||
+                  'Unknown Course'
+              }
+            }
           }
 
-          // ==================================================
-          // COACHING
-          // ==================================================
+          /**
+           * =================================================
+           * SELF-PACED COURSE PURCHASE
+           * =================================================
+           */
 
-          if (
+          else if (
+            log.sourceModel ===
+            'SelfPacedEnrollment'
+          ) {
+            if (
+              studentId
+            ) {
+              const student =
+                selfPacedStudentById.get(
+                  studentId
+                )
+
+              if (
+                student
+              ) {
+                studentName =
+                  `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+                  'Unknown Student'
+
+                studentEmail =
+                  student.email ||
+                  null
+              }
+            }
+
+            if (
+              itemId
+            ) {
+              const course =
+                selfPacedCourseById.get(
+                  itemId
+                )
+
+              if (
+                course
+              ) {
+                itemName =
+                  course.title ||
+                  course.name ||
+                  'Unknown Self-Paced Course'
+              }
+            }
+          }
+
+          /**
+           * =================================================
+           * COACHING SESSION
+           * =================================================
+           */
+
+          else if (
             log.sourceModel ===
             'CoachingBooking'
           ) {
-            const student =
-              log.studentId
-                ? selfPacedStudentById.get(
-                    log.studentId.toString()
-                  )
-                : null
+            if (
+              studentId
+            ) {
+              const student =
+                selfPacedStudentById.get(
+                  studentId
+                )
 
-            if (student) {
-              studentName =
-                `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
-                'Unknown Student'
+              if (
+                student
+              ) {
+                studentName =
+                  `${student.firstName || ''} ${student.lastName || ''}`.trim() ||
+                  'Unknown Student'
 
-              studentEmail =
-                student.email ||
-                null
+                studentEmail =
+                  student.email ||
+                  null
+              }
             }
 
-            const course =
-              selfPacedCourseById.get(
-                log.courseId?.toString()
-              )
+            if (
+              itemId
+            ) {
+              const course =
+                selfPacedCourseById.get(
+                  itemId
+                )
 
-            itemName =
-              course?.title ||
-              course?.name ||
-              'Unknown Self-Paced Course'
-
-            sourceLabel =
-              'Coaching Session'
+              if (
+                course
+              ) {
+                itemName =
+                  course.title ||
+                  course.name ||
+                  'Unknown Self-Paced Course'
+              }
+            }
           }
 
-          // ==================================================
-          // LESSON NOTE
-          // ==================================================
+          /**
+           * =================================================
+           * LESSON NOTE
+           * =================================================
+           */
 
-          if (
+          else if (
             log.sourceModel ===
             'LessonNotePurchase'
           ) {
-            const purchase =
-              log.purchaseId
-                ? purchaseById.get(
-                    log.purchaseId.toString()
-                  )
-                : null
+            const purchaseId =
+              log.purchaseId?.toString()
 
-            studentName =
-              purchase?.buyerName ||
-              'Anonymous Buyer'
+            if (
+              purchaseId
+            ) {
+              const purchase =
+                lessonNotePurchaseById.get(
+                  purchaseId
+                )
 
-            studentEmail =
-              purchase?.buyerEmail ||
-              null
+              if (
+                purchase
+              ) {
+                studentName =
+                  purchase.buyerName ||
+                  'Anonymous Buyer'
 
-            paystackReference =
-              purchase?.paystackReference ||
-              null
+                studentEmail =
+                  purchase.buyerEmail ||
+                  null
 
-            const note =
-              lessonNoteById.get(
-                log.courseId?.toString()
-              )
+                paystackReference =
+                  purchase.paystackReference ||
+                  null
+              }
+            }
 
-            itemName =
-              note?.title ||
-              'Unknown Lesson Note'
+            if (
+              itemId
+            ) {
+              const note =
+                lessonNoteById.get(
+                  itemId
+                )
 
-            sourceLabel =
-              'Lesson Note Purchase'
+              if (
+                note
+              ) {
+                itemName =
+                  note.title ||
+                  'Lesson Note'
+              }
+            }
           }
+
+          /**
+           * =================================================
+           * TUTOR DETAILS
+           * =================================================
+           */
+
+          const tutorName =
+            tutor
+              ? `${tutor.firstName || ''} ${tutor.lastName || ''}`.trim() ||
+                'Tutor'
+              : 'Unknown Tutor'
+
+          /**
+           * =================================================
+           * RETURN ROW
+           * =================================================
+           */
 
           return {
             _id:
@@ -561,19 +852,59 @@ export async function GET(
             sourceModel:
               log.sourceModel,
 
-            sourceLabel,
+            sourceLabel:
+              getSourceLabel(
+                log.sourceModel
+              ),
 
+            /**
+             * Keep both names so an existing
+             * frontend using courseName continues
+             * to work.
+             */
+            itemName,
+
+            courseName:
+              itemName,
+
+            /**
+             * Student / buyer
+             */
+            studentName,
+
+            studentEmail,
+
+            /**
+             * Tutor
+             */
             tutorId:
-              log.tutorId.toString(),
+              log.tutorId?.toString(),
 
-            tutorName:
-              tutor
-                ? `${tutor.firstName || ''} ${tutor.lastName || ''}`.trim()
-                : 'Unknown Tutor',
+            tutorName,
 
+            tutorEmail:
+              tutor?.email ||
+              null,
+
+            tutorPhone:
+              tutor?.phone ||
+              null,
+
+            tutorStatus:
+              tutor?.status ||
+              null,
+
+            /**
+             * Correct Tutor.bankDetails structure
+             */
             bankName:
               tutor?.bankDetails
                 ?.bankName ||
+              null,
+
+            bankCode:
+              tutor?.bankDetails
+                ?.bankCode ||
               null,
 
             accountNumber:
@@ -586,42 +917,41 @@ export async function GET(
                 ?.accountName ||
               null,
 
-            hasBankDetails:
-              Boolean(
-                tutor
-                  ?.bankDetails
-                  ?.accountNumber
-              ),
+            paystackRecipientCode:
+              tutor?.bankDetails
+                ?.paystackRecipientCode ||
+              null,
 
-            studentName,
-
-            studentEmail,
-
-            courseName:
-              itemName,
-
-            itemName,
-
+            /**
+             * Amounts
+             */
             grossAmount:
               Number(
-                log.grossAmount
+                log.grossAmount ||
+                  0
               ),
 
             commissionRate:
               Number(
-                log.commissionRate
+                log.commissionRate ||
+                  0
               ),
 
             commissionAmount:
               Number(
-                log.commissionAmount
+                log.commissionAmount ||
+                  0
               ),
 
             netAmount:
               Number(
-                log.netAmount
+                log.netAmount ||
+                  0
               ),
 
+            /**
+             * Payout state
+             */
             status:
               log.status,
 
@@ -629,29 +959,59 @@ export async function GET(
               log.failureReason ||
               null,
 
-            paystackReference,
-
             paidAt:
               log.paidAt ||
               null,
 
             createdAt:
               log.createdAt,
+
+            updatedAt:
+              log.updatedAt,
+
+            /**
+             * Purchase reference.
+             *
+             * Lesson notes expose it here.
+             */
+            paystackReference,
+
+            /**
+             * These are kept for future
+             * automated Paystack Transfers.
+             */
+            paystackTransferReference:
+              log.paystackTransferReference ||
+              null,
+
+            paystackTransferCode:
+              log.paystackTransferCode ||
+              null,
           }
         }
       )
 
-    // ========================================================
-    // STATUS COUNTS
-    // ========================================================
+    /**
+     * ======================================================
+     * COUNTS
+     * ======================================================
+     *
+     * Counts are global, not restricted to the
+     * selected tab/status.
+     */
 
     const [
+      allCount,
       pendingCount,
       processingCount,
       paidCount,
       failedCount,
     ] =
       await Promise.all([
+        PayoutLog.countDocuments(
+          {}
+        ),
+
         PayoutLog.countDocuments({
           status:
             'pending',
@@ -673,11 +1033,132 @@ export async function GET(
         }),
       ])
 
-    return NextResponse.json({
-      payouts:
-        results,
+    /**
+     * ======================================================
+     * FINANCIAL TOTALS
+     * ======================================================
+     */
 
-      statusCounts: {
+    const totals =
+      await PayoutLog.aggregate([
+        {
+          $group: {
+            _id:
+              null,
+
+            /**
+             * All valid source sales represented
+             * by payout logs.
+             */
+            totalGross: {
+              $sum:
+                '$grossAmount',
+            },
+
+            totalCommission: {
+              $sum:
+                '$commissionAmount',
+            },
+
+            /**
+             * What tutors have already received.
+             */
+            totalPaid: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: [
+                      '$status',
+                      'paid',
+                    ],
+                  },
+
+                  '$netAmount',
+
+                  0,
+                ],
+              },
+            },
+
+            /**
+             * What is currently owed /
+             * being processed.
+             */
+            totalPending: {
+              $sum: {
+                $cond: [
+                  {
+                    $in: [
+                      '$status',
+                      [
+                        'pending',
+                        'processing',
+                      ],
+                    ],
+                  },
+
+                  '$netAmount',
+
+                  0,
+                ],
+              },
+            },
+
+            /**
+             * Value currently marked failed.
+             */
+            totalFailed: {
+              $sum: {
+                $cond: [
+                  {
+                    $eq: [
+                      '$status',
+                      'failed',
+                    ],
+                  },
+
+                  '$netAmount',
+
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ])
+
+    const summary =
+      totals[0] ||
+      {
+        totalGross:
+          0,
+
+        totalCommission:
+          0,
+
+        totalPaid:
+          0,
+
+        totalPending:
+          0,
+
+        totalFailed:
+          0,
+      }
+
+    /**
+     * ======================================================
+     * RESPONSE
+     * ======================================================
+     */
+
+    return NextResponse.json({
+      payouts,
+
+      counts: {
+        all:
+          allCount,
+
         pending:
           pendingCount,
 
@@ -690,8 +1171,42 @@ export async function GET(
         failed:
           failedCount,
       },
+
+      totals: {
+        totalGross:
+          Number(
+            summary.totalGross ||
+              0
+          ),
+
+        totalCommission:
+          Number(
+            summary.totalCommission ||
+              0
+          ),
+
+        totalPaid:
+          Number(
+            summary.totalPaid ||
+              0
+          ),
+
+        totalPending:
+          Number(
+            summary.totalPending ||
+              0
+          ),
+
+        totalFailed:
+          Number(
+            summary.totalFailed ||
+              0
+          ),
+      },
     })
-  } catch (error) {
+  } catch (
+    error: any
+  ) {
     console.error(
       '[ADMIN PAYOUTS GET ERROR]',
       error
@@ -700,7 +1215,8 @@ export async function GET(
     return NextResponse.json(
       {
         error:
-          'Failed to load payouts',
+          error?.message ||
+          'Failed to fetch payouts',
       },
       {
         status: 500,

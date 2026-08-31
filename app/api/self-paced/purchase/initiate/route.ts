@@ -1,3 +1,4 @@
+//api/self-paced/purchase/initiate/route.ts
 import {
   NextRequest,
   NextResponse,
