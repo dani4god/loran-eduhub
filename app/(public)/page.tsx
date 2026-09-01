@@ -1,5 +1,6 @@
 // app/(public)/page.tsx
 
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import Navbar from "@/components/layout/Navbar";
@@ -8,127 +9,126 @@ import AdCorner from "@/components/home/AdCorner";
 import HeroBackgroundSlider from "@/components/home/HeroBackgroundSlider";
 
 import {
-  ShieldCheck,
-  Clock,
-  TrendingUp,
-  Users,
-  FileQuestion,
-  CreditCard,
   ArrowRight,
-  ScrollText,
-  ClipboardList,
-  Megaphone,
-  Briefcase,
-  Sparkles,
-  Layers,
-  FileText,
+  Award,
+  BadgeCheck,
   BookOpen,
-  GraduationCap,
-  Trophy,
-  CheckCircle2,
-  PlayCircle,
-  Download,
   BrainCircuit,
+  BriefcaseBusiness,
+  Check,
+  CheckCircle2,
+  TrendingUp,
   ChevronRight,
+  Code2,
+  Download,
+  FileQuestion,
+  FileText,
+  Globe2,
+  GraduationCap,
+  Languages,
+  Layers,
+  MessageSquare,
+  MonitorPlay,
+  Rocket,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Trophy,
+  Users,
+  Video,
+  Zap,
 } from "lucide-react";
 
 // ============================================================
-// STATS
+// SEO
 // ============================================================
 
-const STATS = [
-  {
-    value: "500+",
-    label: "Active Students",
-  },
-  {
-    value: "50+",
-    label: "Expert Tutors",
-  },
-  {
-    value: "30+",
-    label: "Courses Available",
-  },
-  {
-    value: "95%",
-    label: "Pass Rate",
-  },
-];
+const SITE_URL = "https://www.loran-eduhub.com";
 
-// ============================================================
-// FEATURES
-// ============================================================
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
 
-const FEATURES = [
-  {
-    icon: <ShieldCheck className="w-5 h-5" />,
-    title: "Verified Expert Tutors",
-    desc:
-      "Every tutor is reviewed and approved by our admin team before they can teach.",
+  title: {
+    absolute:
+      "Loran EduHub | Live Online Tutors, Self-Paced Courses & Exam Prep",
   },
 
-  {
-    icon: <Clock className="w-5 h-5" />,
-    title: "Flexible Scheduling",
-    desc:
-      "Learn at your own pace. Sessions are coordinated directly between you and your tutor.",
+  description:
+    "Learn with verified online tutors, master new languages and tech skills, prepare for JAMB, WAEC, NECO and international exams, take self-paced courses, access lesson notes and earn certificates with Loran EduHub.",
+
+  keywords: [
+    "Loran EduHub",
+    "online tutors Nigeria",
+    "live online tutoring Nigeria",
+    "online courses Nigeria",
+    "self paced courses Nigeria",
+    "learn tech skills online",
+    "learn languages online",
+    "career skills Nigeria",
+    "job ready skills",
+    "JAMB preparation",
+    "WAEC preparation",
+    "NECO preparation",
+    "IGCSE tutor",
+    "IELTS tutor",
+    "international exam preparation",
+    "online lesson notes Nigeria",
+    "online learning platform Nigeria",
+    "certificate courses Nigeria",
+  ],
+
+  authors: [
+    {
+      name: "Loran EduHub",
+    },
+  ],
+
+  creator: "Loran EduHub",
+  publisher: "Loran EduHub",
+
+  alternates: {
+    canonical: "/",
   },
 
-  {
-    icon: <TrendingUp className="w-5 h-5" />,
-    title: "Track Your Progress",
-    desc:
-      "See your grades, exam scores, course progress, and subscription status from one dashboard.",
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "Loran EduHub",
+
+    title:
+      "Loran EduHub | Learn Skills, Prepare for Exams & Grow Your Career",
+
+    description:
+      "Learn live with expert tutors, build valuable skills through self-paced courses, prepare for local and international exams, and earn certificates that support your career growth.",
+
+    locale: "en_NG",
   },
 
-  {
-    icon: <Users className="w-5 h-5" />,
-    title: "Community Learning",
-    desc:
-      "Join structured Discord communities, collaborate with classmates, and stay connected to your tutor.",
+  twitter: {
+    card: "summary_large_image",
+
+    title:
+      "Loran EduHub | Live Tutors, Courses & Exam Preparation",
+
+    description:
+      "Learn new languages, master tech skills, become job-ready, prepare for exams and earn certificates with Loran EduHub.",
   },
 
-  {
-    icon: <FileQuestion className="w-5 h-5" />,
-    title: "Exams & Assignments",
-    desc:
-      "Take online assessments including MCQ, fill-in-the-gap, true/false questions and tutor-graded assignments.",
+  robots: {
+    index: true,
+    follow: true,
+
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 
-  {
-    icon: <CreditCard className="w-5 h-5" />,
-    title: "Secure Payments",
-    desc:
-      "Pay securely in Naira through Paystack for tutoring, courses, coaching and premium learning resources.",
-  },
-];
-
-// ============================================================
-// HOW IT WORKS
-// ============================================================
-
-const HOW_IT_WORKS = [
-  {
-    step: "01",
-    title: "Choose How You Want to Learn",
-    desc:
-      "Find a tutor, purchase a self-paced course, get lesson notes or start practising for your examination.",
-  },
-
-  {
-    step: "02",
-    title: "Start Learning",
-    desc:
-      "Access structured lessons, course materials, assessments and learning communities from your dashboard.",
-  },
-
-  {
-    step: "03",
-    title: "Track Your Progress",
-    desc:
-      "Monitor your scores, complete assessments, receive feedback and work towards your learning goals.",
-  },
-];
+  category: "education",
+};
 
 // ============================================================
 // TYPES
@@ -280,7 +280,7 @@ async function getFeaturedSelfPacedCourses(): Promise<
 }
 
 // ============================================================
-// FETCH FEATURED PUBLISHED LESSON NOTES
+// FETCH LESSON NOTES
 // ============================================================
 
 async function getFeaturedLessonNotes(): Promise<
@@ -334,11 +334,6 @@ async function getHeroImages(): Promise<string[]> {
     );
 
     if (!res.ok) {
-      console.error(
-        "Failed to fetch hero images:",
-        res.status
-      );
-
       return [];
     }
 
@@ -362,13 +357,185 @@ async function getHeroImages(): Promise<string[]> {
 // ============================================================
 
 function getInitials(
-  first: string,
-  last: string
+  firstName: string,
+  lastName: string
 ) {
-  return `${first?.[0] || ""}${
-    last?.[0] || ""
+  return `${firstName?.[0] || ""}${
+    lastName?.[0] || ""
   }`.toUpperCase();
 }
+
+function formatMoney(amount: number) {
+  return `₦${Number(amount || 0).toLocaleString(
+    "en-NG"
+  )}`;
+}
+
+// ============================================================
+// LEARNING GOALS
+// ============================================================
+
+const LEARNING_GOALS = [
+  {
+    icon: Languages,
+
+    eyebrow: "Languages",
+
+    title: "Learn a New Language",
+
+    description:
+      "Build real communication skills with a tutor who can guide your speaking, listening, reading and writing.",
+
+    examples: [
+      "French",
+      "German",
+      "Chinese",
+      "Igbo",
+      "English & Phonetics",
+    ],
+
+    accent:
+      "from-blue-500/15 to-cyan-500/5",
+
+    iconStyle:
+      "bg-blue-500/10 text-blue-400",
+  },
+
+  {
+    icon: Code2,
+
+    eyebrow: "Technology",
+
+    title: "Learn a Valuable Tech Skill",
+
+    description:
+      "Develop practical digital skills for today's workplace with guidance from experienced instructors.",
+
+    examples: [
+      "Web Development",
+      "Python & Django",
+      "AI & Machine Learning",
+      "Data Analysis",
+      "Video & Graphic Design",
+    ],
+
+    accent:
+      "from-violet-500/15 to-purple-500/5",
+
+    iconStyle:
+      "bg-violet-500/10 text-violet-400",
+  },
+
+  {
+    icon: BriefcaseBusiness,
+
+    eyebrow: "Career",
+
+    title: "Become Job-Ready",
+
+    description:
+      "Gain practical, career-focused knowledge that can strengthen your portfolio, confidence and employability.",
+
+    examples: [
+      "Project Management",
+      "Content Creation",
+      "Social Media Marketing",
+      "Digital Skills",
+      "Professional Development",
+    ],
+
+    accent:
+      "from-emerald-500/15 to-teal-500/5",
+
+    iconStyle:
+      "bg-emerald-500/10 text-emerald-400",
+  },
+
+  {
+    icon: Trophy,
+
+    eyebrow: "Exam Success",
+
+    title: "Prepare for Important Exams",
+
+    description:
+      "Work with tutors who can help you understand difficult topics, practise effectively and prepare with confidence.",
+
+    examples: [
+      "JAMB",
+      "WAEC",
+      "NECO",
+      "IGCSE",
+      "IELTS & Other International Exams",
+    ],
+
+    accent:
+      "from-amber-500/15 to-orange-500/5",
+
+    iconStyle:
+      "bg-amber-500/10 text-amber-400",
+  },
+];
+
+// ============================================================
+// PLATFORM FEATURES
+// ============================================================
+
+const PLATFORM_FEATURES = [
+  {
+    icon: ShieldCheck,
+
+    title: "Verified Tutors",
+
+    description:
+      "Tutor applications are reviewed before instructors are approved to teach on the platform.",
+  },
+
+  {
+    icon: MonitorPlay,
+
+    title: "Flexible Learning",
+
+    description:
+      "Choose live tutor-led learning or study independently through structured self-paced courses.",
+  },
+
+  {
+    icon: Target,
+
+    title: "Progress Tracking",
+
+    description:
+      "Follow your courses, assessments, scores and learning progress from your student dashboard.",
+  },
+
+  {
+    icon: FileQuestion,
+
+    title: "Assessments",
+
+    description:
+      "Test what you have learned through online examinations, assignments and course assessments.",
+  },
+
+  {
+    icon: MessageSquare,
+
+    title: "Learning Community",
+
+    description:
+      "Stay connected through tutor communities, announcements and structured learning interactions.",
+  },
+
+  {
+    icon: Award,
+
+    title: "Achievement Certificates",
+
+    description:
+      "Eligible live tutoring and self-paced programmes can culminate in certificates that showcase completed learning.",
+  },
+];
 
 // ============================================================
 // HOMEPAGE
@@ -387,105 +554,234 @@ export default async function HomePage() {
     getHeroImages(),
   ]);
 
+  // ==========================================================
+  // STRUCTURED DATA / SEO
+  // ==========================================================
+
+  const organizationSchema = {
+    "@context": "https://schema.org",
+
+    "@type": "EducationalOrganization",
+
+    name: "Loran EduHub",
+
+    url: SITE_URL,
+
+    description:
+      "Loran EduHub is an online learning platform connecting learners with live tutors, self-paced courses, lesson notes and exam preparation resources.",
+
+    areaServed: {
+      "@type": "Country",
+      name: "Nigeria",
+    },
+
+    sameAs: [],
+  };
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+
+    "@type": "WebSite",
+
+    name: "Loran EduHub",
+
+    url: SITE_URL,
+
+    description:
+      "Learn languages, technology skills, career skills and prepare for local and international examinations with live tutors and self-paced learning.",
+  };
+
   return (
     <>
+      {/* ======================================================
+          STRUCTURED DATA
+      ======================================================= */}
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            organizationSchema
+          ),
+        }}
+      />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            websiteSchema
+          ),
+        }}
+      />
+
       <Navbar />
 
       <AdCorner />
 
-      <main className="overflow-hidden bg-gray-950">
+      <main className="overflow-hidden bg-slate-950">
 
-        {/* ==================================================
+        {/* ====================================================
             HERO
-        =================================================== */}
+        ===================================================== */}
 
-        <section className="relative overflow-hidden bg-gradient-to-br from-gray-950 via-blue-950/60 to-purple-950/40 pt-24 pb-14 sm:pt-28 sm:pb-16 lg:pb-20">
+        <section className="relative min-h-[680px] overflow-hidden pt-24 sm:pt-28 lg:min-h-[720px]">
 
           <HeroBackgroundSlider
             images={heroImages}
           />
 
-          {/* Pattern */}
-          <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage:
-                `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            }}
-          />
+          {/* Strong readability overlays */}
 
-          {/* Glow */}
-          <div className="pointer-events-none absolute top-1/4 left-1/4 w-64 h-64 sm:w-72 sm:h-72 bg-blue-500/20 rounded-full blur-3xl" />
+          <div className="absolute inset-0 bg-slate-950/75" />
 
-          <div className="pointer-events-none absolute bottom-0 right-1/4 w-64 h-64 sm:w-72 sm:h-72 bg-purple-500/20 rounded-full blur-3xl" />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-slate-950/45 to-slate-950" />
 
-          <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-950/40 via-transparent to-violet-950/30" />
 
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-3.5 py-1.5 mb-6">
+          {/* Decorative glows */}
 
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+          <div className="pointer-events-none absolute -left-32 top-24 h-80 w-80 rounded-full bg-blue-500/15 blur-[100px]" />
 
-              <span className="text-white/80 text-xs sm:text-sm font-medium">
-                Now accepting new students
-              </span>
+          <div className="pointer-events-none absolute -right-24 bottom-10 h-80 w-80 rounded-full bg-violet-600/15 blur-[120px]" />
 
-            </div>
 
-            <h1 className="font-heading font-bold text-3xl sm:text-5xl lg:text-6xl xl:text-7xl text-white leading-[1.08] mb-5 max-w-5xl mx-auto">
+          <div className="relative z-10 mx-auto flex min-h-[590px] max-w-7xl items-center px-4 pb-16 sm:px-6 lg:px-8">
 
-              Learn From The Best.{" "}
+            <div className="mx-auto max-w-5xl text-center">
 
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400">
-                On Your Schedule.
-              </span>
+              {/* Badge */}
 
-            </h1>
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3.5 py-1.5 backdrop-blur-md">
 
-            <p className="text-white/70 text-base sm:text-lg max-w-2xl mx-auto mb-8 leading-relaxed">
-              Connect with verified expert tutors, take
-              structured courses, access quality study
-              materials, prepare for exams and track your
-              progress — all in one learning platform.
-            </p>
+                <Sparkles className="h-3.5 w-3.5 text-amber-300" />
 
-            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-12">
+                <span className="text-xs font-semibold text-white/80 sm:text-sm">
+                  Learn today. Build skills for tomorrow.
+                </span>
 
-              <Link
-                href="/auth/student/register"
-                className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-blue-600 text-white font-semibold rounded-xl text-sm sm:text-base hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 w-full sm:w-auto"
-              >
-                Get Started as a Student
+              </div>
 
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Link>
 
-              <Link
-                href="/auth/tutor/register"
-                className="px-7 py-3.5 bg-white/10 backdrop-blur-sm border border-white/20 text-white font-semibold rounded-xl text-sm sm:text-base hover:bg-white/15 transition-all w-full sm:w-auto text-center"
-              >
-                Apply as a Tutor
-              </Link>
+              <h1 className="font-heading text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl xl:text-7xl">
 
-            </div>
+                Learn the Skills That Can{" "}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-2xl mx-auto">
+                <span className="bg-gradient-to-r from-blue-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">
+                  Change Your Future.
+                </span>
 
-              {STATS.map(
-                (stat) => (
-                  <div
-                    key={stat.label}
-                    className="text-center"
-                  >
-                    <p className="font-heading font-bold text-xl sm:text-2xl text-white">
-                      {stat.value}
-                    </p>
+              </h1>
 
-                    <p className="text-white/50 text-xs sm:text-sm mt-0.5">
-                      {stat.label}
-                    </p>
-                  </div>
-                )
-              )}
+
+              <p className="mx-auto mt-6 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">
+
+                Learn a new language, master a tech skill,
+                become job-ready or prepare for local and
+                international exams — with expert live tutors
+                and flexible online learning on Loran EduHub.
+
+              </p>
+
+
+              {/* Search-style topic pills */}
+
+              <div className="mx-auto mt-6 flex max-w-3xl flex-wrap justify-center gap-2">
+
+                {[
+                  "Languages",
+                  "Technology",
+                  "Career Skills",
+                  "JAMB",
+                  "WAEC",
+                  "IGCSE",
+                  "IELTS",
+                ].map(
+                  (
+                    item
+                  ) => (
+                    <span
+                      key={item}
+                      className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-medium text-slate-300 backdrop-blur-sm sm:text-xs"
+                    >
+                      {item}
+                    </span>
+                  )
+                )}
+
+              </div>
+
+
+              {/* CTAs */}
+
+              <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+
+                <Link
+                  href="/courses"
+                  className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-7 py-3.5 text-sm font-bold text-white shadow-xl shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-500 sm:w-auto sm:text-base"
+                >
+                  Find a Live Course
+
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+
+
+                <Link
+                  href="/self-paced"
+                  className="group inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[0.08] px-7 py-3.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/[0.13] sm:w-auto sm:text-base"
+                >
+                  Explore Self-Paced Courses
+                </Link>
+
+              </div>
+
+
+              {/* Trust row */}
+
+              <div className="mx-auto mt-10 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
+
+                {[
+                  {
+                    icon: BadgeCheck,
+                    label:
+                      "Verified Tutors",
+                  },
+
+                  {
+                    icon: Video,
+                    label:
+                      "Live Learning",
+                  },
+
+                  {
+                    icon: GraduationCap,
+                    label:
+                      "Certificates",
+                  },
+
+                  {
+                    icon: Target,
+                    label:
+                      "Career Focused",
+                  },
+                ].map(
+                  (
+                    item
+                  ) => (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2.5 backdrop-blur-sm"
+                    >
+                      <item.icon className="h-3.5 w-3.5 text-blue-300" />
+
+                      <span className="text-[10px] font-semibold text-slate-300 sm:text-xs">
+                        {item.label}
+                      </span>
+                    </div>
+                  )
+                )}
+
+              </div>
 
             </div>
 
@@ -494,319 +790,325 @@ export default async function HomePage() {
         </section>
 
 
-        {/* ==================================================
-            WHY LORAN / PRODUCT DISCOVERY
-        =================================================== */}
+        {/* ====================================================
+            WHY LORAN + 4 PRIMARY ADVERTS
+        ===================================================== */}
 
         <section className="relative py-16 sm:py-20 lg:py-24">
 
-          <div className="pointer-events-none absolute left-1/2 top-32 h-[450px] w-[800px] max-w-full -translate-x-1/2 rounded-full bg-blue-600/[0.06] blur-[120px]" />
+          <div className="pointer-events-none absolute left-1/2 top-20 h-[600px] w-[900px] max-w-full -translate-x-1/2 rounded-full bg-blue-500/[0.05] blur-[120px]" />
 
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
-            {/* Main heading */}
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
-            <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-12">
+            <div className="mx-auto mb-10 max-w-3xl text-center sm:mb-12">
 
-              <span className="text-blue-400 font-semibold text-xs sm:text-sm uppercase tracking-[0.18em]">
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-blue-400">
                 Why Loran EduHub
               </span>
 
-              <h2 className="font-heading font-bold text-2xl sm:text-4xl lg:text-[42px] text-white mt-3 mb-3 leading-tight">
+              <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
                 Everything You Need to Succeed
               </h2>
 
-              <p className="text-gray-400 text-sm sm:text-base leading-relaxed">
-                A complete learning platform built for Nigerian
-                students and tutors.
+              <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
+                Choose the learning experience that fits your
+                goals — from personal live instruction to
+                independent courses, study materials and exam
+                practice.
               </p>
 
             </div>
 
 
-            {/* ==================================================
-                MAIN PRODUCT ADVERTS
-            =================================================== */}
+            {/* =================================================
+                FOUR PRODUCT ADVERTS
+            ================================================== */}
 
-            <div className="mb-16 lg:mb-20">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-5">
 
-              <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+              {/* ===============================================
+                  LIVE TUTORING
+              ================================================ */}
 
-                <div>
+              <Link
+                href="/courses"
+                className="group relative min-h-[410px] overflow-hidden rounded-[30px] border border-blue-400/20 bg-gradient-to-br from-blue-950 via-slate-900 to-slate-950 p-6 transition duration-300 hover:-translate-y-1 hover:border-blue-400/40 hover:shadow-2xl hover:shadow-blue-950/30 sm:p-8"
+              >
 
-                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                    Explore Loran EduHub
-                  </span>
+                <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl transition group-hover:bg-blue-500/30" />
 
-                  <h3 className="text-xl sm:text-2xl font-bold text-white mt-2">
-                    Choose the learning experience that fits you
-                  </h3>
+                <div className="pointer-events-none absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl" />
+
+
+                <div className="relative flex h-full flex-col">
+
+                  <div className="flex items-start justify-between gap-4">
+
+                    <div className="flex h-13 w-13 h-[52px] w-[52px] items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/15">
+                      <Video className="h-6 w-6 text-blue-300" />
+                    </div>
+
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                      Personal Learning
+                    </span>
+
+                  </div>
+
+
+                  <div className="mt-9">
+
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-300">
+                      Live Tutoring
+                    </p>
+
+                    <h3 className="mt-2 max-w-lg font-heading text-2xl font-bold leading-tight text-white sm:text-3xl">
+                      Learn Live With a Tutor Who Helps You Move Forward.
+                    </h3>
+
+                    <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">
+                      Learn a language, master a tech skill,
+                      become job-ready or prepare for local and
+                      international examinations with direct
+                      support from an experienced tutor.
+                    </p>
+
+
+                    <div className="mt-5 flex flex-wrap gap-2">
+
+                      {[
+                        "Languages",
+                        "Tech Skills",
+                        "Career Skills",
+                        "Exam Prep",
+                      ].map(
+                        (
+                          item
+                        ) => (
+                          <span
+                            key={item}
+                            className="rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-medium text-slate-300"
+                          >
+                            {item}
+                          </span>
+                        )
+                      )}
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="mt-auto pt-8">
+
+                    <div className="mb-5 flex items-start gap-2 rounded-xl border border-blue-400/10 bg-blue-400/[0.06] p-3">
+
+                      <Award className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+
+                      <p className="text-[11px] leading-5 text-slate-300 sm:text-xs">
+                        Complete an eligible learning programme
+                        and earn a certificate that can help
+                        demonstrate your newly developed skills
+                        as you grow your career.
+                      </p>
+
+                    </div>
+
+
+                    <div className="flex items-center justify-between">
+
+                      <span className="text-sm font-bold text-white">
+                        Browse Live Courses
+                      </span>
+
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white transition-transform group-hover:translate-x-1">
+                        <ArrowRight className="h-4 w-4" />
+                      </div>
+
+                    </div>
+
+                  </div>
 
                 </div>
 
-                <p className="text-gray-500 text-sm max-w-md leading-relaxed">
-                  Study independently, download quality learning
-                  resources or prepare confidently for your next
-                  examination.
-                </p>
-
-              </div>
+              </Link>
 
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
+              {/* ===============================================
+                  SELF-PACED
+              ================================================ */}
 
-                {/* =============================================
-                    SELF-PACED
-                ============================================== */}
+              <Link
+                href="/self-paced"
+                className="group relative min-h-[410px] overflow-hidden rounded-[30px] border border-violet-400/20 bg-gradient-to-br from-violet-950 via-slate-900 to-slate-950 p-6 transition duration-300 hover:-translate-y-1 hover:border-violet-400/40 hover:shadow-2xl hover:shadow-violet-950/30 sm:p-8"
+              >
 
-                <Link
-                  href="/self-paced"
-                  className="
-                    group relative flex min-h-[340px] flex-col overflow-hidden
-                    rounded-[28px]
-                    border border-purple-500/20
-                    bg-gradient-to-br
-                    from-purple-950/80
-                    via-gray-900
-                    to-gray-950
-                    p-6 sm:p-7
-                    transition-all duration-300
-                    hover:-translate-y-1
-                    hover:border-purple-400/40
-                    hover:shadow-2xl
-                    hover:shadow-purple-950/30
-                  "
-                >
-
-                  <div className="pointer-events-none absolute -right-16 -top-16 w-52 h-52 bg-purple-500/20 rounded-full blur-3xl group-hover:bg-purple-500/30 transition-all duration-500" />
-
-                  <div className="pointer-events-none absolute right-6 top-8 w-28 h-28 border border-purple-400/10 rounded-full" />
-
-                  <div className="pointer-events-none absolute right-12 top-14 w-16 h-16 border border-purple-300/10 rounded-full" />
+                <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl transition group-hover:bg-violet-500/30" />
 
 
-                  <div className="relative flex items-start justify-between gap-3">
+                <div className="relative flex h-full flex-col">
 
-                    <div className="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-400/20 flex items-center justify-center shrink-0">
+                  <div className="flex items-start justify-between gap-4">
 
-                      <Layers className="w-6 h-6 text-purple-300" />
-
+                    <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/15">
+                      <Layers className="h-6 w-6 text-violet-300" />
                     </div>
 
-                    <span className="rounded-full border border-purple-400/20 bg-purple-500/10 px-2.5 py-1 text-[10px] font-bold text-purple-200">
-                      LEARN AT YOUR PACE
+                    <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-200">
+                      Learn Your Way
                     </span>
 
                   </div>
 
 
-                  <div className="relative mt-8">
+                  <div className="mt-9">
 
-                    <p className="text-purple-300 text-[11px] font-bold uppercase tracking-[0.16em] mb-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-300">
                       Self-Paced Courses
                     </p>
 
-                    <h3 className="font-heading text-2xl font-bold text-white leading-tight">
-                      Learn Anytime.
-                      <br />
-                      Progress Your Way.
+                    <h3 className="mt-2 max-w-lg font-heading text-2xl font-bold leading-tight text-white sm:text-3xl">
+                      Build a Skill on Your Schedule.
                     </h3>
 
-                    <p className="mt-4 text-sm leading-6 text-gray-400">
-                      Purchase a structured course once and learn
-                      on your own schedule with weekly lessons,
-                      assessments, progress tracking, certificates
-                      and optional coaching.
+                    <p className="mt-4 max-w-xl text-sm leading-6 text-slate-400">
+                      Learn independently through structured
+                      weekly content, assessments and progress
+                      tracking. Move through each course at a
+                      pace that works for your life.
                     </p>
+
+
+                    <div className="mt-5 flex flex-wrap gap-2">
+
+                      {[
+                        "Structured Lessons",
+                        "Assessments",
+                        "Progress Tracking",
+                        "Optional Coaching",
+                      ].map(
+                        (
+                          item
+                        ) => (
+                          <span
+                            key={item}
+                            className="rounded-lg border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-medium text-slate-300"
+                          >
+                            {item}
+                          </span>
+                        )
+                      )}
+
+                    </div>
 
                   </div>
 
 
-                  <div className="relative mt-auto pt-7">
+                  <div className="mt-auto pt-8">
+
+                    <div className="mb-5 flex items-start gap-2 rounded-xl border border-violet-400/10 bg-violet-400/[0.06] p-3">
+
+                      <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+
+                      <p className="text-[11px] leading-5 text-slate-300 sm:text-xs">
+                        Complete the required learning and
+                        assessments to earn a certificate that
+                        records your achievement and supports
+                        your professional growth.
+                      </p>
+
+                    </div>
+
 
                     <div className="flex items-center justify-between">
 
                       <span className="text-sm font-bold text-white">
-                        Explore Courses
+                        Explore Self-Paced Courses
                       </span>
 
-                      <div className="w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-                        <ArrowRight className="w-4 h-4" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-600 text-white transition-transform group-hover:translate-x-1">
+                        <ArrowRight className="h-4 w-4" />
                       </div>
 
                     </div>
 
                   </div>
 
-                </Link>
+                </div>
+
+              </Link>
 
 
-                {/* =============================================
-                    LESSON NOTES
-                ============================================== */}
+              {/* ===============================================
+                  EXAM PREP
+              ================================================ */}
 
-                <Link
-                  href="/lesson-notes"
-                  className="
-                    group relative flex min-h-[340px] flex-col overflow-hidden
-                    rounded-[28px]
-                    border border-amber-500/20
-                    bg-gradient-to-br
-                    from-amber-950/60
-                    via-gray-900
-                    to-gray-950
-                    p-6 sm:p-7
-                    transition-all duration-300
-                    hover:-translate-y-1
-                    hover:border-amber-400/40
-                    hover:shadow-2xl
-                    hover:shadow-amber-950/20
-                  "
-                >
+              <Link
+                href="/exam-prep/register"
+                className="group relative min-h-[365px] overflow-hidden rounded-[30px] border border-cyan-400/20 bg-gradient-to-br from-cyan-950/80 via-slate-900 to-slate-950 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-400/40 hover:shadow-2xl hover:shadow-cyan-950/20 sm:p-8"
+              >
 
-                  <div className="pointer-events-none absolute -right-16 -top-16 w-52 h-52 bg-amber-500/15 rounded-full blur-3xl group-hover:bg-amber-500/25 transition-all duration-500" />
-
-                  <div className="pointer-events-none absolute right-8 top-11 rotate-6 w-20 h-24 rounded-xl border border-amber-300/10 bg-white/[0.02]" />
-
-                  <div className="pointer-events-none absolute right-12 top-7 -rotate-3 w-20 h-24 rounded-xl border border-amber-300/10 bg-white/[0.02]" />
+                <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl transition group-hover:bg-cyan-500/25" />
 
 
-                  <div className="relative flex items-start justify-between gap-3">
+                <div className="relative flex h-full flex-col">
 
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-400/20 flex items-center justify-center shrink-0">
+                  <div className="flex items-start justify-between gap-4">
 
-                      <FileText className="w-6 h-6 text-amber-300" />
-
+                    <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/15">
+                      <FileQuestion className="h-6 w-6 text-cyan-300" />
                     </div>
 
-                    <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-200">
-                      INSTANT ACCESS
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                      Practise & Improve
                     </span>
 
                   </div>
 
 
-                  <div className="relative mt-8">
+                  <div className="mt-8">
 
-                    <p className="text-amber-300 text-[11px] font-bold uppercase tracking-[0.16em] mb-2">
-                      Lesson Notes
-                    </p>
-
-                    <h3 className="font-heading text-2xl font-bold text-white leading-tight">
-                      Quality Notes.
-                      <br />
-                      Smarter Revision.
-                    </h3>
-
-                    <p className="mt-4 text-sm leading-6 text-gray-400">
-                      Get structured lesson notes created by
-                      tutors across different subjects and class
-                      levels. Explore both free and premium study
-                      resources.
-                    </p>
-
-                  </div>
-
-
-                  <div className="relative mt-auto pt-7">
-
-                    <div className="flex items-center justify-between">
-
-                      <span className="text-sm font-bold text-white">
-                        Browse Lesson Notes
-                      </span>
-
-                      <div className="w-10 h-10 rounded-full bg-amber-500 text-gray-950 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-
-                        <ArrowRight className="w-4 h-4" />
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                </Link>
-
-
-                {/* =============================================
-                    EXAM PREP
-                ============================================== */}
-
-                <Link
-                  href="/exam-prep/register"
-                  className="
-                    group relative flex min-h-[340px] flex-col overflow-hidden
-                    rounded-[28px]
-                    border border-blue-500/20
-                    bg-gradient-to-br
-                    from-blue-950/80
-                    via-gray-900
-                    to-gray-950
-                    p-6 sm:p-7
-                    transition-all duration-300
-                    hover:-translate-y-1
-                    hover:border-blue-400/40
-                    hover:shadow-2xl
-                    hover:shadow-blue-950/30
-                  "
-                >
-
-                  <div className="pointer-events-none absolute -right-16 -top-16 w-52 h-52 bg-blue-500/20 rounded-full blur-3xl group-hover:bg-blue-500/30 transition-all duration-500" />
-
-                  {/* decorative graph */}
-
-                  <div className="pointer-events-none absolute right-7 top-10 flex items-end gap-1.5 opacity-30">
-
-                    <div className="w-2.5 h-6 bg-blue-400 rounded-full" />
-
-                    <div className="w-2.5 h-10 bg-blue-400 rounded-full" />
-
-                    <div className="w-2.5 h-16 bg-blue-300 rounded-full" />
-
-                    <div className="w-2.5 h-12 bg-purple-400 rounded-full" />
-
-                  </div>
-
-
-                  <div className="relative flex items-start justify-between gap-3">
-
-                    <div className="w-12 h-12 rounded-2xl bg-blue-500/15 border border-blue-400/20 flex items-center justify-center shrink-0">
-
-                      <FileQuestion className="w-6 h-6 text-blue-300" />
-
-                    </div>
-
-                    <span className="rounded-full border border-green-400/20 bg-green-500/10 px-2.5 py-1 text-[10px] font-bold text-green-300">
-                      FREE TO START
-                    </span>
-
-                  </div>
-
-
-                  <div className="relative mt-8">
-
-                    <p className="text-blue-300 text-[11px] font-bold uppercase tracking-[0.16em] mb-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-300">
                       Exam Preparation
                     </p>
 
-                    <h3 className="font-heading text-2xl font-bold text-white leading-tight">
-                      Practise More.
-                      <br />
-                      Walk In Prepared.
+                    <h3 className="mt-2 font-heading text-2xl font-bold leading-tight text-white sm:text-3xl">
+                      Practise Today. Walk Into Your Exam More Prepared.
                     </h3>
 
-                    <p className="mt-4 text-sm leading-6 text-gray-400">
-                      Prepare for JAMB, WAEC and NECO with
-                      practice questions, timed assessments and
-                      repeated practice designed to build your
-                      exam confidence.
+                    <p className="mt-4 text-sm leading-6 text-slate-400">
+                      Prepare with exam-style practice,
+                      strengthen weak areas and build confidence
+                      before important examinations.
                     </p>
 
                   </div>
 
 
-                  <div className="relative mt-auto pt-7">
+                  <div className="mt-auto pt-7">
+
+                    <div className="mb-5 flex flex-wrap gap-2">
+
+                      {[
+                        "JAMB",
+                        "WAEC",
+                        "NECO",
+                        "Timed Practice",
+                      ].map(
+                        (
+                          exam
+                        ) => (
+                          <span
+                            key={exam}
+                            className="rounded-lg border border-cyan-400/10 bg-cyan-500/[0.06] px-2.5 py-1 text-[10px] font-semibold text-cyan-200"
+                          >
+                            {exam}
+                          </span>
+                        )
+                      )}
+
+                    </div>
+
 
                     <div className="flex items-center justify-between">
 
@@ -814,556 +1116,107 @@ export default async function HomePage() {
                         Start Exam Prep
                       </span>
 
-                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-
-                        <ArrowRight className="w-4 h-4" />
-
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-600 text-white transition-transform group-hover:translate-x-1">
+                        <ArrowRight className="h-4 w-4" />
                       </div>
 
                     </div>
 
                   </div>
 
-                </Link>
+                </div>
 
-              </div>
-
-            </div>
-
-
-            {/* ==================================================
-                PLATFORM FEATURES
-            =================================================== */}
-
-            <div className="border-t border-white/[0.07] pt-12 sm:pt-14">
-
-              <div className="text-center max-w-xl mx-auto mb-8 sm:mb-10">
-
-                <span className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em]">
-                  The Loran Advantage
-                </span>
-
-                <h3 className="font-heading font-bold text-xl sm:text-2xl text-white mt-2">
-                  Built for a Better Learning Experience
-                </h3>
-
-                <p className="text-gray-500 text-sm mt-2">
-                  Tools that make teaching, learning and
-                  assessment easier.
-                </p>
-
-              </div>
-
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-
-                {FEATURES.map(
-                  (
-                    feature,
-                    i
-                  ) => (
-                    <div
-                      key={i}
-                      className="
-                        group
-                        p-5 sm:p-6
-                        rounded-2xl
-                        border border-white/[0.08]
-                        bg-white/[0.025]
-                        hover:border-blue-500/30
-                        hover:bg-white/[0.045]
-                        transition-all duration-300
-                      "
-                    >
-
-                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-
-                        {feature.icon}
-
-                      </div>
-
-                      <h3 className="font-heading font-semibold text-white text-base mb-2">
-                        {feature.title}
-                      </h3>
-
-                      <p className="text-gray-400 text-sm leading-relaxed">
-                        {feature.desc}
-                      </p>
-
-                    </div>
-                  )
-                )}
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
-
-
-        {/* ==================================================
-            HOW IT WORKS
-        =================================================== */}
-
-        <section className="py-16 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
-
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-
-            <div className="text-center max-w-2xl mx-auto mb-12">
-
-              <span className="text-purple-400 font-semibold text-xs sm:text-sm uppercase tracking-wider">
-                Simple Process
-              </span>
-
-              <h2 className="font-heading font-bold text-2xl sm:text-4xl text-white mt-3">
-                Learning Made Simple
-              </h2>
-
-              <p className="text-gray-400 text-sm sm:text-base mt-3">
-                Everything you need is just a few steps away.
-              </p>
-
-            </div>
-
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-10 relative">
-
-              <div className="hidden md:block absolute top-8 left-[16%] right-[16%] h-px bg-gradient-to-r from-blue-500/30 via-purple-500/30 to-indigo-400/30" />
-
-              {HOW_IT_WORKS.map(
-                (
-                  step,
-                  i
-                ) => (
-                  <div
-                    key={i}
-                    className="relative text-center"
-                  >
-
-                    <div className="w-16 h-16 rounded-2xl bg-gray-950 border border-white/10 flex items-center justify-center mx-auto mb-5 relative z-10 shadow-lg">
-
-                      <span className="font-heading font-bold text-lg text-blue-400">
-                        {step.step}
-                      </span>
-
-                    </div>
-
-                    <h3 className="font-heading font-bold text-white text-lg mb-2.5">
-                      {step.title}
-                    </h3>
-
-                    <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">
-                      {step.desc}
-                    </p>
-
-                  </div>
-                )
-              )}
-
-            </div>
-
-
-            <div className="text-center mt-10">
-
-              <Link
-                href="/auth/student/register"
-                className="group inline-flex items-center gap-2 px-7 py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-500 transition-all text-sm sm:text-base"
-              >
-                Create Your Student Account
-
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>
 
-            </div>
 
-          </div>
+              {/* ===============================================
+                  LESSON NOTES
+              ================================================ */}
 
-        </section>
+              <Link
+                href="/lesson-notes"
+                className="group relative min-h-[365px] overflow-hidden rounded-[30px] border border-amber-400/20 bg-gradient-to-br from-amber-950/70 via-slate-900 to-slate-950 p-6 transition duration-300 hover:-translate-y-1 hover:border-amber-400/40 hover:shadow-2xl hover:shadow-amber-950/20 sm:p-8"
+              >
+
+                <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-amber-500/15 blur-3xl transition group-hover:bg-amber-500/25" />
 
 
-        {/* ==================================================
-            PRICING / LIVE TUTORING
-        =================================================== */}
+                <div className="relative flex h-full flex-col">
 
-        <section className="py-16 sm:py-20 lg:py-24">
+                  <div className="flex items-start justify-between gap-4">
 
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/15">
+                      <FileText className="h-6 w-6 text-amber-300" />
+                    </div>
 
-            <div className="relative overflow-hidden rounded-[30px] bg-gradient-to-br from-blue-600/20 via-indigo-600/10 to-purple-600/20 border border-white/10 p-7 sm:p-10 lg:p-12">
-
-              <div className="pointer-events-none absolute top-0 right-0 w-56 h-56 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/3 blur-xl" />
-
-              <div className="relative grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-8 lg:items-center">
-
-                <div>
-
-                  <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-3.5 py-1.5 mb-5">
-
-                    <GraduationCap className="w-3.5 h-3.5 text-blue-300" />
-
-                    <span className="text-white/80 text-xs sm:text-sm font-medium">
-                      Learn directly from an expert
+                    <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-200">
+                      Ready to Study
                     </span>
 
                   </div>
 
-                  <h2 className="font-heading font-bold text-2xl sm:text-3xl lg:text-4xl text-white mb-4">
-                    Find a Tutor That Fits Your Goals
-                  </h2>
 
-                  <p className="text-gray-300 text-sm sm:text-base max-w-2xl leading-relaxed">
-                    Each tutor sets their own pricing for monthly,
-                    3-month, 6-month and 12-month plans. Compare
-                    tutors, subjects, experience and pricing before
-                    choosing who you want to learn with.
-                  </p>
+                  <div className="mt-8">
 
-                </div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                      Lesson Notes
+                    </p>
 
+                    <h3 className="mt-2 font-heading text-2xl font-bold leading-tight text-white sm:text-3xl">
+                      Clear Notes for Better Study and Revision.
+                    </h3>
 
-                <div className="shrink-0">
+                    <p className="mt-4 text-sm leading-6 text-slate-400">
+                      Access tutor-created learning materials
+                      across subjects and class levels whenever
+                      you need an extra resource for study,
+                      teaching or revision.
+                    </p>
 
-                  <Link
-                    href="/tutors"
-                    className="group inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-gray-950 font-bold rounded-xl hover:bg-blue-50 transition-all text-sm w-full lg:w-auto"
-                  >
-                    Browse Tutors
-
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </Link>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
+                  </div>
 
 
-        {/* ==================================================
-            FEATURED TUTORS
-        =================================================== */}
+                  <div className="mt-auto pt-7">
 
-        <section className="py-16 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
+                    <div className="mb-5 flex flex-wrap gap-2">
 
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                      {[
+                        "Tutor Created",
+                        "Multiple Subjects",
+                        "Free & Premium",
+                        "Instant Access",
+                      ].map(
+                        (
+                          item
+                        ) => (
+                          <span
+                            key={item}
+                            className="rounded-lg border border-amber-400/10 bg-amber-500/[0.06] px-2.5 py-1 text-[10px] font-semibold text-amber-200"
+                          >
+                            {item}
+                          </span>
+                        )
+                      )}
 
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
-
-              <div>
-
-                <span className="text-blue-400 font-semibold text-xs sm:text-sm uppercase tracking-wider">
-                  Learn From Experts
-                </span>
-
-                <h2 className="font-heading font-bold text-2xl sm:text-4xl text-white mt-3">
-                  Meet Our Tutors
-                </h2>
-
-                <p className="text-gray-400 text-sm mt-2 max-w-lg">
-                  Explore verified tutors and find the right
-                  instructor for your subject and learning goals.
-                </p>
-
-              </div>
-
-              <Link
-                href="/tutors"
-                className="group inline-flex items-center gap-2 text-blue-400 font-semibold text-sm shrink-0"
-              >
-                View All Tutors
-
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-
-            </div>
+                    </div>
 
 
-            {tutors.length === 0 ? (
+                    <div className="flex items-center justify-between">
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] text-center py-12 px-5">
+                      <span className="text-sm font-bold text-white">
+                        Browse Lesson Notes
+                      </span>
 
-                <Users className="w-9 h-9 text-gray-600 mx-auto mb-3" />
-
-                <p className="text-gray-300 font-medium">
-                  New tutors are joining soon
-                </p>
-
-                <p className="text-gray-500 text-sm mt-1">
-                  Check back shortly.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-
-                {tutors.map(
-                  (
-                    tutor
-                  ) => (
-                    <div
-                      key={tutor._id}
-                      className="group rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-blue-500/30 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10 transition-all duration-300"
-                    >
-
-                      <div className="p-5 sm:p-6 flex items-center gap-4">
-
-                        {tutor.profileImage ? (
-
-                          <img
-                            src={tutor.profileImage}
-                            alt={`${tutor.firstName} ${tutor.lastName}`}
-                            className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-white/10"
-                          />
-
-                        ) : (
-
-                          <div className="w-14 h-14 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-300 font-heading font-bold text-lg shrink-0">
-
-                            {getInitials(
-                              tutor.firstName,
-                              tutor.lastName
-                            )}
-
-                          </div>
-
-                        )}
-
-                        <div className="min-w-0">
-
-                          <h3 className="font-heading font-bold text-white text-base truncate">
-                            {tutor.firstName}{" "}
-                            {tutor.lastName}
-                          </h3>
-
-                          <div className="flex flex-wrap gap-1.5 mt-1.5">
-
-                            {tutor.courses
-                              ?.slice(0, 2)
-                              .map(
-                                (
-                                  course
-                                ) => (
-                                  <span
-                                    key={course._id}
-                                    className="text-[10px] bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full font-medium truncate max-w-[125px]"
-                                  >
-                                    {course.name}
-                                  </span>
-                                )
-                              )}
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-
-                      <div className="px-5 sm:px-6 pb-5 sm:pb-6">
-
-                        <p className="text-gray-400 text-sm leading-relaxed mb-4 line-clamp-3">
-                          {tutor.bio ||
-                            "Experienced tutor on Loran EduHub."}
-                        </p>
-
-                        <Link
-                          href={`/tutors/${tutor.slug}`}
-                          className="group/link inline-flex items-center gap-2 text-blue-400 font-semibold text-sm"
-                        >
-                          View Profile
-
-                          <ArrowRight className="w-4 h-4 transition-transform group-hover/link:translate-x-1" />
-                        </Link>
-
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 text-slate-950 transition-transform group-hover:translate-x-1">
+                        <ArrowRight className="h-4 w-4" />
                       </div>
 
                     </div>
-                  )
-                )}
 
-              </div>
+                  </div>
 
-            )}
+                </div>
 
-          </div>
-
-        </section>
-
-
-        {/* ==================================================
-            SELF-PACED COURSES
-        =================================================== */}
-
-        <section className="py-16 sm:py-20 lg:py-24">
-
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
-
-              <div>
-
-                <span className="text-purple-400 font-semibold text-xs sm:text-sm uppercase tracking-wider">
-                  Learn On Your Own Time
-                </span>
-
-                <h2 className="font-heading font-bold text-2xl sm:text-4xl text-white mt-3">
-                  Featured Self-Paced Courses
-                </h2>
-
-                <p className="text-gray-400 text-sm mt-2 max-w-xl">
-                  Purchase once and learn at your own pace with
-                  structured weekly content, assessments and
-                  completion certificates.
-                </p>
-
-              </div>
-
-              <Link
-                href="/self-paced"
-                className="group inline-flex items-center gap-2 text-purple-400 font-semibold text-sm shrink-0"
-              >
-                Browse All Courses
-
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-
-            </div>
-
-
-            {selfPacedCourses.length === 0 ? (
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] text-center py-12 px-5">
-
-                <Layers className="w-9 h-9 text-gray-600 mx-auto mb-3" />
-
-                <p className="text-gray-300 font-medium">
-                  New self-paced courses are coming soon
-                </p>
-
-                <p className="text-gray-500 text-sm mt-1">
-                  Check back shortly.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-
-                {selfPacedCourses.map(
-                  (
-                    course
-                  ) => (
-                    <Link
-                      key={course._id}
-                      href={`/self-paced/${course._id}`}
-                      className="group rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-950/10 transition-all duration-300"
-                    >
-
-                      <div className="relative h-44 sm:h-48 bg-white/5 overflow-hidden">
-
-                        {course.coverImageUrl ? (
-
-                          <img
-                            src={course.coverImageUrl}
-                            alt={course.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-
-                        ) : (
-
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-950/60 to-gray-900">
-
-                            <Layers className="w-9 h-9 text-purple-400/50" />
-
-                          </div>
-
-                        )}
-
-
-                        <div className="absolute top-3 right-3">
-
-                          <span
-                            className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-md ${
-                              course.isFree
-                                ? "bg-green-500/90 text-white"
-                                : "bg-gray-950/80 text-white"
-                            }`}
-                          >
-                            {course.isFree
-                              ? "Free"
-                              : `₦${course.price.toLocaleString(
-                                  "en-NG"
-                                )}`}
-                          </span>
-
-                        </div>
-
-                      </div>
-
-
-                      <div className="p-5">
-
-                        <div className="flex items-center gap-1.5 text-purple-300 text-[10px] font-semibold uppercase tracking-wider mb-2">
-
-                          <BookOpen className="w-3 h-3" />
-
-                          Self-Paced
-
-                        </div>
-
-                        <h3 className="font-heading font-bold text-white text-base mb-2 line-clamp-2 group-hover:text-purple-200 transition-colors">
-                          {course.title}
-                        </h3>
-
-                        <p className="text-gray-500 text-xs mb-4">
-                          {course.tutorName}
-                          {" · "}
-                          {course.weekCount}{" "}
-                          week
-                          {course.weekCount !== 1
-                            ? "s"
-                            : ""}
-                        </p>
-
-                        <div className="flex items-center justify-between">
-
-                          <span className="text-xs font-semibold text-gray-400">
-                            View Course
-                          </span>
-
-                          <ChevronRight className="w-4 h-4 text-purple-400 transition-transform group-hover:translate-x-1" />
-
-                        </div>
-
-                      </div>
-
-                    </Link>
-                  )
-                )}
-
-              </div>
-
-            )}
-
-
-            <div className="text-center mt-9">
-
-              <Link
-                href="/self-paced"
-                className="group inline-flex items-center gap-2 px-6 py-3 border border-white/15 bg-white/[0.05] text-white font-semibold rounded-xl hover:bg-white/[0.09] transition-all text-sm"
-              >
-                Explore Self-Paced Learning
-
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>
 
             </div>
@@ -1373,196 +1226,122 @@ export default async function HomePage() {
         </section>
 
 
-        {/* ==================================================
-            LESSON NOTES
-        =================================================== */}
+        {/* ====================================================
+            WHAT CAN YOU LEARN?
+        ===================================================== */}
 
-        <section className="py-16 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
+        <section className="border-y border-white/[0.06] bg-white/[0.02] py-16 sm:py-20 lg:py-24">
 
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+            <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
 
-              <div>
+              {/* Heading */}
 
-                <span className="text-amber-400 font-semibold text-xs sm:text-sm uppercase tracking-wider">
-                  Study Smarter
+              <div className="lg:sticky lg:top-28">
+
+                <span className="text-xs font-bold uppercase tracking-[0.18em] text-violet-400">
+                  What's There to Learn?
                 </span>
 
-                <h2 className="font-heading font-bold text-2xl sm:text-4xl text-white mt-3">
-                  Featured Lesson Notes
+                <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                  Learn Something That Moves Your Life Forward.
                 </h2>
 
-                <p className="text-gray-400 text-sm mt-2 max-w-xl">
-                  Access quality learning materials created by
-                  tutors across subjects and class levels.
+                <p className="mt-5 max-w-xl text-sm leading-7 text-slate-400 sm:text-base">
+                  Learning should lead somewhere. Whether your
+                  goal is communicating in a new language,
+                  entering the technology industry, becoming
+                  more competitive for jobs or passing an
+                  important examination, Loran EduHub helps you
+                  find a path forward.
                 </p>
+
+
+                <Link
+                  href="/courses"
+                  className="group mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-blue-50"
+                >
+                  Explore Live Courses
+
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
 
               </div>
 
-              <Link
-                href="/lesson-notes"
-                className="group inline-flex items-center gap-2 text-amber-400 font-semibold text-sm shrink-0"
-              >
-                Browse All Notes
 
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Link>
+              {/* Learning goal cards */}
 
-            </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-
-            {lessonNotes.length === 0 ? (
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] text-center py-12 px-5">
-
-                <FileText className="w-9 h-9 text-gray-600 mx-auto mb-3" />
-
-                <p className="text-gray-300 font-medium">
-                  New lesson notes are being added
-                </p>
-
-                <p className="text-gray-500 text-sm mt-1">
-                  Check back shortly.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-
-                {lessonNotes.map(
+                {LEARNING_GOALS.map(
                   (
-                    note
-                  ) => (
-                    <Link
-                      key={note._id}
-                      href={`/lesson-notes/${note._id}`}
-                      className="group rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden hover:border-amber-500/40 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-950/10 transition-all duration-300"
-                    >
+                    goal
+                  ) => {
+                    const Icon =
+                      goal.icon;
 
-                      {/* COVER */}
+                    return (
+                      <div
+                        key={
+                          goal.title
+                        }
+                        className={`group rounded-3xl border border-white/[0.08] bg-gradient-to-br ${goal.accent} p-5 transition hover:-translate-y-1 hover:border-white/[0.14] sm:p-6`}
+                      >
 
-                      <div className="relative h-44 sm:h-48 bg-white/5 overflow-hidden">
-
-                        {note.coverImageUrl ? (
-
-                          <img
-                            src={note.coverImageUrl}
-                            alt={note.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-
-                        ) : (
-
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-950/40 to-gray-900">
-
-                            <FileText className="w-9 h-9 text-amber-500/40" />
-
-                          </div>
-
-                        )}
-
-
-                        <div className="absolute top-3 right-3">
-
-                          <span
-                            className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-md ${
-                              note.isFree
-                                ? "bg-green-500/90 text-white"
-                                : "bg-gray-950/80 text-white"
-                            }`}
-                          >
-                            {note.isFree
-                              ? "Free"
-                              : `₦${note.price.toLocaleString(
-                                  "en-NG"
-                                )}`}
-                          </span>
-
+                        <div
+                          className={`flex h-11 w-11 items-center justify-center rounded-xl ${goal.iconStyle}`}
+                        >
+                          <Icon className="h-5 w-5" />
                         </div>
 
-                      </div>
 
-
-                      {/* CONTENT */}
-
-                      <div className="p-5">
-
-                        <div className="flex items-center gap-1.5 text-amber-300 text-[10px] font-semibold uppercase tracking-wider mb-2">
-
-                          <FileText className="w-3 h-3" />
-
-                          Lesson Note
-
-                        </div>
-
-                        <h3 className="font-heading font-bold text-white text-base mb-2 line-clamp-2 group-hover:text-amber-200 transition-colors">
-                          {note.title}
-                        </h3>
-
-                        <p className="text-gray-500 text-xs mb-1">
-                          By {note.tutorName}
+                        <p className="mt-6 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                          {
+                            goal.eyebrow
+                          }
                         </p>
 
-                        <p className="text-gray-500 text-xs mb-4">
-                          {note.subject ||
-                            "General"}
+                        <h3 className="mt-1 font-heading text-lg font-bold text-white sm:text-xl">
+                          {
+                            goal.title
+                          }
+                        </h3>
 
-                          {" · "}
+                        <p className="mt-3 text-sm leading-6 text-slate-400">
+                          {
+                            goal.description
+                          }
+                        </p>
 
-                          {note.studentClass
-                            ? note.studentClass.toUpperCase()
-                            : "All levels"}
 
-                          {note.weekCount > 0 && (
-                            <>
-                              {" · "}
-                              {note.weekCount}{" "}
-                              week
-                              {note.weekCount !== 1
-                                ? "s"
-                                : ""}
-                            </>
+                        <div className="mt-5 flex flex-wrap gap-1.5">
+
+                          {goal.examples.map(
+                            (
+                              example
+                            ) => (
+                              <span
+                                key={
+                                  example
+                                }
+                                className="rounded-full border border-white/[0.08] bg-slate-950/30 px-2.5 py-1 text-[10px] font-medium text-slate-300"
+                              >
+                                {
+                                  example
+                                }
+                              </span>
+                            )
                           )}
-                        </p>
-
-                        <div className="flex items-center justify-between">
-
-                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400">
-
-                            <Download className="w-3.5 h-3.5" />
-
-                            View Resource
-
-                          </span>
-
-                          <ChevronRight className="w-4 h-4 text-amber-400 transition-transform group-hover:translate-x-1" />
 
                         </div>
 
                       </div>
-
-                    </Link>
-                  )
+                    );
+                  }
                 )}
 
               </div>
-
-            )}
-
-
-            <div className="text-center mt-9">
-
-              <Link
-                href="/lesson-notes"
-                className="group inline-flex items-center gap-2 px-6 py-3 border border-white/15 bg-white/[0.05] text-white font-semibold rounded-xl hover:bg-white/[0.09] transition-all text-sm"
-              >
-                Browse Lesson Notes
-
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Link>
 
             </div>
 
@@ -1571,74 +1350,85 @@ export default async function HomePage() {
         </section>
 
 
-        {/* ==================================================
-            EXAM PREP FEATURE
-        =================================================== */}
+        {/* ====================================================
+            CAREER + CERTIFICATE
+        ===================================================== */}
 
         <section className="py-16 sm:py-20 lg:py-24">
 
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
-            <div className="relative overflow-hidden rounded-[32px] border border-blue-500/20 bg-gradient-to-br from-blue-950 via-indigo-950/90 to-purple-950 p-6 sm:p-10 lg:p-12">
+            <div className="relative overflow-hidden rounded-[32px] border border-violet-400/20 bg-gradient-to-br from-blue-950 via-indigo-950 to-violet-950 p-6 sm:p-9 lg:p-12">
 
-              {/* Background decoration */}
+              <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-violet-500/20 blur-[90px]" />
 
-              <div className="pointer-events-none absolute -top-24 -right-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl" />
-
-              <div className="pointer-events-none absolute -bottom-24 left-1/4 w-72 h-72 bg-purple-500/15 rounded-full blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-20 left-1/4 h-64 w-64 rounded-full bg-blue-500/20 blur-[100px]" />
 
 
-              <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-10 lg:items-center">
+              <div className="relative grid gap-10 lg:grid-cols-2 lg:items-center">
 
                 {/* LEFT */}
 
                 <div>
 
-                  <div className="inline-flex items-center gap-2 border border-green-400/20 bg-green-500/10 rounded-full px-3 py-1.5 mb-5">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1.5">
 
-                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <Award className="h-3.5 w-3.5 text-amber-300" />
 
-                    <span className="text-green-200 text-xs font-semibold">
-                      Free practice available
+                    <span className="text-xs font-bold text-amber-100">
+                      Learn. Complete. Show What You Achieved.
                     </span>
 
                   </div>
 
-                  <span className="block text-blue-300 text-xs font-bold uppercase tracking-[0.17em] mb-3">
-                    Exam Preparation
-                  </span>
 
-                  <h2 className="font-heading text-2xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
-                    Prepare Smarter.
-                    <br />
-                    Perform Better.
+                  <h2 className="mt-5 font-heading text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
+                    Build Skills That Keep You{" "}
+                    <span className="text-blue-300">
+                      Career-Ready.
+                    </span>
                   </h2>
 
-                  <p className="text-indigo-100/70 text-sm sm:text-base leading-relaxed mt-5 max-w-xl">
-                    Practise JAMB, WAEC and NECO questions,
-                    challenge yourself with exam-style tests and
-                    improve your confidence before exam day.
+
+                  <p className="mt-5 max-w-xl text-sm leading-7 text-indigo-100/70 sm:text-base">
+
+                    The goal is not simply to finish a course.
+                    It is to leave with stronger knowledge,
+                    practical skills and evidence of what you
+                    have completed.
+
                   </p>
 
 
-                  <div className="flex flex-col sm:flex-row gap-3 mt-7">
+                  <p className="mt-4 max-w-xl text-sm leading-7 text-indigo-100/70 sm:text-base">
+
+                    Eligible live tutoring programmes and
+                    self-paced courses can offer completion
+                    certificates, giving learners another way
+                    to document skills as they build a
+                    portfolio, apply for opportunities and
+                    scale their careers.
+
+                  </p>
+
+
+                  <div className="mt-7 flex flex-col gap-3 sm:flex-row">
 
                     <Link
-                      href="/exam-prep/register"
-                      className="group inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-indigo-800 font-bold rounded-xl hover:bg-blue-50 transition-all text-sm"
+                      href="/courses"
+                      className="group inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-indigo-950 transition hover:bg-blue-50"
                     >
-                      Start Exam Prep
+                      Learn With a Live Tutor
 
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </Link>
 
-                    <Link
-                      href="/exam-prep/take"
-                      className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white/10 border border-white/20 text-white font-semibold rounded-xl hover:bg-white/15 transition-all text-sm"
-                    >
-                      <PlayCircle className="w-4 h-4" />
 
-                      Take Practice Exam
+                    <Link
+                      href="/self-paced"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.07] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.12]"
+                    >
+                      Browse Self-Paced Courses
                     </Link>
 
                   </div>
@@ -1650,73 +1440,43 @@ export default async function HomePage() {
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.07] backdrop-blur p-4 sm:p-5">
+                  <CareerCard
+                    icon={
+                      Code2
+                    }
+                    title="Build"
+                    description="Develop a practical skill."
+                  />
 
-                    <BrainCircuit className="w-6 h-6 text-blue-300 mb-5" />
+                  <CareerCard
+                    icon={
+                      Target
+                    }
+                    title="Practise"
+                    description="Apply what you are learning."
+                    raised
+                  />
 
-                    <p className="font-heading text-xl sm:text-2xl font-bold text-white">
-                      JAMB
-                    </p>
+                  <CareerCard
+                    icon={
+                      Award
+                    }
+                    title="Complete"
+                    description="Earn an eligible certificate."
+                  />
 
-                    <p className="text-indigo-200/60 text-xs mt-1">
-                      Practice questions
-                    </p>
-
-                  </div>
-
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.07] backdrop-blur p-4 sm:p-5 mt-5">
-
-                    <FileQuestion className="w-6 h-6 text-purple-300 mb-5" />
-
-                    <p className="font-heading text-xl sm:text-2xl font-bold text-white">
-                      WAEC
-                    </p>
-
-                    <p className="text-indigo-200/60 text-xs mt-1">
-                      Exam preparation
-                    </p>
-
-                  </div>
-
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.07] backdrop-blur p-4 sm:p-5">
-
-                    <Trophy className="w-6 h-6 text-amber-300 mb-5" />
-
-                    <p className="font-heading text-xl sm:text-2xl font-bold text-white">
-                      NECO
-                    </p>
-
-                    <p className="text-indigo-200/60 text-xs mt-1">
-                      Test your knowledge
-                    </p>
-
-                  </div>
-
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.07] backdrop-blur p-4 sm:p-5 mt-5">
-
-                    <TrendingUp className="w-6 h-6 text-green-300 mb-5" />
-
-                    <p className="font-heading text-xl sm:text-2xl font-bold text-white">
-                      Progress
-                    </p>
-
-                    <p className="text-indigo-200/60 text-xs mt-1">
-                      Improve with practice
-                    </p>
-
-                  </div>
+                  <CareerCard
+                    icon={
+                      Rocket
+                    }
+                    title="Grow"
+                    description="Use your skills to pursue your next opportunity."
+                    raised
+                  />
 
                 </div>
 
               </div>
-
-
-              <p className="relative text-indigo-200/50 text-xs mt-8">
-                Start practising without a credit card.
-              </p>
 
             </div>
 
@@ -1725,184 +1485,169 @@ export default async function HomePage() {
         </section>
 
 
-        {/* ==================================================
-            DISCORD + TUTOR TOOLING
-        =================================================== */}
+        {/* ====================================================
+            FEATURED LIVE TUTORS
+        ===================================================== */}
 
-        <section className="py-16 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
+        <section className="border-y border-white/[0.06] bg-white/[0.02] py-16 sm:py-20 lg:py-24">
 
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-
-              {/* STUDENT / DISCORD */}
-
-              <div className="rounded-[28px] border border-indigo-500/20 bg-gradient-to-br from-indigo-950/50 to-gray-950 p-6 sm:p-8">
-
-                <div className="w-12 h-12 bg-indigo-500/15 rounded-2xl flex items-center justify-center mb-6">
-
-                  <svg
-                    className="w-6 h-6 text-indigo-300"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.11 18.1.127 18.116a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
-                  </svg>
-
-                </div>
-
-                <span className="text-indigo-300 text-xs uppercase tracking-wider font-bold">
-                  Community Learning
-                </span>
-
-                <h2 className="font-heading font-bold text-2xl sm:text-3xl text-white mt-3 mb-4">
-                  Learning Doesn't Have to Be Lonely
-                </h2>
-
-                <p className="text-gray-400 text-sm sm:text-base leading-relaxed mb-6">
-                  Students enrolled with tutors can connect
-                  through structured Discord communities for live
-                  sessions, class discussions, schedules and
-                  announcements.
-                </p>
+            <SectionHeading
+              eyebrow="Live Learning"
+              title="Meet Tutors Ready to Help You Grow"
+              description="Explore verified tutors, the subjects and skills they teach, and find someone who fits your learning goals."
+              href="/tutors"
+              linkText="View All Tutors"
+            />
 
 
-                <div className="space-y-3">
+            {tutors.length ===
+            0 ? (
+              <EmptyState
+                icon={
+                  Users
+                }
+                title="New tutors are joining"
+                description="Our tutor community is growing. Check back shortly to discover more instructors."
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 
-                  {[
-                    "Private learning communities",
-                    "Class schedules and announcements",
-                    "Study alongside other learners",
-                    "Direct access to tutor-led discussions",
-                  ].map(
-                    (
-                      item
-                    ) => (
-                      <div
-                        key={item}
-                        className="flex items-center gap-3 text-gray-300 text-sm"
-                      >
+                {tutors.map(
+                  (
+                    tutor
+                  ) => (
+                    <article
+                      key={
+                        tutor._id
+                      }
+                      className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] transition duration-300 hover:-translate-y-1 hover:border-blue-500/30 hover:bg-white/[0.045]"
+                    >
 
-                        <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <div className="p-5 sm:p-6">
 
-                        <span>{item}</span>
+                        <div className="flex items-center gap-4">
 
-                      </div>
-                    )
-                  )}
-
-                </div>
-
-              </div>
-
-
-              {/* TUTOR TOOLING */}
-
-              <div className="rounded-[28px] bg-gradient-to-br from-purple-600/15 to-indigo-600/10 border border-white/10 p-6 sm:p-8">
-
-                <div className="w-12 h-12 rounded-xl bg-purple-500/15 flex items-center justify-center mb-5">
-
-                  <Briefcase className="w-6 h-6 text-purple-300" />
-
-                </div>
-
-                <span className="text-purple-300 text-xs uppercase tracking-wider font-bold">
-                  For Educators
-                </span>
-
-                <h3 className="font-heading font-bold text-white text-xl sm:text-2xl mt-3 mb-3">
-                  More Than a Place to Sell Courses
-                </h3>
-
-                <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                  Tutors get a complete workspace for managing
-                  students, teaching resources, assessments,
-                  certificates and their earnings.
-                </p>
+                          {tutor.profileImage ? (
+                            <img
+                              src={
+                                tutor.profileImage
+                              }
+                              alt={`${tutor.firstName} ${tutor.lastName}, tutor on Loran EduHub`}
+                              className="h-14 w-14 shrink-0 rounded-2xl border border-white/10 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-blue-400/10 bg-blue-500/15 font-heading text-lg font-bold text-blue-300">
+                              {getInitials(
+                                tutor.firstName,
+                                tutor.lastName
+                              )}
+                            </div>
+                          )}
 
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="min-w-0">
 
-                  {[
-                    {
-                      icon: (
-                        <FileQuestion className="w-4 h-4" />
-                      ),
-                      title:
-                        "Exams & Assignments",
-                      desc:
-                        "Create assessments and manage student submissions.",
-                    },
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="truncate font-heading text-base font-bold text-white">
+                                {
+                                  tutor.firstName
+                                }{" "}
+                                {
+                                  tutor.lastName
+                                }
+                              </h3>
 
-                    {
-                      icon: (
-                        <ScrollText className="w-4 h-4" />
-                      ),
-                      title:
-                        "Certificates",
-                      desc:
-                        "Issue certificates based on real learner performance.",
-                    },
+                              <BadgeCheck className="h-4 w-4 shrink-0 text-blue-400" />
+                            </div>
 
-                    {
-                      icon: (
-                        <Megaphone className="w-4 h-4" />
-                      ),
-                      title:
-                        "Announcements",
-                      desc:
-                        "Keep students informed about classes and updates.",
-                    },
 
-                    {
-                      icon: (
-                        <ClipboardList className="w-4 h-4" />
-                      ),
-                      title:
-                        "Course Library",
-                      desc:
-                        "Build structured teaching materials for your learners.",
-                    },
-                  ].map(
-                    (
-                      feature
-                    ) => (
-                      <div
-                        key={feature.title}
-                        className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4"
-                      >
+                            <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-blue-400">
+                              Verified Tutor
+                            </p>
 
-                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-purple-300 mb-3">
-
-                          {feature.icon}
+                          </div>
 
                         </div>
 
-                        <p className="text-white text-sm font-semibold">
-                          {feature.title}
+
+                        {tutor.courses?.length >
+                          0 && (
+                          <div className="mt-5 flex flex-wrap gap-1.5">
+
+                            {tutor.courses
+                              .slice(
+                                0,
+                                3
+                              )
+                              .map(
+                                (
+                                  course
+                                ) => (
+                                  <span
+                                    key={
+                                      course._id
+                                    }
+                                    className="max-w-full truncate rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-medium text-blue-300"
+                                  >
+                                    {
+                                      course.name
+                                    }
+                                  </span>
+                                )
+                              )}
+
+                          </div>
+                        )}
+
+
+                        <p className="mt-4 line-clamp-3 min-h-[60px] text-sm leading-6 text-slate-400">
+                          {tutor.bio ||
+                            "Learn with an experienced tutor on Loran EduHub."}
                         </p>
 
-                        <p className="text-gray-500 text-xs leading-relaxed mt-1">
-                          {feature.desc}
-                        </p>
+
+                        <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4">
+
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                            <Video className="h-3.5 w-3.5" />
+
+                            Live tutoring
+                          </span>
+
+
+                          <Link
+                            href={`/tutors/${tutor.slug}`}
+                            className="group/link inline-flex items-center gap-1.5 text-xs font-bold text-blue-400"
+                          >
+                            View Profile
+
+                            <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover/link:translate-x-1" />
+                          </Link>
+
+                        </div>
 
                       </div>
-                    )
-                  )}
 
-                </div>
-
-
-                <Link
-                  href="/auth/tutor/register"
-                  className="group inline-flex items-center gap-2 mt-7 text-purple-300 font-semibold text-sm"
-                >
-                  Apply as a Tutor
-
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Link>
+                    </article>
+                  )
+                )}
 
               </div>
+            )}
+
+
+            <div className="mt-9 text-center">
+
+              <Link
+                href="/courses"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-500"
+              >
+                Browse Live Courses
+
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
 
             </div>
 
@@ -1911,42 +1656,276 @@ export default async function HomePage() {
         </section>
 
 
-        {/* ==================================================
-            SCHOLARSHIPS / OPPORTUNITIES
-        =================================================== */}
+        {/* ====================================================
+            FEATURED SELF-PACED COURSES
+        ===================================================== */}
 
         <section className="py-16 sm:py-20 lg:py-24">
 
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
-            <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-gray-900 to-gray-950 p-6 sm:p-10">
+            <SectionHeading
+              eyebrow="Learn On Your Schedule"
+              title="Featured Self-Paced Courses"
+              description="Choose a structured course, work through the lessons at your own pace and monitor your progress as you learn."
+              href="/self-paced"
+              linkText="Browse All Courses"
+              accent="violet"
+            />
 
-              <div className="pointer-events-none absolute right-0 top-0 w-48 h-48 bg-blue-500/10 rounded-full translate-x-1/2 -translate-y-1/2 blur-2xl" />
 
-              <div className="relative flex flex-col lg:flex-row items-center gap-7 sm:gap-8">
+            {selfPacedCourses.length ===
+            0 ? (
+              <EmptyState
+                icon={
+                  Layers
+                }
+                title="Self-paced courses are coming soon"
+                description="New courses are being prepared. Check back shortly."
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-blue-500/10 border border-blue-500/10 flex items-center justify-center shrink-0">
+                {selfPacedCourses.map(
+                  (
+                    course
+                  ) => (
+                    <Link
+                      key={
+                        course._id
+                      }
+                      href={`/self-paced/${course._id}`}
+                      className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] transition duration-300 hover:-translate-y-1 hover:border-violet-500/30 hover:shadow-xl hover:shadow-violet-950/10"
+                    >
 
-                  <Briefcase className="w-8 h-8 sm:w-9 sm:h-9 text-blue-400" />
+                      <div className="relative h-44 overflow-hidden bg-white/[0.04] sm:h-48">
+
+                        {course.coverImageUrl ? (
+                          <img
+                            src={
+                              course.coverImageUrl
+                            }
+                            alt={`${course.title} self-paced course on Loran EduHub`}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-950/60 to-slate-900">
+                            <Layers className="h-10 w-10 text-violet-500/40" />
+                          </div>
+                        )}
+
+
+                        <div className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/80 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-md">
+                          Self-Paced
+                        </div>
+
+
+                        <div className="absolute right-3 top-3">
+
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-bold backdrop-blur-md ${
+                              course.isFree
+                                ? "bg-emerald-500 text-white"
+                                : "bg-slate-950/85 text-white"
+                            }`}
+                          >
+                            {course.isFree
+                              ? "Free"
+                              : formatMoney(
+                                  course.price
+                                )}
+                          </span>
+
+                        </div>
+
+                      </div>
+
+
+                      <div className="p-5">
+
+                        <h3 className="line-clamp-2 font-heading text-base font-bold text-white transition group-hover:text-violet-200">
+                          {
+                            course.title
+                          }
+                        </h3>
+
+                        <p className="mt-2 text-xs text-slate-500">
+                          By{" "}
+                          {
+                            course.tutorName
+                          }
+                        </p>
+
+
+                        <div className="mt-4 flex items-center justify-between gap-3">
+
+                          <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+                            <BookOpen className="h-3.5 w-3.5" />
+
+                            {
+                              course.weekCount
+                            }{" "}
+                            week
+                            {course.weekCount !==
+                            1
+                              ? "s"
+                              : ""}
+                          </span>
+
+
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-violet-300">
+                            <Award className="h-3.5 w-3.5" />
+
+                            Certificate
+                          </span>
+
+                        </div>
+
+
+                        <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4">
+
+                          <span className="text-xs font-bold text-slate-300">
+                            View Course
+                          </span>
+
+                          <ChevronRight className="h-4 w-4 text-violet-400 transition-transform group-hover:translate-x-1" />
+
+                        </div>
+
+                      </div>
+
+                    </Link>
+                  )
+                )}
+
+              </div>
+            )}
+
+          </div>
+
+        </section>
+
+
+        {/* ====================================================
+            EXAM PREP PROMO
+        ===================================================== */}
+
+        <section className="border-y border-white/[0.06] bg-white/[0.02] py-16 sm:py-20 lg:py-24">
+
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
+            <div className="relative overflow-hidden rounded-[32px] border border-cyan-400/20 bg-gradient-to-br from-cyan-950/80 via-blue-950/70 to-slate-950 p-6 sm:p-9 lg:p-12">
+
+              <div className="pointer-events-none absolute -right-20 -top-28 h-80 w-80 rounded-full bg-cyan-400/20 blur-[100px]" />
+
+
+              <div className="relative grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+
+                <div>
+
+                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">
+                    Exam Preparation
+                  </span>
+
+                  <h2 className="mt-3 max-w-2xl font-heading text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
+                    Don't Just Read for Your Exam.{" "}
+                    <span className="text-cyan-300">
+                      Practise for It.
+                    </span>
+                  </h2>
+
+                  <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
+                    Build familiarity with exam-style questions,
+                    test your knowledge and discover areas that
+                    need more attention before the real exam.
+                  </p>
+
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+
+                    {[
+                      "JAMB",
+                      "WAEC",
+                      "NECO",
+                      "Multiple Subjects",
+                      "Exam Practice",
+                    ].map(
+                      (
+                        item
+                      ) => (
+                        <span
+                          key={item}
+                          className="rounded-full border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-1 text-[11px] font-medium text-cyan-100"
+                        >
+                          {item}
+                        </span>
+                      )
+                    )}
+
+                  </div>
+
+
+                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+
+                    <Link
+                      href="/exam-prep/register"
+                      className="group inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400"
+                    >
+                      Start Exam Prep
+
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </Link>
+
+
+                    <Link
+                      href="/courses"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+                    >
+                      Find an Exam Tutor
+                    </Link>
+
+                  </div>
 
                 </div>
 
-                <div className="text-center lg:text-left">
 
-                  <span className="text-blue-400 text-xs font-bold uppercase tracking-wider">
-                    Opportunities
-                  </span>
+                {/* Visual grid */}
 
-                  <h3 className="font-heading font-bold text-xl sm:text-2xl text-white mt-2 mb-2">
-                    Beyond the Classroom
-                  </h3>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
 
-                  <p className="text-gray-400 text-sm sm:text-base leading-relaxed">
-                    Loran EduHub also helps students and tutors
-                    discover scholarship listings, internships
-                    and career opportunities alongside their
-                    learning journey.
-                  </p>
+                  <ExamCard
+                    icon={
+                      BrainCircuit
+                    }
+                    title="Practise"
+                    text="Answer exam-style questions."
+                  />
+
+                  <ExamCard
+                    icon={
+                      Target
+                    }
+                    title="Identify"
+                    text="Discover your weaker areas."
+                    raised
+                  />
+
+                  <ExamCard
+                    icon={
+                      TrendingUp
+                    }
+                    title="Improve"
+                    text="Build confidence through repetition."
+                  />
+
+                  <ExamCard
+                    icon={
+                      Trophy
+                    }
+                    title="Prepare"
+                    text="Walk into exam day more ready."
+                    raised
+                  />
 
                 </div>
 
@@ -1959,120 +1938,267 @@ export default async function HomePage() {
         </section>
 
 
-        {/* ==================================================
-            TESTIMONIALS
-        =================================================== */}
+        {/* ====================================================
+            LESSON NOTES
+        ===================================================== */}
 
-        <section className="py-16 sm:py-20 lg:py-24 bg-white/[0.02] border-y border-white/5">
+        <section className="py-16 sm:py-20 lg:py-24">
 
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
-            <div className="text-center max-w-2xl mx-auto mb-12">
+            <SectionHeading
+              eyebrow="Study Resources"
+              title="Featured Lesson Notes"
+              description="Find structured learning resources created by tutors for study, revision and classroom support."
+              href="/lesson-notes"
+              linkText="Browse All Notes"
+              accent="amber"
+            />
 
-              <span className="text-blue-400 font-semibold text-xs sm:text-sm uppercase tracking-wider">
-                Testimonials
+
+            {lessonNotes.length ===
+            0 ? (
+              <EmptyState
+                icon={
+                  FileText
+                }
+                title="New lesson notes are being added"
+                description="Check back shortly for more learning resources."
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+
+                {lessonNotes.map(
+                  (
+                    note
+                  ) => (
+                    <Link
+                      key={
+                        note._id
+                      }
+                      href={`/lesson-notes/${note._id}`}
+                      className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] transition duration-300 hover:-translate-y-1 hover:border-amber-500/30 hover:shadow-xl hover:shadow-amber-950/10"
+                    >
+
+                      <div className="relative h-44 overflow-hidden bg-white/[0.04] sm:h-48">
+
+                        {note.coverImageUrl ? (
+                          <img
+                            src={
+                              note.coverImageUrl
+                            }
+                            alt={`${note.title} lesson note on Loran EduHub`}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-amber-950/40 to-slate-900">
+                            <FileText className="h-10 w-10 text-amber-500/40" />
+                          </div>
+                        )}
+
+
+                        <div className="absolute right-3 top-3">
+
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                              note.isFree
+                                ? "bg-emerald-500 text-white"
+                                : "bg-slate-950/85 text-white"
+                            }`}
+                          >
+                            {note.isFree
+                              ? "Free"
+                              : formatMoney(
+                                  note.price
+                                )}
+                          </span>
+
+                        </div>
+
+                      </div>
+
+
+                      <div className="p-5">
+
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-400">
+                          {
+                            note.subject ||
+                            "Lesson Note"
+                          }
+                        </p>
+
+
+                        <h3 className="mt-2 line-clamp-2 font-heading text-base font-bold text-white transition group-hover:text-amber-200">
+                          {
+                            note.title
+                          }
+                        </h3>
+
+
+                        <p className="mt-2 text-xs text-slate-500">
+                          By{" "}
+                          {
+                            note.tutorName
+                          }
+                        </p>
+
+
+                        <div className="mt-4 flex items-center justify-between gap-3">
+
+                          <span className="text-[11px] text-slate-400">
+                            {note.studentClass
+                              ? note.studentClass.toUpperCase()
+                              : "All Levels"}
+                          </span>
+
+
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-300">
+                            <Download className="h-3.5 w-3.5" />
+
+                            Study Resource
+                          </span>
+
+                        </div>
+
+
+                        <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4">
+
+                          <span className="text-xs font-bold text-slate-300">
+                            View Note
+                          </span>
+
+                          <ChevronRight className="h-4 w-4 text-amber-400 transition-transform group-hover:translate-x-1" />
+
+                        </div>
+
+                      </div>
+
+                    </Link>
+                  )
+                )}
+
+              </div>
+            )}
+
+          </div>
+
+        </section>
+
+
+        {/* ====================================================
+            HOW IT WORKS
+        ===================================================== */}
+
+        <section className="border-y border-white/[0.06] bg-white/[0.02] py-16 sm:py-20 lg:py-24">
+
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+
+            <div className="mx-auto mb-12 max-w-2xl text-center">
+
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-blue-400">
+                Start Learning
               </span>
 
-              <h2 className="font-heading font-bold text-2xl sm:text-4xl text-white mt-3">
-                What Our Students Say
+              <h2 className="mt-3 font-heading text-3xl font-bold text-white sm:text-4xl">
+                Your Next Skill Is Only a Few Steps Away
               </h2>
 
             </div>
 
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
+            <div className="relative grid grid-cols-1 gap-8 md:grid-cols-3">
 
-              {[
-                {
-                  name:
-                    "Tunde Adeyemi",
-                  course:
-                    "Mathematics",
-                  quote:
-                    "I went from failing maths to scoring A1 in WAEC. My tutor's teaching style on Discord made everything click.",
-                  initials:
-                    "TA",
-                },
+              <div className="absolute left-[16%] right-[16%] top-8 hidden h-px bg-gradient-to-r from-blue-500/20 via-violet-500/30 to-blue-500/20 md:block" />
 
-                {
-                  name:
-                    "Blessing Okoro",
-                  course:
-                    "English Language",
-                  quote:
-                    "The free trial convinced me. After a few months, my essay writing improved tremendously.",
-                  initials:
-                    "BO",
-                },
 
-                {
-                  name:
-                    "Emeka Nwosu",
-                  course:
-                    "Computer Science",
-                  quote:
-                    "Being able to see my exam grades and assignment scores in the dashboard keeps me motivated to study harder.",
-                  initials:
-                    "EN",
-                },
-              ].map(
+              <ProcessStep
+                number="01"
+                title="Choose Your Goal"
+                description="Decide what you want to achieve — learn a language, build a skill, prepare for an exam or study a school subject."
+              />
+
+              <ProcessStep
+                number="02"
+                title="Choose How to Learn"
+                description="Learn directly with a live tutor, enrol in a self-paced course, practise exams or access lesson notes."
+              />
+
+              <ProcessStep
+                number="03"
+                title="Learn, Practise & Grow"
+                description="Complete lessons, assessments and learning activities while building knowledge you can use beyond the platform."
+              />
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ====================================================
+            PLATFORM BENEFITS
+        ===================================================== */}
+
+        <section className="py-16 sm:py-20 lg:py-24">
+
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+
+            <div className="mx-auto mb-10 max-w-2xl text-center">
+
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-blue-400">
+                One Learning Platform
+              </span>
+
+              <h2 className="mt-3 font-heading text-3xl font-bold text-white sm:text-4xl">
+                Designed Around Real Learning
+              </h2>
+
+              <p className="mt-3 text-sm leading-6 text-slate-400">
+                Useful tools for students who want to learn and
+                tutors who want to teach effectively.
+              </p>
+
+            </div>
+
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+              {PLATFORM_FEATURES.map(
                 (
-                  testimonial
-                ) => (
-                  <article
-                    key={
-                      testimonial.name
-                    }
-                    className="bg-white/[0.03] rounded-2xl p-6 border border-white/10"
-                  >
+                  feature
+                ) => {
+                  const Icon =
+                    feature.icon;
 
-                    <div className="flex items-center gap-1 mb-4">
+                  return (
+                    <div
+                      key={
+                        feature.title
+                      }
+                      className="group rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 transition hover:border-blue-500/25 hover:bg-white/[0.04] sm:p-6"
+                    >
 
-                      {[...Array(
-                        5
-                      )].map(
-                        (
-                          _,
-                          j
-                        ) => (
-                          <svg
-                            key={j}
-                            className="w-4 h-4 text-amber-400 fill-current"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        )
-                      )}
-
-                    </div>
-
-                    <p className="text-gray-300 text-sm leading-relaxed mb-6 italic">
-                      &ldquo;{testimonial.quote}&rdquo;
-                    </p>
-
-                    <div className="flex items-center gap-3">
-
-                      <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-bold text-sm">
-                        {testimonial.initials}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 transition group-hover:bg-blue-600 group-hover:text-white">
+                        <Icon className="h-5 w-5" />
                       </div>
 
-                      <div>
 
-                        <p className="font-semibold text-white text-sm">
-                          {testimonial.name}
-                        </p>
+                      <h3 className="mt-4 font-heading text-base font-bold text-white">
+                        {
+                          feature.title
+                        }
+                      </h3>
 
-                        <p className="text-gray-500 text-xs">
-                          {testimonial.course} Student
-                        </p>
-
-                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">
+                        {
+                          feature.description
+                        }
+                      </p>
 
                     </div>
-
-                  </article>
-                )
+                  );
+                }
               )}
 
             </div>
@@ -2082,56 +2208,113 @@ export default async function HomePage() {
         </section>
 
 
-        {/* ==================================================
-            FINAL CTA
-        =================================================== */}
+        {/* ====================================================
+            TUTOR CTA
+        ===================================================== */}
 
-        <section className="relative py-20 sm:py-24 lg:py-28 overflow-hidden">
+        <section className="border-y border-white/[0.06] bg-white/[0.02] py-16 sm:py-20">
 
-          <div className="pointer-events-none absolute left-1/2 bottom-0 w-[700px] h-[350px] max-w-full -translate-x-1/2 bg-blue-600/10 rounded-full blur-[120px]" />
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
 
-          <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">
+            <div className="grid gap-8 rounded-[28px] border border-white/[0.08] bg-slate-900/70 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center lg:p-10">
 
-            <div className="w-14 h-14 mx-auto rounded-2xl border border-blue-500/20 bg-blue-500/10 flex items-center justify-center mb-6">
+              <div>
 
-              <Sparkles className="w-6 h-6 text-blue-300" />
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-violet-400">
+                  For Tutors
+                </span>
+
+                <h2 className="mt-3 font-heading text-2xl font-bold text-white sm:text-3xl">
+                  Turn What You Know Into Learning Opportunities.
+                </h2>
+
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+                  Teach live courses, create self-paced
+                  programmes, publish lesson notes, manage your
+                  students and build a stronger digital teaching
+                  presence from one platform.
+                </p>
+
+              </div>
+
+
+              <Link
+                href="/auth/tutor/register"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-violet-500"
+              >
+                Apply as a Tutor
+
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
 
             </div>
 
-            <span className="text-blue-400 text-xs font-bold uppercase tracking-[0.18em]">
-              Your Learning Journey Starts Here
-            </span>
+          </div>
 
-            <h2 className="font-heading font-bold text-3xl sm:text-4xl lg:text-5xl text-white mt-3 leading-tight">
-              Ready to Take the Next Step?
-            </h2>
+        </section>
 
-            <p className="text-gray-400 text-sm sm:text-base max-w-xl mx-auto mt-4 leading-relaxed">
-              Learn with a tutor, take a self-paced course,
-              access lesson notes or start preparing for your
-              exams today.
+
+        {/* ====================================================
+            FINAL CTA
+        ===================================================== */}
+
+        <section className="relative overflow-hidden py-20 sm:py-24 lg:py-28">
+
+          <div className="pointer-events-none absolute left-1/2 bottom-0 h-[350px] w-[750px] max-w-full -translate-x-1/2 rounded-full bg-blue-600/10 blur-[120px]" />
+
+
+          <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-6">
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10">
+              <Rocket className="h-6 w-6 text-blue-300" />
+            </div>
+
+
+            <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-blue-400">
+              Start Building Your Future
             </p>
 
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+            <h2 className="mt-3 font-heading text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
+              What Would You Like to Learn Next?
+            </h2>
+
+
+            <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
+
+              Your next language, technical skill, exam result
+              or career opportunity can start with one decision:
+              begin learning.
+
+            </p>
+
+
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
 
               <Link
-                href="/auth/student/register"
-                className="group inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-all w-full sm:w-auto"
+                href="/courses"
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-7 py-3.5 text-sm font-bold text-white transition hover:bg-blue-500 sm:w-auto"
               >
-                Get Started
+                Explore Live Courses
 
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
 
+
               <Link
-                href="/tutors"
-                className="inline-flex items-center justify-center px-7 py-3.5 border border-white/15 bg-white/[0.05] text-white font-semibold rounded-xl hover:bg-white/[0.09] transition-all w-full sm:w-auto"
+                href="/self-paced"
+                className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 bg-white/[0.05] px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-white/[0.09] sm:w-auto"
               >
-                Browse Tutors
+                Learn at Your Own Pace
               </Link>
 
             </div>
+
+
+            <p className="mt-5 text-[11px] text-slate-600">
+              Live tutoring • Self-paced learning • Exam
+              preparation • Lesson notes
+            </p>
 
           </div>
 
@@ -2141,5 +2324,231 @@ export default async function HomePage() {
 
       <Footer />
     </>
+  );
+}
+
+// ============================================================
+// SECTION HEADING
+// ============================================================
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+  href,
+  linkText,
+  accent = "blue",
+}: {
+  eyebrow: string;
+
+  title: string;
+
+  description: string;
+
+  href: string;
+
+  linkText: string;
+
+  accent?:
+    | "blue"
+    | "violet"
+    | "amber";
+}) {
+  const accentClass =
+    accent ===
+    "violet"
+      ? "text-violet-400"
+      : accent ===
+          "amber"
+        ? "text-amber-400"
+        : "text-blue-400";
+
+  return (
+    <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+
+      <div className="max-w-2xl">
+
+        <span
+          className={`text-xs font-bold uppercase tracking-[0.18em] ${accentClass}`}
+        >
+          {eyebrow}
+        </span>
+
+        <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          {title}
+        </h2>
+
+        <p className="mt-3 text-sm leading-6 text-slate-400 sm:text-base">
+          {description}
+        </p>
+
+      </div>
+
+
+      <Link
+        href={href}
+        className={`group inline-flex shrink-0 items-center gap-2 text-sm font-bold ${accentClass}`}
+      >
+        {linkText}
+
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+      </Link>
+
+    </div>
+  );
+}
+
+// ============================================================
+// CAREER CARD
+// ============================================================
+
+function CareerCard({
+  icon: Icon,
+  title,
+  description,
+  raised = false,
+}: {
+  icon: any;
+
+  title: string;
+
+  description: string;
+
+  raised?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-sm sm:p-5 ${
+        raised
+          ? "mt-5"
+          : ""
+      }`}
+    >
+
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.07] text-blue-300">
+        <Icon className="h-5 w-5" />
+      </div>
+
+      <p className="mt-5 font-heading text-lg font-bold text-white">
+        {title}
+      </p>
+
+      <p className="mt-1 text-xs leading-5 text-indigo-100/60">
+        {description}
+      </p>
+
+    </div>
+  );
+}
+
+// ============================================================
+// EXAM CARD
+// ============================================================
+
+function ExamCard({
+  icon: Icon,
+  title,
+  text,
+  raised = false,
+}: {
+  icon: any;
+
+  title: string;
+
+  text: string;
+
+  raised?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur sm:p-5 ${
+        raised
+          ? "mt-5"
+          : ""
+      }`}
+    >
+
+      <Icon className="h-6 w-6 text-cyan-300" />
+
+      <p className="mt-5 font-heading text-lg font-bold text-white">
+        {title}
+      </p>
+
+      <p className="mt-1 text-xs leading-5 text-slate-400">
+        {text}
+      </p>
+
+    </div>
+  );
+}
+
+// ============================================================
+// PROCESS STEP
+// ============================================================
+
+function ProcessStep({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+
+  title: string;
+
+  description: string;
+}) {
+  return (
+    <div className="relative text-center">
+
+      <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-slate-950 shadow-xl">
+        <span className="font-heading text-lg font-bold text-blue-400">
+          {number}
+        </span>
+      </div>
+
+
+      <h3 className="mt-5 font-heading text-lg font-bold text-white">
+        {title}
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-400">
+        {description}
+      </p>
+
+    </div>
+  );
+}
+
+// ============================================================
+// EMPTY STATE
+// ============================================================
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: any;
+
+  title: string;
+
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-12 text-center">
+
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.04] text-slate-500">
+        <Icon className="h-5 w-5" />
+      </div>
+
+      <p className="mt-4 text-sm font-semibold text-slate-300">
+        {title}
+      </p>
+
+      <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-500">
+        {description}
+      </p>
+
+    </div>
   );
 }
