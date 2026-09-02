@@ -1,24 +1,10 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import ExamPrepSidebar from '@/components/examprep/ExamPrepSidebar'
 
-export default function ExamPrepDashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const [checked, setChecked] = useState(false)
-
-  useEffect(() => {
-    const reg = localStorage.getItem('examPrepRegNumber')
-    if (!reg) { router.push('/exam-prep/take'); return }
-    setChecked(true)
-  }, [])
-
-  if (!checked) return null
-
+export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       <ExamPrepSidebar />
-      <div className="lg:pl-60 pt-16 lg:pt-0">{children}</div>
+      <main className="min-h-screen pt-16 lg:ml-64 lg:pt-0">{children}</main>
     </div>
   )
 }

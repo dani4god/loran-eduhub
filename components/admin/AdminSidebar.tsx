@@ -115,14 +115,20 @@ const navigationGroups: {
         icon: FileText,
       },
       {
-        href: "/admin/live-exams",
-        label: "Live Exams",
+        href: "/admin/exam-arena",
+        label: "Exam Arena",
         icon: Radio,
       },
       {
         href: "/admin/exam-prep",
         label: "Exam Prep",
         icon: FileQuestion,
+        exact: true,
+      },
+      {
+        href: "/admin/exam-prep/settings",
+        label: "Exam Prep Settings",
+        icon: Settings,
       },
     ],
   },

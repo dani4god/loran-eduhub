@@ -1,61 +1,80 @@
-// components/examprep/ExamPrepSidebar.tsx
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { FileQuestion, Radio, History, BarChart3, MessageSquare, LogOut, Menu, X, GraduationCap } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { BarChart3, BrainCircuit, ClipboardList, History, LogOut, Menu, Target, Trophy, X } from 'lucide-react'
+import { useState } from 'react'
+import { useExamPrepStudent } from '@/hooks/useExamPrepStudent'
 
-const navItems = [
-  { name: 'Take Exam', href: '/exam-prep/dashboard/take', icon: FileQuestion },
-  { name: 'Live Exams', href: '/exam-prep/dashboard/live-exams', icon: Radio },
-  { name: 'History', href: '/exam-prep/dashboard/history', icon: History },
-  { name: 'Analytics', href: '/exam-prep/dashboard/analytics', icon: BarChart3 },
-  { name: 'Discord', href: '/exam-prep/dashboard/discord', icon: MessageSquare },
+const links = [
+  { href: '/exam-prep/dashboard', label: 'Overview', icon: BarChart3 },
+  { href: '/exam-prep/dashboard/take', label: 'Practice Exam', icon: ClipboardList },
+  { href: '/exam-prep/dashboard/analytics', label: 'AI Performance', icon: BrainCircuit },
+  { href: '/exam-prep/dashboard/live-exams', label: 'Exam Arena', icon: Trophy },
+  { href: '/exam-prep/dashboard/mistakes', label: 'Mistake Bank', icon: Target },
+  { href: '/exam-prep/dashboard/history', label: 'History', icon: History },
 ]
 
 export default function ExamPrepSidebar() {
   const pathname = usePathname()
-  const router = useRouter()
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const { student, logout } = useExamPrepStudent()
+  const [open, setOpen] = useState(false)
 
-  const logout = () => {
-    localStorage.removeItem('examPrepRegNumber')
-    router.push('/exam-prep/take')
-  }
+  const nav = (
+    <>
+      <div className="border-b border-slate-800 p-5">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-400">Loran EduHub</p>
+        <p className="mt-1 text-lg font-bold text-white">Exam Prep</p>
+      </div>
 
-  const NavList = () => (
-    <nav className="flex-1 px-3 py-4 space-y-1">
-      {navItems.map((item) => (
-        <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${pathname === item.href ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800'}`}>
-          <item.icon size={16} /> {item.name}
-        </Link>
-      ))}
-    </nav>
+      <div className="flex-1 space-y-1 p-3">
+        {links.map(({ href, label, icon: Icon }) => {
+          const active = href === '/exam-prep/dashboard' ? pathname === href : pathname.startsWith(href)
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setOpen(false)}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold ${
+                active ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Icon size={17} />
+              {label}
+            </Link>
+          )
+        })}
+      </div>
+
+      <div className="border-t border-slate-800 p-4">
+        {student && (
+          <div className="mb-3">
+            <p className="truncate text-sm font-semibold text-white">{student.fullName}</p>
+            <p className="text-[10px] text-slate-500">{student.regNumber}</p>
+          </div>
+        )}
+        <button onClick={logout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs text-slate-400 hover:bg-red-500/10 hover:text-red-300">
+          <LogOut size={15} /> Log out
+        </button>
+      </div>
+    </>
   )
 
   return (
     <>
-      <div className="lg:hidden fixed top-0 inset-x-0 h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 z-30">
-        <button onClick={() => setMobileOpen(true)} className="p-2 text-gray-200"><Menu size={20} /></button>
-        <div className="flex items-center gap-2"><GraduationCap size={16} className="text-blue-400" /><span className="text-white font-bold text-sm">Exam Prep</span></div>
-        <div className="w-9" />
-      </div>
-
-      <aside className="hidden lg:flex bg-gray-900 text-white w-60 fixed inset-y-0 left-0 z-20 flex-col">
-        <div className="p-4 border-b border-gray-800 flex items-center gap-2"><GraduationCap size={18} className="text-blue-400" /><span className="font-bold text-sm">Exam Prep</span></div>
-        <NavList />
-        <div className="p-4 border-t border-gray-800"><button onClick={logout} className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-red-600/20 hover:text-red-400 rounded-xl text-sm"><LogOut size={16} /> Logout</button></div>
-      </aside>
-
-      <div className={`lg:hidden fixed inset-0 z-40 transition-opacity ${mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-        <aside className={`absolute inset-y-0 left-0 w-64 bg-gray-900 text-white flex flex-col transition-transform ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="p-4 border-b border-gray-800 flex justify-between items-center"><span className="font-bold text-sm">Exam Prep</span><button onClick={() => setMobileOpen(false)}><X size={18} /></button></div>
-          <NavList />
-          <div className="p-4 border-t border-gray-800"><button onClick={logout} className="w-full flex items-center gap-2 px-3 py-2.5 text-gray-300 rounded-xl text-sm"><LogOut size={16} /> Logout</button></div>
-        </aside>
-      </div>
+      <button onClick={() => setOpen(true)} className="fixed left-4 top-4 z-40 rounded-xl bg-slate-950 p-2.5 text-white lg:hidden">
+        <Menu size={20} />
+      </button>
+      <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col bg-slate-950 lg:flex">{nav}</aside>
+      {open && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+          <aside className="relative flex h-full w-72 flex-col bg-slate-950">
+            <button onClick={() => setOpen(false)} className="absolute right-3 top-3 p-2 text-slate-400"><X size={18} /></button>
+            {nav}
+          </aside>
+        </div>
+      )}
     </>
   )
 }

@@ -4,6 +4,15 @@ import ExamPrepSettings from '@/models/ExamPrepSettings'
 
 export async function GET() {
   await connectDB()
-  const settings = await ExamPrepSettings.findOne({ key: 'global' })
-  return NextResponse.json({ plans: (settings?.plans || []).filter((p: any) => p.enabled) })
+  const settings = await ExamPrepSettings.findOneAndUpdate(
+    { key: 'global' },
+    { $setOnInsert: { key: 'global' } },
+    { upsert: true, new: true }
+  ).lean()
+
+  return NextResponse.json({
+    isLocked: !!settings?.isLocked,
+    isPaid: !!settings?.isPaid,
+    plans: (settings?.plans || []).filter((plan: any) => plan.enabled),
+  })
 }

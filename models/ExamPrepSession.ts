@@ -1,25 +1,33 @@
-// models/ExamPrepSession.ts
-import mongoose, { Schema, Document, Model } from 'mongoose'
+import mongoose, { Schema, Model } from 'mongoose'
 
-export interface IExamPrepSession extends Document {
-  sessionToken: string
-  examPrepStudentId: mongoose.Types.ObjectId
-  examType: string
-  subject: string
-  questions: { id: string; text: string; options: any; correctAnswer: string }[]
-  durationMinutes: number
-  used: boolean
-  expiresAt: Date
-  createdAt: Date
-}
+const QuestionSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    fingerprint: { type: String, required: true },
+    text: { type: String, required: true },
+    options: { type: Schema.Types.Mixed, required: true },
+    correctAnswer: { type: String, required: true },
+    subject: { type: String, required: true },
+    topic: { type: String, default: 'General' },
+    subtopic: { type: String, default: '' },
+    difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+    standard: { type: String, enum: ['jamb', 'waec', 'neco', 'igcse', 'mixed'], required: true },
+    source: { type: String, enum: ['aloc', 'ai', 'competition'], required: true },
+    explanation: { type: String, default: '' },
+    section: { type: String, default: '' },
+    imageUrl: { type: String, default: '' },
+  },
+  { _id: false }
+)
 
-const ExamPrepSessionSchema = new Schema<IExamPrepSession>(
+const ExamPrepSessionSchema = new Schema(
   {
     sessionToken: { type: String, required: true, unique: true },
-    examPrepStudentId: { type: Schema.Types.ObjectId, ref: 'ExamPrepStudent', required: true },
-    examType: { type: String, required: true },
+    examPrepStudentId: { type: Schema.Types.ObjectId, ref: 'ExamPrepStudent', required: true, index: true },
+    examType: { type: String, enum: ['jamb', 'waec', 'neco', 'igcse', 'mixed'], required: true },
     subject: { type: String, required: true },
-    questions: [{ id: String, text: String, options: Schema.Types.Mixed, correctAnswer: String }],
+    studentClass: { type: String, enum: ['ss1', 'ss2', 'ss3'], required: true },
+    questions: { type: [QuestionSchema], default: [] },
     durationMinutes: { type: Number, required: true },
     used: { type: Boolean, default: false },
     expiresAt: { type: Date, required: true },
@@ -27,9 +35,10 @@ const ExamPrepSessionSchema = new Schema<IExamPrepSession>(
   { timestamps: true }
 )
 
-// Mongo TTL index — expired sessions self-delete, no cleanup job needed.
 ExamPrepSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 
-const ExamPrepSession: Model<IExamPrepSession> =
-  mongoose.models.ExamPrepSession || mongoose.model<IExamPrepSession>('ExamPrepSession', ExamPrepSessionSchema)
+const ExamPrepSession: Model<any> =
+  mongoose.models.ExamPrepSession ||
+  mongoose.model('ExamPrepSession', ExamPrepSessionSchema)
+
 export default ExamPrepSession

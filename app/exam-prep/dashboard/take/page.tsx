@@ -1,71 +1,129 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { StudyWithTutorAd, JoinDiscordAd } from '@/components/examprep/ExamPrepDiscordCTA'
+
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Clock, Loader2 } from 'lucide-react'
-import { ALOC_AVAILABLE_YEARS } from '@/lib/alocApi'
 
-const SUBJECTS_BY_TYPE: Record<string, string[]> = {
-  jamb: ['mathematics', 'english', 'physics', 'chemistry', 'biology', 'economics', 'government'],
-  waec: ['mathematics', 'english', 'physics', 'chemistry', 'biology', 'economics', 'government', 'literature'],
-  neco: ['mathematics', 'english', 'physics', 'chemistry', 'biology', 'economics', 'government'],
-}
-const DURATIONS = [15, 30, 45, 60]
-
-export default function TakeExamPage() {
-  const [examType, setExamType] = useState('jamb')
+export default function TakePage() {
+  const [catalog, setCatalog] = useState<any[]>([])
+  const [studentClass, setStudentClass] = useState('ss3')
+  const [category, setCategory] = useState('core')
   const [subject, setSubject] = useState('')
+  const [examType, setExamType] = useState('jamb')
+  const [durationMinutes, setDurationMinutes] = useState(30)
   const [year, setYear] = useState('')
-  const [duration, setDuration] = useState(30)
-  const [loadingQ, setLoadingQ] = useState(false)
   const [session, setSession] = useState<any>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [current, setCurrent] = useState(0)
-  const [secondsLeft, setSecondsLeft] = useState(0)
+  const [seconds, setSeconds] = useState(0)
   const [result, setResult] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  const regNumber = typeof window !== 'undefined' ? localStorage.getItem('examPrepRegNumber') : null
+  const submitted = useRef(false)
+  const sessionRef = useRef<any>(null)
+  const answersRef = useRef<Record<string, string>>({})
+  const secondsRef = useRef(0)
 
   useEffect(() => {
-    if (!session || secondsLeft <= 0) return
-    const t = setInterval(() => setSecondsLeft((s) => { if (s <= 1) { submit(); return 0 } return s - 1 }), 1000)
-    return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session])
+    fetch('/api/exam-prep/subjects').then(r => r.json()).then(d => setCatalog(d.categories || []))
 
-  const startExam = async () => {
-    if (!subject) return
-    setLoadingQ(true); setError(''); setResult(null)
-    try {
-      const res = await fetch('/api/exam-prep/exam/start', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ regNumber, examType, subject, year: year || undefined, durationMinutes: duration }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error); return }
-      setSession(data); setAnswers({}); setCurrent(0); setSecondsLeft(data.durationMinutes * 60)
-    } finally { setLoadingQ(false) }
-  }
+    const injected = sessionStorage.getItem('examPrepInjectedSession')
+    if (injected) {
+      try {
+        const parsed = JSON.parse(injected)
+        sessionStorage.removeItem('examPrepInjectedSession')
+        setSession(parsed)
+        sessionRef.current = parsed
+        setSeconds(parsed.durationMinutes * 60)
+        secondsRef.current = parsed.durationMinutes * 60
+      } catch {}
+    }
+  }, [])
+
+  const categorySubjects = useMemo(
+    () => catalog.find((c) => c.value === category)?.subjects || [],
+    [catalog, category]
+  )
+
+  useEffect(() => { answersRef.current = answers }, [answers])
+  useEffect(() => { secondsRef.current = seconds }, [seconds])
 
   const submit = async () => {
+    const activeSession = sessionRef.current
+    if (!activeSession || submitted.current) return
+    submitted.current = true
+
     const res = await fetch('/api/exam-prep/exam/submit', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionToken: session.sessionToken, answers, durationSeconds: session.durationMinutes * 60 - secondsLeft }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionToken: activeSession.sessionToken,
+        answers: answersRef.current,
+        durationSeconds: activeSession.durationMinutes * 60 - secondsRef.current,
+      }),
     })
+
     const data = await res.json()
-    setResult(data); setSession(null)
+    if (!res.ok) {
+      submitted.current = false
+      setError(data.error)
+      return
+    }
+
+    setResult(data)
+    setSession(null)
+    sessionRef.current = null
   }
 
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+  useEffect(() => {
+    if (!session || result) return
+    const timer = setInterval(() => {
+      setSeconds((s) => {
+        if (s <= 1) {
+          setTimeout(submit, 0)
+          return 0
+        }
+        return s - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [session, result])
+
+  const start = async () => {
+    setLoading(true)
+    setError('')
+    submitted.current = false
+    try {
+      const res = await fetch('/api/exam-prep/exam/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ examType, subject, studentClass, durationMinutes, year: year || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSession(data)
+      sessionRef.current = data
+      setSeconds(data.durationMinutes * 60)
+      secondsRef.current = data.durationMinutes * 60
+      setAnswers({})
+      setCurrent(0)
+    } catch (error: any) {
+      setError(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (result) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-center mb-4">
-          <p className="text-3xl font-bold text-blue-600 mb-1">{result.percentage}%</p>
-          <p className="text-sm text-gray-600">You scored {result.score} out of {result.total}</p>
+      <div className="mx-auto max-w-lg px-4 py-8">
+        <div className="rounded-3xl bg-white p-7 text-center shadow-sm">
+          <p className="text-5xl font-black text-blue-600">{result.percentage}%</p>
+          <p className="mt-2 text-sm text-slate-500">{result.score}/{result.total} correct</p>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button onClick={() => setResult(null)} className="rounded-xl border py-3 text-sm font-semibold">Take Another</button>
+            <a href="/exam-prep/dashboard/analytics" className="rounded-xl bg-slate-950 py-3 text-sm font-bold text-white">AI Analysis</a>
+          </div>
         </div>
-        <button onClick={() => setResult(null)} className="w-full py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold">Take Another Exam</button>
       </div>
     )
   }
@@ -73,83 +131,73 @@ export default function TakeExamPage() {
   if (session) {
     const q = session.questions[current]
     return (
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4 sticky top-0 bg-gray-50 py-2 z-10">
-          <p className="text-sm font-semibold text-gray-800">Question {current + 1} of {session.questions.length}</p>
-          <span className={`font-mono font-bold ${secondsLeft < 60 ? 'text-red-600' : 'text-gray-800'}`}>
-            <Clock size={14} className="inline mr-1" />{fmt(secondsLeft)}
-          </span>
+      <div className="mx-auto max-w-3xl px-4 py-6">
+        <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm">
+          <div><p className="text-sm font-bold">Question {current + 1}/{session.questions.length}</p><p className="text-[10px] text-blue-600">{q.topic}</p></div>
+          <p className="font-mono font-bold"><Clock size={14} className="mr-1 inline" />{Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          {q.imageUrl && <img src={q.imageUrl} className="w-full rounded-lg mb-3" />}
-          {q.section && (
-            // Rendered as HTML — sections/questions from ALOC can contain
-            // real markup (MathML equations, formatting) that must be
-            // interpreted, not shown as literal tags.
-            <div className="text-xs text-gray-600 mb-2 italic" dangerouslySetInnerHTML={{ __html: q.section }} />
-          )}
-          <div className="text-sm font-semibold text-gray-900 mb-4" dangerouslySetInnerHTML={{ __html: q.text }} />
-          {Object.entries(q.options || {}).map(([key, val]: any) => (
-            <label key={key} className="flex items-center gap-2 text-sm text-gray-800 mb-2 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50">
-              <input type="radio" name={q.id} checked={answers[q.id] === key} onChange={() => setAnswers({ ...answers, [q.id]: key })} />
-              <span className="font-semibold uppercase shrink-0">{key}.</span>
-              <span dangerouslySetInnerHTML={{ __html: val }} />
-            </label>
+
+        <div className="rounded-2xl border bg-white p-5">
+          {q.section && <div className="mb-3 text-xs text-slate-600" dangerouslySetInnerHTML={{ __html: q.section }} />}
+          {q.imageUrl && <img src={q.imageUrl} alt="" className="mb-4 max-h-72 rounded-xl object-contain" />}
+          <div className="font-semibold leading-7" dangerouslySetInnerHTML={{ __html: q.text }} />
+
+          <div className="mt-5 space-y-2">
+            {Object.entries(q.options || {}).map(([key, value]) => (
+              <button key={key} onClick={() => setAnswers({ ...answers, [q.id]: key })} className={`w-full rounded-xl border p-3 text-left text-sm ${answers[q.id] === key ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
+                <b className="mr-2 uppercase">{key}.</b>{String(value)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-6 gap-1.5 sm:grid-cols-10">
+          {session.questions.map((item: any, index: number) => (
+            <button key={item.id} onClick={() => setCurrent(index)} className={`rounded-lg py-2 text-[10px] font-bold ${index === current ? 'bg-slate-950 text-white' : answers[item.id] ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{index+1}</button>
           ))}
         </div>
 
-        <div className="flex gap-2 mt-4">
-          <button onClick={() => setCurrent((c) => Math.max(0, c - 1))} disabled={current === 0} className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-semibold disabled:opacity-30">Previous</button>
-          {current < session.questions.length - 1 ? (
-            <button onClick={() => setCurrent((c) => c + 1)} className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold">Next</button>
-          ) : (
-            <button onClick={submit} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold">Submit Exam</button>
-          )}
+        <div className="mt-4 flex gap-2">
+          <button disabled={current === 0} onClick={() => setCurrent(current - 1)} className="flex-1 rounded-xl border py-3 text-sm font-semibold disabled:opacity-30">Previous</button>
+          {current < session.questions.length - 1
+            ? <button onClick={() => setCurrent(current + 1)} className="flex-1 rounded-xl bg-slate-950 py-3 text-sm font-bold text-white">Next</button>
+            : <button onClick={submit} className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white">Submit</button>}
         </div>
-
-        <StudyWithTutorAd />
-        <JoinDiscordAd />
+        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
       </div>
     )
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-8">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Take a Practice Exam</h1>
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Exam Type</label>
-          <select value={examType} onChange={(e) => { setExamType(e.target.value); setSubject('') }} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900">
-            <option value="jamb">JAMB</option>
-            <option value="waec">WAEC</option>
-            <option value="neco">NECO</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Subject</label>
-          <select value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900">
-            <option value="">Select subject...</option>
-            {SUBJECTS_BY_TYPE[examType].map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Year</label>
-          <select value={year} onChange={(e) => setYear(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900">
-            <option value="">Any year</option>
-            {ALOC_AVAILABLE_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Duration</label>
-          <select value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900">
-            {DURATIONS.map((d) => <option key={d} value={d}>{d} minutes</option>)}
-          </select>
-        </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
-        <button onClick={startExam} disabled={!subject || loadingQ} className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-          {loadingQ && <Loader2 size={15} className="animate-spin" />} Start Exam
-        </button>
+    <div className="mx-auto max-w-2xl px-4 py-6">
+      <h1 className="text-2xl font-bold">Practice Exam</h1>
+      <p className="mt-1 text-sm text-slate-500">Subjects come directly from your SS category catalog.</p>
+
+      <div className="mt-5 space-y-4 rounded-2xl border bg-white p-5">
+        <Select label="Class" value={studentClass} setValue={setStudentClass} options={[["ss1","SS 1"],["ss2","SS 2"],["ss3","SS 3"]]} />
+        <Select label="Category" value={category} setValue={(v:string) => { setCategory(v); setSubject('') }} options={catalog.map(c => [c.value,c.label])} />
+        <Select label="Subject" value={subject} setValue={setSubject} options={[["","Select subject"], ...categorySubjects.map((s: string) => [s,s])]} />
+        <Select label="Standard" value={examType} setValue={setExamType} options={[["jamb","JAMB"],["waec","WAEC"],["neco","NECO"],["igcse","IGCSE"],["mixed","Mixed"]]} />
+        {['jamb','waec','neco'].includes(examType) && (
+          <label className="block text-xs font-semibold text-slate-600">Year (optional)
+            <input value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2024" className="mt-1 w-full rounded-xl border px-3 py-2.5 text-sm" />
+          </label>
+        )}
+        <Select label="Duration" value={String(durationMinutes)} setValue={(v:string) => setDurationMinutes(Number(v))} options={[["15","15 minutes"],["30","30 minutes"],["45","45 minutes"],["60","60 minutes"]]} />
+
+        {error && <p className="rounded-xl bg-red-50 p-3 text-xs text-red-600">{error}</p>}
+        <button disabled={!subject || loading} onClick={start} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-50">{loading && <Loader2 size={15} className="animate-spin" />} Start Exam</button>
       </div>
     </div>
+  )
+}
+
+function Select({ label, value, setValue, options }: any) {
+  return (
+    <label className="block text-xs font-semibold text-slate-600">{label}
+      <select value={value} onChange={(e) => setValue(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2.5 text-sm">
+        {options.map(([v,l]: any) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </label>
   )
 }

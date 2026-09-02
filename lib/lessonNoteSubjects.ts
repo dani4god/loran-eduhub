@@ -1,5 +1,3 @@
-// lib/lessonNoteSubjects.ts
-
 export const LESSON_NOTE_CLASSES = [
   { value: 'jss1', label: 'JSS 1' },
   { value: 'jss2', label: 'JSS 2' },

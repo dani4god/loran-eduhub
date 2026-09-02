@@ -1,114 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import connectDB from '@/lib/mongodb'
 import ExamPrepStudent from '@/models/ExamPrepStudent'
 import ExamPrepSubscription from '@/models/ExamPrepSubscription'
 import ExamPrepSettings from '@/models/ExamPrepSettings'
-import { generateRegNumber } from '@/lib/examPrep'
+import { canonicalExamPrepSubject } from '@/lib/examPrepCatalog'
+import { hashExamPrepPin, issueExamPrepSession, setExamPrepSessionCookie, validateExamPrepPin } from '@/lib/examPrepAuth'
+
+function makeRegNumber() {
+  return `LEP-${new Date().getFullYear()}-${crypto.randomBytes(4).toString('hex').slice(0, 6).toUpperCase()}`
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const {
-      fullName,
-      location,
-      school,
-      subjectsInterested,
-    } = await req.json()
+    const { fullName, email, location, school, subjectsInterested = [], pin } = await req.json()
 
-    if (
-      !fullName?.trim() ||
-      !location?.trim() ||
-      !school?.trim()
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'Name, location, and school are required',
-        },
-        { status: 400 }
-      )
+    if (!fullName?.trim() || !email?.trim() || !location?.trim() || !school?.trim()) {
+      return NextResponse.json({ error: 'Full name, email, location and school are required.' }, { status: 400 })
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+      return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
+    }
+
+    if (!validateExamPrepPin(pin)) {
+      return NextResponse.json({ error: 'Create a 6-digit PIN.' }, { status: 400 })
     }
 
     await connectDB()
 
-    let regNumber = generateRegNumber()
-
-    while (
-      await ExamPrepStudent.exists({
-        regNumber,
-      })
-    ) {
-      regNumber = generateRegNumber()
+    const normalizedEmail = String(email).trim().toLowerCase()
+    if (await ExamPrepStudent.exists({ email: normalizedEmail })) {
+      return NextResponse.json({ error: 'This email is already registered.' }, { status: 409 })
     }
 
-    const student =
-      await ExamPrepStudent.create({
-        regNumber,
-        fullName: fullName.trim(),
-        location: location.trim(),
-        school: school.trim(),
-        subjectsInterested:
-          subjectsInterested || [],
-      })
+    let regNumber = makeRegNumber()
+    while (await ExamPrepStudent.exists({ regNumber })) regNumber = makeRegNumber()
 
-    /**
-     * Make sure global settings exist.
-     */
-    const settings =
-      await ExamPrepSettings.findOneAndUpdate(
-        { key: 'global' },
-        {
-          $setOnInsert: {
-            key: 'global',
-          },
-        },
-        {
-          upsert: true,
-          new: true,
-          setDefaultsOnInsert: true,
-        }
-      )
+    const cleanSubjects: string[] = Array.from(new Set(
+      (Array.isArray(subjectsInterested) ? subjectsInterested : [])
+        .map((s: unknown) => canonicalExamPrepSubject(String(s)))
+        .filter((subject): subject is string => typeof subject === 'string' && !!subject)
+    ))
 
-    /**
-     * IMPORTANT:
-     *
-     * Snapshot whether Exam Prep was free when
-     * this particular student registered.
-     *
-     * If it was PAID:
-     * wasFreeAtRegistration = false
-     *
-     * They will NOT get access until payment
-     * is actually verified.
-     */
+    const student = (await ExamPrepStudent.create({
+      regNumber,
+      fullName: fullName.trim(),
+      email: normalizedEmail,
+      location: location.trim(),
+      school: school.trim(),
+      subjectsInterested: cleanSubjects,
+      authPinHash: await hashExamPrepPin(String(pin)),
+      lastLoginAt: new Date(),
+    })) as { _id: any; regNumber: string }
+
+    const settings = await ExamPrepSettings.findOne({ key: 'global' })
     await ExamPrepSubscription.create({
       examPrepStudentId: student._id,
-
-      wasFreeAtRegistration:
-        !settings.isPaid,
+      wasFreeAtRegistration: !settings?.isPaid,
     })
 
-    return NextResponse.json(
-      {
-        success: true,
-        regNumber,
-        requiresPayment:
-          !!settings.isPaid,
-      },
-      { status: 201 }
-    )
-  } catch (error: any) {
-    console.error(
-      'Exam Prep registration error:',
-      error
-    )
-
-    return NextResponse.json(
-      {
-        error:
-          error?.message ||
-          'Registration failed',
-      },
-      { status: 500 }
-    )
+    const session = await issueExamPrepSession(String(student._id), req.headers.get('user-agent'))
+    const response = NextResponse.json({ success: true, regNumber: student.regNumber, requiresPayment: !!settings?.isPaid }, { status: 201 })
+    setExamPrepSessionCookie(response, session.rawToken, session.expiresAt)
+    return response
+  } catch (error) {
+    console.error('Exam Prep register:', error)
+    return NextResponse.json({ error: 'Registration failed.' }, { status: 500 })
   }
 }
