@@ -1,3 +1,4 @@
+//models/ExamPrepSettings.ts
 import mongoose, { Schema, Document, Model } from 'mongoose'
 
 export type ExamPrepPlanDuration =

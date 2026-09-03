@@ -99,11 +99,7 @@ const navigationGroups: {
         label: "Live Courses",
         icon: BookOpen,
       },
-      {
-        href: "/admin/enrollments",
-        label: "Live Enrollments",
-        icon: School,
-      },
+      
       {
         href: "/admin/self-paced-courses",
         label: "Self-Paced Courses",
@@ -125,11 +121,7 @@ const navigationGroups: {
         icon: FileQuestion,
         exact: true,
       },
-      {
-        href: "/admin/exam-prep/settings",
-        label: "Exam Prep Settings",
-        icon: Settings,
-      },
+      
     ],
   },
 

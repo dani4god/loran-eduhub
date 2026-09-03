@@ -1,3 +1,4 @@
+//models/ExamPrepSubscription.ts
 import mongoose, { Schema, Document, Model } from 'mongoose'
 
 export interface IExamPrepSubscription extends Document {

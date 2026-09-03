@@ -1,3 +1,4 @@
+//app/api/exam-prep/plans/route.ts
 import { NextResponse } from 'next/server'
 import connectDB from '@/lib/mongodb'
 import ExamPrepSettings from '@/models/ExamPrepSettings'
