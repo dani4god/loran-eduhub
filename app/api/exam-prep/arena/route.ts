@@ -275,14 +275,92 @@ async function resolveCreator(
   req: NextRequest
 ) {
   /*
-   * First attempt Exam Prep student authentication.
+   * The same Arena creation endpoint is used by both:
    *
-   * Student room creators must also have Exam Prep access,
-   * which respects:
+   * - Exam Prep students
+   * - Main-site admins
    *
-   * - global Exam Prep lock
-   * - subscription requirements
+   * A browser can have BOTH authentication cookies at once.
+   *
+   * Therefore the admin creator page explicitly sends:
+   *
+   * x-arena-creator: admin
+   *
+   * When that header exists we MUST resolve the NextAuth admin
+   * first and must not accidentally classify the request as a
+   * student because an Exam Prep student cookie also exists.
    */
+
+  const requestedCreator =
+    String(
+      req.headers.get(
+        'x-arena-creator'
+      ) || ''
+    )
+      .trim()
+      .toLowerCase()
+
+  // ==========================================================
+  // EXPLICIT ADMIN CREATION
+  // ==========================================================
+
+  if (
+    requestedCreator ===
+    'admin'
+  ) {
+    const token =
+      await getToken({
+        req,
+        secret:
+          process.env
+            .NEXTAUTH_SECRET,
+      })
+
+    if (
+      !token ||
+      String(
+        token.role || ''
+      )
+        .trim()
+        .toLowerCase() !==
+        'admin'
+    ) {
+      return {
+        ok:
+          false as const,
+
+        response:
+          NextResponse.json(
+            {
+              error:
+                'Admin access required to create an official Arena.',
+            },
+            {
+              status:
+                401,
+            }
+          ),
+      }
+    }
+
+    return {
+      ok:
+        true as const,
+
+      creatorType:
+        'admin' as const,
+
+      student:
+        null,
+
+      adminToken:
+        token,
+    }
+  }
+
+  // ==========================================================
+  // NORMAL STUDENT CREATION
+  // ==========================================================
 
   const studentAccess =
     await requireExamPrepAccess(
@@ -307,9 +385,15 @@ async function resolveCreator(
     }
   }
 
+  // ==========================================================
+  // BACKWARD-COMPATIBLE ADMIN FALLBACK
+  // ==========================================================
+
   /*
-   * If this is not an Exam Prep student request, check whether
-   * the request belongs to a main-site administrator.
+   * Keep this fallback for any older admin code that has not
+   * started sending x-arena-creator yet.
+   *
+   * It only runs when there is no valid Exam Prep student access.
    */
 
   const token =
@@ -325,6 +409,7 @@ async function resolveCreator(
     String(
       token.role || ''
     )
+      .trim()
       .toLowerCase() ===
       'admin'
   ) {
@@ -343,11 +428,6 @@ async function resolveCreator(
     }
   }
 
-  /*
-   * Preserve the Exam Prep auth/access response when neither
-   * authentication method succeeds.
-   */
-
   return {
     ok:
       false as const,
@@ -356,7 +436,6 @@ async function resolveCreator(
       studentAccess.response,
   }
 }
-
 // ============================================================
 // SUBJECT CONFIG VALIDATION
 // ============================================================

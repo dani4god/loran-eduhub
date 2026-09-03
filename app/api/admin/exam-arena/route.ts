@@ -5,7 +5,9 @@ import {
   NextResponse,
 } from 'next/server'
 
-import { getToken } from 'next-auth/jwt'
+import {
+  getToken,
+} from 'next-auth/jwt'
 
 import connectDB from '@/lib/mongodb'
 
@@ -75,8 +77,17 @@ function normalizeText(
     .trim()
 }
 
+function escapeRegex(
+  value: string
+) {
+  return value.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    '\\$&'
+  )
+}
+
 // ============================================================
-// GET ADMIN ARENAS
+// GET
 // ============================================================
 
 export async function GET(
@@ -88,20 +99,24 @@ export async function GET(
         req
       )
 
-    if (!auth.ok) {
+    if (
+      !auth.ok
+    ) {
       return auth.response
     }
 
     await connectDB()
 
-    const url =
+    const {
+      searchParams,
+    } =
       new URL(
         req.url
       )
 
     const status =
       normalizeText(
-        url.searchParams.get(
+        searchParams.get(
           'status'
         )
       )
@@ -109,10 +124,14 @@ export async function GET(
 
     const search =
       normalizeText(
-        url.searchParams.get(
+        searchParams.get(
           'search'
         )
       )
+
+    // ========================================================
+    // QUERY
+    // ========================================================
 
     const query:
       Record<
@@ -123,25 +142,33 @@ export async function GET(
         'admin',
     }
 
+    const allowedStatuses =
+      new Set([
+        'preparing',
+        'lobby',
+        'completed',
+        'cancelled',
+      ])
+
     if (
-      status ===
-        'preparing' ||
-      status ===
-        'lobby' ||
-      status ===
-        'completed' ||
-      status ===
-        'cancelled'
+      allowedStatuses.has(
+        status
+      )
     ) {
       query.status =
         status
     }
 
-    if (search) {
+    // ========================================================
+    // SEARCH NAME OR ROOM CODE
+    // ========================================================
+
+    if (
+      search
+    ) {
       const escaped =
-        search.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          '\\$&'
+        escapeRegex(
+          search
         )
 
       query.$or = [
@@ -149,20 +176,27 @@ export async function GET(
           name: {
             $regex:
               escaped,
+
             $options:
               'i',
           },
         },
+
         {
           roomCode: {
             $regex:
               escaped,
+
             $options:
               'i',
           },
         },
       ]
     }
+
+    // ========================================================
+    // ROOMS
+    // ========================================================
 
     const rooms =
       await ExamCompetitionRoom
@@ -178,6 +212,19 @@ export async function GET(
         )
         .lean()
 
+    if (
+      rooms.length ===
+      0
+    ) {
+      return NextResponse.json({
+        success:
+          true,
+
+        rooms:
+          [],
+      })
+    }
+
     const roomIds =
       rooms.map(
         (
@@ -187,53 +234,71 @@ export async function GET(
           room._id
       )
 
-    const participantCounts =
-      roomIds.length >
-      0
-        ? await ExamCompetitionParticipant
-            .aggregate([
-              {
-                $match: {
-                  roomId: {
-                    $in:
-                      roomIds,
-                  },
+    // ========================================================
+    // PARTICIPANT SUMMARY
+    // ========================================================
+
+    const participantSummary =
+      await ExamCompetitionParticipant.aggregate([
+        {
+          $match: {
+            roomId: {
+              $in:
+                roomIds,
+            },
+          },
+        },
+
+        {
+          $group: {
+            _id:
+              '$roomId',
+
+            participantCount: {
+              $sum:
+                1,
+            },
+
+            submittedRounds: {
+              $sum: {
+                $size: {
+                  $ifNull: [
+                    '$subjectResults',
+                    [],
+                  ],
                 },
               },
-              {
-                $group: {
-                  _id:
-                    '$roomId',
+            },
 
-                  count: {
-                    $sum:
-                      1,
-                  },
-                },
-              },
-            ])
-        : []
+            highestScore: {
+              $max:
+                '$totalScore',
+            },
+          },
+        },
+      ])
 
-    const countMap =
+    const summaryMap =
       new Map<
         string,
-        number
-      >(
-        participantCounts.map(
-          (
-            item:
-              any
-          ) => [
-            String(
-              item._id
-            ),
-            Number(
-              item.count ||
-                0
-            ),
-          ]
-        )
+        any
+      >()
+
+    for (
+      const item of
+      participantSummary
+    ) {
+      summaryMap.set(
+        String(
+          item._id
+        ),
+        item
       )
+    }
+
+    // ========================================================
+    // RESULT
+    // ========================================================
 
     const result =
       rooms.map(
@@ -257,7 +322,8 @@ export async function GET(
                 subject
                   ?.generationStatus ===
                 'ready'
-            ).length
+            )
+              .length
 
           const generatingSubjects =
             subjects.filter(
@@ -268,7 +334,8 @@ export async function GET(
                 subject
                   ?.generationStatus ===
                 'generating'
-            ).length
+            )
+              .length
 
           const failedSubjects =
             subjects.filter(
@@ -279,7 +346,8 @@ export async function GET(
                 subject
                   ?.generationStatus ===
                 'failed'
-            ).length
+            )
+              .length
 
           const totalQuestions =
             subjects.reduce(
@@ -337,6 +405,13 @@ export async function GET(
               0
             )
 
+          const participant =
+            summaryMap.get(
+              String(
+                room._id
+              )
+            )
+
           return {
             id:
               String(
@@ -352,6 +427,12 @@ export async function GET(
             instructions:
               room.instructions ||
               '',
+
+            official:
+              true,
+
+            creatorType:
+              room.creatorType,
 
             visibility:
               room.visibility,
@@ -370,12 +451,25 @@ export async function GET(
               ),
 
             participantCount:
-              countMap.get(
-                String(
-                  room._id
-                )
-              ) ||
-              0,
+              Number(
+                participant
+                  ?.participantCount ||
+                  0
+              ),
+
+            submittedRounds:
+              Number(
+                participant
+                  ?.submittedRounds ||
+                  0
+              ),
+
+            highestScore:
+              Number(
+                participant
+                  ?.highestScore ||
+                  0
+              ),
 
             intermissionSeconds:
               Number(

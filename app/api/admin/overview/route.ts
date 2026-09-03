@@ -16,12 +16,14 @@ import SelfPacedStudent from "@/models/SelfPacedStudent";
 
 import Tutor from "@/models/Tutor";
 
+
 import Enrollment from "@/models/Enrollment";
 import SelfPacedEnrollment from "@/models/SelfPacedEnrollment";
 
 import Payment from "@/models/Payment";
 
 import LessonNotePurchase from "@/models/LessonNotePurchase";
+import LessonNote from "@/models/LessonNote";
 
 import Admin from "@/models/Admin";
 

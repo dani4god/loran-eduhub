@@ -2,6 +2,8 @@
 
 'use client'
 
+import Link from 'next/link'
+
 import {
   useCallback,
   useEffect,
@@ -13,10 +15,8 @@ import {
   AlertCircle,
   Check,
   CheckCircle2,
-  ChevronDown,
   ChevronUp,
   Circle,
-  Clock3,
   Copy,
   Eye,
   FileQuestion,
@@ -71,29 +71,34 @@ type AdminArenaRoom = {
   roomCode: string
   name: string
   instructions: string
+
   visibility:
     | 'public'
     | 'private'
+
   status:
     | 'preparing'
     | 'lobby'
     | 'completed'
     | 'cancelled'
+
   screenShareMode:
     | 'off'
     | 'optional'
     | 'required'
+
   maxParticipants: number
   participantCount: number
   intermissionSeconds: number
+
   startedAt:
     | string
     | null
+
   createdAt: string
   totalMinutes: number
 
-  subjects:
-    AdminArenaSubject[]
+  subjects: AdminArenaSubject[]
 
   preparation: {
     totalSubjects: number
@@ -108,11 +113,13 @@ type AdminArenaRoom = {
 
 type PreparationItem = {
   subject: string
+
   status:
     | 'waiting'
     | 'generating'
     | 'ready'
     | 'failed'
+
   current: number
   total: number
   error?: string
@@ -144,34 +151,24 @@ const QUESTION_OPTIONS = [
 
 const INTERMISSION_OPTIONS = [
   {
-    value:
-      5,
-    label:
-      '5 seconds',
+    value: 5,
+    label: '5 seconds',
   },
   {
-    value:
-      10,
-    label:
-      '10 seconds',
+    value: 10,
+    label: '10 seconds',
   },
   {
-    value:
-      15,
-    label:
-      '15 seconds',
+    value: 15,
+    label: '15 seconds',
   },
   {
-    value:
-      30,
-    label:
-      '30 seconds',
+    value: 30,
+    label: '30 seconds',
   },
   {
-    value:
-      60,
-    label:
-      '1 minute',
+    value: 60,
+    label: '1 minute',
   },
 ]
 
@@ -181,8 +178,7 @@ const INTERMISSION_OPTIONS = [
 
 function getErrorMessage(
   value: any,
-  fallback:
-    string
+  fallback: string
 ) {
   return (
     value?.error ||
@@ -192,8 +188,7 @@ function getErrorMessage(
 }
 
 function statusLabel(
-  status:
-    AdminArenaRoom['status']
+  status: AdminArenaRoom['status']
 ) {
   if (
     status ===
@@ -220,8 +215,7 @@ function statusLabel(
 }
 
 function roomStatusClass(
-  status:
-    AdminArenaRoom['status']
+  status: AdminArenaRoom['status']
 ) {
   if (
     status ===
@@ -248,8 +242,7 @@ function roomStatusClass(
 }
 
 function preparationIcon(
-  status:
-    PreparationItem['status']
+  status: PreparationItem['status']
 ) {
   if (
     status ===
@@ -308,9 +301,9 @@ export default function AdminExamArenaPage() {
     rooms,
     setRooms,
   ] =
-    useState<
-      AdminArenaRoom[]
-    >([])
+    useState<AdminArenaRoom[]>(
+      []
+    )
 
   const [
     catalog,
@@ -324,20 +317,16 @@ export default function AdminExamArenaPage() {
     loadingRooms,
     setLoadingRooms,
   ] =
-    useState(
-      true
-    )
+    useState(true)
 
   const [
     loadingCatalog,
     setLoadingCatalog,
   ] =
-    useState(
-      true
-    )
+    useState(true)
 
   // ==========================================================
-  // FORM
+  // CREATOR FORM
   // ==========================================================
 
   const [
@@ -363,6 +352,10 @@ export default function AdminExamArenaPage() {
       'public'
     )
 
+  /*
+   * Leave existing screen-share model compatibility alone
+   * for now. Admin-created rooms default to off.
+   */
   const [
     screenShareMode,
     setScreenShareMode,
@@ -400,16 +393,14 @@ export default function AdminExamArenaPage() {
     >([])
 
   // ==========================================================
-  // UI
+  // UI STATE
   // ==========================================================
 
   const [
     creating,
     setCreating,
   ] =
-    useState(
-      false
-    )
+    useState(false)
 
   const [
     preparation,
@@ -461,9 +452,7 @@ export default function AdminExamArenaPage() {
     showCreator,
     setShowCreator,
   ] =
-    useState(
-      true
-    )
+    useState(true)
 
   // ==========================================================
   // LOAD SUBJECT CATALOG
@@ -477,7 +466,7 @@ export default function AdminExamArenaPage() {
         )
 
         try {
-          const res =
+          const response =
             await fetch(
               '/api/exam-prep/subjects',
               {
@@ -487,10 +476,10 @@ export default function AdminExamArenaPage() {
             )
 
           const data =
-            await res.json()
+            await response.json()
 
           if (
-            !res.ok
+            !response.ok
           ) {
             throw new Error(
               getErrorMessage(
@@ -502,15 +491,13 @@ export default function AdminExamArenaPage() {
 
           setCatalog(
             Array.isArray(
-              data
-                ?.categories
+              data?.categories
             )
               ? data.categories
               : []
           )
         } catch (
-          err:
-            unknown
+          err: unknown
         ) {
           setError(
             err instanceof
@@ -528,15 +515,22 @@ export default function AdminExamArenaPage() {
     )
 
   // ==========================================================
-  // LOAD ADMIN ARENAS
+  // LOAD OFFICIAL ADMIN ARENAS
   // ==========================================================
 
   const loadRooms =
     useCallback(
-      async () => {
-        setLoadingRooms(
-          true
-        )
+      async (
+        silent =
+          false
+      ) => {
+        if (
+          !silent
+        ) {
+          setLoadingRooms(
+            true
+          )
+        }
 
         try {
           const params =
@@ -561,14 +555,14 @@ export default function AdminExamArenaPage() {
             )
           }
 
-          const suffix =
+          const query =
             params.toString()
 
-          const res =
+          const response =
             await fetch(
               `/api/admin/exam-arena${
-                suffix
-                  ? `?${suffix}`
+                query
+                  ? `?${query}`
                   : ''
               }`,
               {
@@ -578,10 +572,10 @@ export default function AdminExamArenaPage() {
             )
 
           const data =
-            await res.json()
+            await response.json()
 
           if (
-            !res.ok
+            !response.ok
           ) {
             throw new Error(
               getErrorMessage(
@@ -599,8 +593,7 @@ export default function AdminExamArenaPage() {
               : []
           )
         } catch (
-          err:
-            unknown
+          err: unknown
         ) {
           setError(
             err instanceof
@@ -609,9 +602,13 @@ export default function AdminExamArenaPage() {
               : 'Could not load Arena rooms.'
           )
         } finally {
-          setLoadingRooms(
-            false
-          )
+          if (
+            !silent
+          ) {
+            setLoadingRooms(
+              false
+            )
+          }
         }
       },
       [
@@ -636,17 +633,17 @@ export default function AdminExamArenaPage() {
   useEffect(
     () => {
       const timeout =
-        setTimeout(
+        window.setTimeout(
           () => {
             loadRooms()
           },
-          search
+          search.trim()
             ? 300
             : 0
         )
 
       return () =>
-        clearTimeout(
+        window.clearTimeout(
           timeout
         )
     },
@@ -658,7 +655,7 @@ export default function AdminExamArenaPage() {
   )
 
   // ==========================================================
-  // SUBJECT ACTIONS
+  // SUBJECT SELECTION
   // ==========================================================
 
   const selectedNames =
@@ -666,9 +663,7 @@ export default function AdminExamArenaPage() {
       () =>
         new Set(
           selected.map(
-            (
-              item
-            ) =>
+            item =>
               item.subject
           )
         ),
@@ -679,31 +674,25 @@ export default function AdminExamArenaPage() {
 
   const toggleSubject =
     (
-      subject:
-        string
+      subject: string
     ) => {
       setError('')
 
       setSelected(
-        (
-          current
-        ) => {
-          if (
+        current => {
+          const exists =
             current.some(
-              (
-                item
-              ) =>
-                item
-                  .subject ===
+              item =>
+                item.subject ===
                 subject
             )
+
+          if (
+            exists
           ) {
             return current.filter(
-              (
-                item
-              ) =>
-                item
-                  .subject !==
+              item =>
+                item.subject !==
                 subject
             )
           }
@@ -723,10 +712,8 @@ export default function AdminExamArenaPage() {
             ...current,
             {
               subject,
-
               durationMinutes:
                 30,
-
               questionCount:
                 50,
             },
@@ -737,23 +724,17 @@ export default function AdminExamArenaPage() {
 
   const updateSubject =
     (
-      subject:
-        string,
+      subject: string,
       patch:
         Partial<
           SelectedSubject
         >
     ) => {
       setSelected(
-        (
-          current
-        ) =>
+        current =>
           current.map(
-            (
-              item
-            ) =>
-              item
-                .subject ===
+            item =>
+              item.subject ===
               subject
                 ? {
                     ...item,
@@ -811,32 +792,39 @@ export default function AdminExamArenaPage() {
     intermissionSeconds
 
   // ==========================================================
-  // RESET
+  // RESET CREATOR
   // ==========================================================
 
   const resetCreator =
     () => {
       setName('')
       setInstructions('')
+
       setVisibility(
         'public'
       )
+
       setScreenShareMode(
         'off'
       )
+
       setMaxParticipants(
         100
       )
+
       setIntermissionSeconds(
         15
       )
+
       setSelected([])
       setPreparation([])
       setCreatedRoomCode('')
+      setError('')
+      setSuccess('')
     }
 
   // ==========================================================
-  // CREATE + PREPARE
+  // CREATE + PREPARE OFFICIAL ARENA
   // ==========================================================
 
   const createArena =
@@ -901,9 +889,7 @@ export default function AdminExamArenaPage() {
       const progress:
         PreparationItem[] =
         selected.map(
-          (
-            item
-          ) => ({
+          item => ({
             subject:
               item.subject,
 
@@ -923,9 +909,9 @@ export default function AdminExamArenaPage() {
       )
 
       try {
-        // ------------------------------------------------------
-        // CREATE ROOM
-        // ------------------------------------------------------
+        // ====================================================
+        // 1. CREATE THE ROOM
+        // ====================================================
 
         const createResponse =
           await fetch(
@@ -937,6 +923,19 @@ export default function AdminExamArenaPage() {
               headers: {
                 'Content-Type':
                   'application/json',
+
+                /*
+                 * CRITICAL:
+                 *
+                 * This tells the shared Arena API that this
+                 * request is coming from the ADMIN creator.
+                 *
+                 * resolveCreator() will therefore check the
+                 * NextAuth admin before any Exam Prep student
+                 * cookie that may also exist in this browser.
+                 */
+                'x-arena-creator':
+                  'admin',
               },
 
               body:
@@ -957,9 +956,7 @@ export default function AdminExamArenaPage() {
 
                   subjects:
                     selected.map(
-                      (
-                        item
-                      ) => ({
+                      item => ({
                         subject:
                           item.subject,
 
@@ -988,6 +985,52 @@ export default function AdminExamArenaPage() {
           )
         }
 
+        // ====================================================
+        // 2. VERIFY OFFICIAL CREATOR TYPE
+        // ====================================================
+
+        const returnedCreatorType =
+          String(
+            createData
+              ?.creatorType ||
+            createData
+              ?.room
+              ?.creatorType ||
+            ''
+          )
+            .trim()
+            .toLowerCase()
+
+        const returnedOfficial =
+          createData
+            ?.official ??
+          createData
+            ?.room
+            ?.official
+
+        if (
+          returnedCreatorType &&
+          returnedCreatorType !==
+            'admin'
+        ) {
+          throw new Error(
+            'The Arena was created, but it was not registered as an official admin competition.'
+          )
+        }
+
+        if (
+          returnedOfficial ===
+          false
+        ) {
+          throw new Error(
+            'The Arena was created, but the server did not mark it as an official competition.'
+          )
+        }
+
+        // ====================================================
+        // 3. ROOM CODE
+        // ====================================================
+
         const roomCode =
           String(
             createData
@@ -1012,13 +1055,24 @@ export default function AdminExamArenaPage() {
           roomCode
         )
 
-        // ------------------------------------------------------
-        // PREPARE SUBJECTS SEQUENTIALLY
-        // ------------------------------------------------------
+        /*
+         * Refresh immediately.
+         *
+         * The newly-created room is already in MongoDB with
+         * status "preparing", so it should already appear under
+         * Official Competitions before AI preparation finishes.
+         */
+        await loadRooms(
+          true
+        )
+
+        // ====================================================
+        // 4. PREPARE EACH SUBJECT
+        // ====================================================
 
         for (
           let index =
-              0;
+            0;
           index <
           selected.length;
           index +=
@@ -1030,9 +1084,7 @@ export default function AdminExamArenaPage() {
             ]
 
           setPreparation(
-            (
-              current
-            ) =>
+            current =>
               current.map(
                 (
                   item,
@@ -1059,6 +1111,12 @@ export default function AdminExamArenaPage() {
                   method:
                     'POST',
 
+                  /*
+                   * No x-arena-creator header here.
+                   *
+                   * The room has already been created and the
+                   * prepare API performs its own authorization.
+                   */
                   headers: {
                     'Content-Type':
                       'application/json',
@@ -1095,9 +1153,7 @@ export default function AdminExamArenaPage() {
               )
 
             setPreparation(
-              (
-                current
-              ) =>
+              current =>
                 current.map(
                   (
                     item,
@@ -1117,6 +1173,14 @@ export default function AdminExamArenaPage() {
                       : item
                 )
             )
+
+            /*
+             * Keep the Official Competitions card synchronized
+             * with preparation progress.
+             */
+            await loadRooms(
+              true
+            )
           } catch (
             prepError:
               unknown
@@ -1128,9 +1192,7 @@ export default function AdminExamArenaPage() {
                 : `Could not prepare ${currentSubject.subject}.`
 
             setPreparation(
-              (
-                current
-              ) =>
+              current =>
                 current.map(
                   (
                     item,
@@ -1151,17 +1213,27 @@ export default function AdminExamArenaPage() {
                 )
             )
 
+            await loadRooms(
+              true
+            )
+
             throw new Error(
               `${currentSubject.subject}: ${message}`
             )
           }
         }
 
+        // ====================================================
+        // 5. SUCCESS
+        // ====================================================
+
         setSuccess(
           `Official Arena ${roomCode} is ready for participants.`
         )
 
-        await loadRooms()
+        await loadRooms(
+          true
+        )
       } catch (
         err:
           unknown
@@ -1174,13 +1246,15 @@ export default function AdminExamArenaPage() {
         )
 
         /*
-         * We deliberately do NOT clear createdRoomCode or
-         * preparation state here.
+         * Do not clear roomCode or preparation here.
          *
-         * If room creation succeeded but subject 3 failed,
-         * the admin can see exactly where preparation stopped.
+         * If creation worked but one subject failed, the admin
+         * should still be able to see the room and retry/manage
+         * it rather than losing the created competition.
          */
-        await loadRooms()
+        await loadRooms(
+          true
+        )
       } finally {
         setCreating(
           false
@@ -1189,7 +1263,7 @@ export default function AdminExamArenaPage() {
     }
 
   // ==========================================================
-  // PREPARATION PERCENTAGE
+  // PREPARATION PROGRESS
   // ==========================================================
 
   const progressTotal =
@@ -1258,7 +1332,7 @@ export default function AdminExamArenaPage() {
     }
 
   // ==========================================================
-  // STATS
+  // STATISTICS
   // ==========================================================
 
   const stats =
@@ -1269,27 +1343,21 @@ export default function AdminExamArenaPage() {
 
         preparing:
           rooms.filter(
-            (
-              room
-            ) =>
+            room =>
               room.status ===
               'preparing'
           ).length,
 
         ready:
           rooms.filter(
-            (
-              room
-            ) =>
+            room =>
               room.status ===
               'lobby'
           ).length,
 
         completed:
           rooms.filter(
-            (
-              room
-            ) =>
+            room =>
               room.status ===
               'completed'
           ).length,
@@ -1312,25 +1380,21 @@ export default function AdminExamArenaPage() {
         ===================================================== */}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
-                <Trophy
-                  size={
-                    20
-                  }
-                />
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+              <Trophy
+                size={21}
+              />
+            </div>
 
-              <div>
-                <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
-                  Official Exam Arena
-                </h1>
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
+                Official Exam Arena
+              </h1>
 
-                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                  Create and manage synchronized Loran EduHub competitions.
-                </p>
-              </div>
+              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                Create, prepare and monitor official Loran EduHub competitions.
+              </p>
             </div>
           </div>
 
@@ -1338,9 +1402,7 @@ export default function AdminExamArenaPage() {
             type="button"
             onClick={() =>
               setShowCreator(
-                (
-                  value
-                ) =>
+                value =>
                   !value
               )
             }
@@ -1348,15 +1410,11 @@ export default function AdminExamArenaPage() {
           >
             {showCreator ? (
               <ChevronUp
-                size={
-                  17
-                }
+                size={17}
               />
             ) : (
               <Plus
-                size={
-                  17
-                }
+                size={17}
               />
             )}
 
@@ -1373,9 +1431,7 @@ export default function AdminExamArenaPage() {
         {error && (
           <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <AlertCircle
-              size={
-                18
-              }
+              size={18}
               className="mt-0.5 shrink-0"
             />
 
@@ -1388,11 +1444,10 @@ export default function AdminExamArenaPage() {
               onClick={() =>
                 setError('')
               }
+              className="rounded p-1 hover:bg-red-100"
             >
               <X
-                size={
-                  16
-                }
+                size={16}
               />
             </button>
           </div>
@@ -1401,9 +1456,7 @@ export default function AdminExamArenaPage() {
         {success && (
           <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             <CheckCircle2
-              size={
-                18
-              }
+              size={18}
               className="mt-0.5 shrink-0"
             />
 
@@ -1416,11 +1469,10 @@ export default function AdminExamArenaPage() {
               onClick={() =>
                 setSuccess('')
               }
+              className="rounded p-1 hover:bg-emerald-100"
             >
               <X
-                size={
-                  16
-                }
+                size={16}
               />
             </button>
           </div>
@@ -1435,39 +1487,45 @@ export default function AdminExamArenaPage() {
             {
               label:
                 'Official Arenas',
+
               value:
                 stats.total,
+
               icon:
                 Trophy,
             },
             {
               label:
                 'Preparing',
+
               value:
                 stats.preparing,
+
               icon:
                 Sparkles,
             },
             {
               label:
                 'Ready',
+
               value:
                 stats.ready,
+
               icon:
                 CheckCircle2,
             },
             {
               label:
                 'Completed',
+
               value:
                 stats.completed,
+
               icon:
                 Trophy,
             },
           ].map(
-            (
-              item
-            ) => {
+            item => {
               const Icon =
                 item.icon
 
@@ -1491,9 +1549,7 @@ export default function AdminExamArenaPage() {
 
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                       <Icon
-                        size={
-                          19
-                        }
+                        size={19}
                       />
                     </div>
                   </div>
@@ -1508,15 +1564,12 @@ export default function AdminExamArenaPage() {
         ===================================================== */}
 
         {showCreator && (
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 bg-gradient-to-r from-slate-950 to-blue-950 px-5 py-5 text-white sm:px-6">
               <div className="flex items-start gap-3">
                 <div className="rounded-xl bg-white/10 p-2.5">
                   <Zap
-                    size={
-                      19
-                    }
+                    size={19}
                   />
                 </div>
 
@@ -1532,13 +1585,15 @@ export default function AdminExamArenaPage() {
               </div>
             </div>
 
-            <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="grid xl:grid-cols-[minmax(0,1fr)_340px]">
 
-              {/* LEFT */}
+              {/* ==============================================
+                  LEFT
+              =============================================== */}
 
               <div className="space-y-7 p-4 sm:p-6">
 
-                {/* BASIC DETAILS */}
+                {/* DETAILS */}
 
                 <section>
                   <div className="mb-4">
@@ -1551,8 +1606,8 @@ export default function AdminExamArenaPage() {
                     </p>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="sm:col-span-2">
+                  <div className="grid gap-4">
+                    <label>
                       <span className="text-xs font-bold text-slate-700">
                         Competition name
                       </span>
@@ -1561,18 +1616,13 @@ export default function AdminExamArenaPage() {
                         value={
                           name
                         }
-                        onChange={(
-                          event
-                        ) =>
-                          setName(
-                            event
-                              .target
-                              .value
-                          )
+                        onChange={
+                          event =>
+                            setName(
+                              event.target.value
+                            )
                         }
-                        maxLength={
-                          120
-                        }
+                        maxLength={100}
                         placeholder="e.g. National Science Challenge"
                         disabled={
                           creating
@@ -1581,7 +1631,7 @@ export default function AdminExamArenaPage() {
                       />
                     </label>
 
-                    <label className="sm:col-span-2">
+                    <label>
                       <span className="text-xs font-bold text-slate-700">
                         Instructions
                       </span>
@@ -1590,18 +1640,14 @@ export default function AdminExamArenaPage() {
                         value={
                           instructions
                         }
-                        onChange={(
-                          event
-                        ) =>
-                          setInstructions(
-                            event
-                              .target
-                              .value
-                          )
+                        onChange={
+                          event =>
+                            setInstructions(
+                              event.target.value
+                            )
                         }
-                        rows={
-                          4
-                        }
+                        rows={4}
+                        maxLength={2000}
                         placeholder="Competition rules, materials allowed, special instructions..."
                         disabled={
                           creating
@@ -1612,7 +1658,7 @@ export default function AdminExamArenaPage() {
                   </div>
                 </section>
 
-                {/* ACCESS */}
+                {/* ROOM CONFIGURATION */}
 
                 <section>
                   <h3 className="font-bold text-slate-900">
@@ -1620,7 +1666,6 @@ export default function AdminExamArenaPage() {
                   </h3>
 
                   <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
                     <label>
                       <span className="text-xs font-bold text-slate-700">
                         Visibility
@@ -1630,16 +1675,15 @@ export default function AdminExamArenaPage() {
                         value={
                           visibility
                         }
-                        onChange={(
-                          event
-                        ) =>
-                          setVisibility(
-                            event
-                              .target
-                              .value as
-                              | 'public'
-                              | 'private'
-                          )
+                        onChange={
+                          event =>
+                            setVisibility(
+                              event
+                                .target
+                                .value as
+                                | 'public'
+                                | 'private'
+                            )
                         }
                         disabled={
                           creating
@@ -1663,25 +1707,18 @@ export default function AdminExamArenaPage() {
 
                       <input
                         type="number"
-                        min={
-                          1
-                        }
-                        max={
-                          500
-                        }
+                        min={1}
+                        max={500}
                         value={
                           maxParticipants
                         }
-                        onChange={(
-                          event
-                        ) =>
-                          setMaxParticipants(
-                            Number(
-                              event
-                                .target
-                                .value
+                        onChange={
+                          event =>
+                            setMaxParticipants(
+                              Number(
+                                event.target.value
+                              )
                             )
-                          )
                         }
                         disabled={
                           creating
@@ -1699,16 +1736,13 @@ export default function AdminExamArenaPage() {
                         value={
                           intermissionSeconds
                         }
-                        onChange={(
-                          event
-                        ) =>
-                          setIntermissionSeconds(
-                            Number(
-                              event
-                                .target
-                                .value
+                        onChange={
+                          event =>
+                            setIntermissionSeconds(
+                              Number(
+                                event.target.value
+                              )
                             )
-                          )
                         }
                         disabled={
                           creating
@@ -1716,9 +1750,7 @@ export default function AdminExamArenaPage() {
                         className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"
                       >
                         {INTERMISSION_OPTIONS.map(
-                          (
-                            option
-                          ) => (
+                          option => (
                             <option
                               key={
                                 option.value
@@ -1746,7 +1778,7 @@ export default function AdminExamArenaPage() {
                       </h3>
 
                       <p className="mt-1 text-xs text-slate-500">
-                        Select up to 6 subjects. Configure each round separately below.
+                        Select up to 6 subjects. Configure the questions and time for each round.
                       </p>
                     </div>
 
@@ -1758,20 +1790,21 @@ export default function AdminExamArenaPage() {
                   {loadingCatalog ? (
                     <div className="mt-5 flex items-center gap-2 rounded-xl bg-slate-50 p-4 text-xs text-slate-500">
                       <Loader2
-                        size={
-                          16
-                        }
+                        size={16}
                         className="animate-spin"
                       />
 
                       Loading subjects...
                     </div>
+                  ) : catalog.length ===
+                    0 ? (
+                    <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-xs text-slate-500">
+                      No subjects could be loaded.
+                    </div>
                   ) : (
                     <div className="mt-5 space-y-5">
                       {catalog.map(
-                        (
-                          category
-                        ) => (
+                        category => (
                           <div
                             key={
                               category.value
@@ -1783,9 +1816,7 @@ export default function AdminExamArenaPage() {
 
                             <div className="flex flex-wrap gap-2">
                               {category.subjects.map(
-                                (
-                                  subject
-                                ) => {
+                                subject => {
                                   const isSelected =
                                     selectedNames.has(
                                       subject
@@ -1814,9 +1845,7 @@ export default function AdminExamArenaPage() {
                                       <span className="flex items-center gap-1.5">
                                         {isSelected && (
                                           <Check
-                                            size={
-                                              13
-                                            }
+                                            size={13}
                                           />
                                         )}
 
@@ -1834,7 +1863,7 @@ export default function AdminExamArenaPage() {
                   )}
                 </section>
 
-                {/* SELECTED ROUNDS */}
+                {/* ROUND CONFIGURATION */}
 
                 {selected.length >
                   0 && (
@@ -1842,6 +1871,10 @@ export default function AdminExamArenaPage() {
                     <h3 className="font-bold text-slate-900">
                       Round configuration
                     </h3>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Every selected subject becomes one synchronized competition round.
+                    </p>
 
                     <div className="mt-4 space-y-3">
                       {selected.map(
@@ -1868,7 +1901,8 @@ export default function AdminExamArenaPage() {
                                   </p>
 
                                   <p className="mt-0.5 text-[10px] text-slate-400">
-                                    Round {index +
+                                    Round{' '}
+                                    {index +
                                       1}
                                   </p>
                                 </div>
@@ -1888,9 +1922,7 @@ export default function AdminExamArenaPage() {
                                 title="Remove subject"
                               >
                                 <Trash2
-                                  size={
-                                    16
-                                  }
+                                  size={16}
                                 />
                               </button>
                             </div>
@@ -1908,27 +1940,22 @@ export default function AdminExamArenaPage() {
                                   disabled={
                                     creating
                                   }
-                                  onChange={(
-                                    event
-                                  ) =>
-                                    updateSubject(
-                                      item.subject,
-                                      {
-                                        durationMinutes:
-                                          Number(
-                                            event
-                                              .target
-                                              .value
-                                          ),
-                                      }
-                                    )
+                                  onChange={
+                                    event =>
+                                      updateSubject(
+                                        item.subject,
+                                        {
+                                          durationMinutes:
+                                            Number(
+                                              event.target.value
+                                            ),
+                                        }
+                                      )
                                   }
                                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold"
                                 >
                                   {DURATION_OPTIONS.map(
-                                    (
-                                      duration
-                                    ) => (
+                                    duration => (
                                       <option
                                         key={
                                           duration
@@ -1937,7 +1964,8 @@ export default function AdminExamArenaPage() {
                                           duration
                                         }
                                       >
-                                        {duration} minutes
+                                        {duration}{' '}
+                                        minutes
                                       </option>
                                     )
                                   )}
@@ -1956,27 +1984,22 @@ export default function AdminExamArenaPage() {
                                   disabled={
                                     creating
                                   }
-                                  onChange={(
-                                    event
-                                  ) =>
-                                    updateSubject(
-                                      item.subject,
-                                      {
-                                        questionCount:
-                                          Number(
-                                            event
-                                              .target
-                                              .value
-                                          ),
-                                      }
-                                    )
+                                  onChange={
+                                    event =>
+                                      updateSubject(
+                                        item.subject,
+                                        {
+                                          questionCount:
+                                            Number(
+                                              event.target.value
+                                            ),
+                                        }
+                                      )
                                   }
                                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold"
                                 >
                                   {QUESTION_OPTIONS.map(
-                                    (
-                                      count
-                                    ) => (
+                                    count => (
                                       <option
                                         key={
                                           count
@@ -1985,7 +2008,8 @@ export default function AdminExamArenaPage() {
                                           count
                                         }
                                       >
-                                        {count} questions
+                                        {count}{' '}
+                                        questions
                                       </option>
                                     )
                                   )}
@@ -2000,7 +2024,9 @@ export default function AdminExamArenaPage() {
                 )}
               </div>
 
-              {/* RIGHT SUMMARY */}
+              {/* ==============================================
+                  SUMMARY
+              =============================================== */}
 
               <aside className="border-t border-slate-100 bg-slate-50/80 p-4 sm:p-6 xl:border-l xl:border-t-0">
                 <div className="xl:sticky xl:top-6">
@@ -2012,10 +2038,9 @@ export default function AdminExamArenaPage() {
                     <div className="flex items-center justify-between rounded-xl bg-white p-3">
                       <span className="flex items-center gap-2 text-xs text-slate-500">
                         <FileQuestion
-                          size={
-                            15
-                          }
+                          size={15}
                         />
+
                         Subjects
                       </span>
 
@@ -2027,10 +2052,9 @@ export default function AdminExamArenaPage() {
                     <div className="flex items-center justify-between rounded-xl bg-white p-3">
                       <span className="flex items-center gap-2 text-xs text-slate-500">
                         <Sparkles
-                          size={
-                            15
-                          }
+                          size={15}
                         />
+
                         Questions
                       </span>
 
@@ -2042,25 +2066,24 @@ export default function AdminExamArenaPage() {
                     <div className="flex items-center justify-between rounded-xl bg-white p-3">
                       <span className="flex items-center gap-2 text-xs text-slate-500">
                         <Timer
-                          size={
-                            15
-                          }
+                          size={15}
                         />
+
                         Exam time
                       </span>
 
                       <b className="text-sm">
-                        {totalMinutes} min
+                        {totalMinutes}{' '}
+                        min
                       </b>
                     </div>
 
                     <div className="flex items-center justify-between rounded-xl bg-white p-3">
                       <span className="flex items-center gap-2 text-xs text-slate-500">
                         <Users
-                          size={
-                            15
-                          }
+                          size={15}
                         />
+
                         Capacity
                       </span>
 
@@ -2074,17 +2097,14 @@ export default function AdminExamArenaPage() {
                         {visibility ===
                         'public' ? (
                           <Globe2
-                            size={
-                              15
-                            }
+                            size={15}
                           />
                         ) : (
                           <Lock
-                            size={
-                              15
-                            }
+                            size={15}
                           />
                         )}
+
                         Visibility
                       </span>
 
@@ -2118,16 +2138,12 @@ export default function AdminExamArenaPage() {
                   >
                     {creating ? (
                       <Loader2
-                        size={
-                          17
-                        }
+                        size={17}
                         className="animate-spin"
                       />
                     ) : (
                       <Sparkles
-                        size={
-                          17
-                        }
+                        size={17}
                       />
                     )}
 
@@ -2138,10 +2154,10 @@ export default function AdminExamArenaPage() {
 
                   {!creating &&
                     createdRoomCode &&
+                    preparation.length >
+                      0 &&
                     preparation.every(
-                      (
-                        item
-                      ) =>
+                      item =>
                         item.status ===
                         'ready'
                     ) && (
@@ -2159,9 +2175,9 @@ export default function AdminExamArenaPage() {
               </aside>
             </div>
 
-            {/* ==================================================
+            {/* ================================================
                 PREPARATION PROGRESS
-            =================================================== */}
+            ================================================= */}
 
             {preparation.length >
               0 && (
@@ -2199,9 +2215,7 @@ export default function AdminExamArenaPage() {
 
                 <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                   {preparation.map(
-                    (
-                      item
-                    ) => (
+                    item => (
                       <div
                         key={
                           item.subject
@@ -2239,19 +2253,17 @@ export default function AdminExamArenaPage() {
                 </div>
 
                 {createdRoomCode &&
+                  preparation.length >
+                    0 &&
                   preparation.every(
-                    (
-                      item
-                    ) =>
+                    item =>
                       item.status ===
                       'ready'
                   ) && (
-                    <div className="mt-5 flex flex-col gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
                         <CheckCircle2
-                          size={
-                            22
-                          }
+                          size={22}
                           className="text-emerald-600"
                         />
 
@@ -2279,21 +2291,20 @@ export default function AdminExamArenaPage() {
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-emerald-700 shadow-sm"
                       >
                         <Copy
-                          size={
-                            14
-                          }
+                          size={14}
                         />
+
                         Copy room code
                       </button>
                     </div>
                   )}
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {/* ====================================================
-            ROOM MANAGEMENT
+            OFFICIAL COMPETITIONS
         ===================================================== */}
 
         <section>
@@ -2304,16 +2315,17 @@ export default function AdminExamArenaPage() {
               </h2>
 
               <p className="mt-1 text-xs text-slate-500">
-                Monitor preparation, room capacity and competition status.
+                Search official rooms, monitor preparation, view participants and open live competition results.
               </p>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row">
+
+              {/* SEARCH */}
+
               <div className="relative">
                 <Search
-                  size={
-                    15
-                  }
+                  size={15}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
 
@@ -2321,33 +2333,31 @@ export default function AdminExamArenaPage() {
                   value={
                     search
                   }
-                  onChange={(
-                    event
-                  ) =>
-                    setSearch(
-                      event
-                        .target
-                        .value
-                    )
+                  onChange={
+                    event =>
+                      setSearch(
+                        event.target.value
+                      )
                   }
                   placeholder="Search name or code..."
-                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs sm:w-56"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs outline-none focus:border-blue-500 sm:w-60"
                 />
               </div>
+
+              {/* STATUS FILTER */}
 
               <select
                 value={
                   activeFilter
                 }
-                onChange={(
-                  event
-                ) =>
-                  setActiveFilter(
-                    event
-                      .target
-                      .value as
-                      typeof activeFilter
-                  )
+                onChange={
+                  event =>
+                    setActiveFilter(
+                      event
+                        .target
+                        .value as
+                        typeof activeFilter
+                    )
                 }
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold"
               >
@@ -2372,20 +2382,20 @@ export default function AdminExamArenaPage() {
                 </option>
               </select>
 
+              {/* REFRESH */}
+
               <button
                 type="button"
-                onClick={
-                  loadRooms
+                onClick={() =>
+                  loadRooms()
                 }
                 disabled={
                   loadingRooms
                 }
-                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
               >
                 <RefreshCw
-                  size={
-                    14
-                  }
+                  size={14}
                   className={
                     loadingRooms
                       ? 'animate-spin'
@@ -2398,13 +2408,15 @@ export default function AdminExamArenaPage() {
             </div>
           </div>
 
+          {/* ==================================================
+              LOADING
+          =================================================== */}
+
           {loadingRooms ? (
             <div className="mt-5 flex min-h-52 items-center justify-center rounded-2xl border border-slate-200 bg-white">
               <div className="text-center">
                 <Loader2
-                  size={
-                    26
-                  }
+                  size={26}
                   className="mx-auto animate-spin text-blue-600"
                 />
 
@@ -2417,9 +2429,7 @@ export default function AdminExamArenaPage() {
             0 ? (
             <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
               <Trophy
-                size={
-                  32
-                }
+                size={32}
                 className="mx-auto text-slate-300"
               />
 
@@ -2428,15 +2438,20 @@ export default function AdminExamArenaPage() {
               </p>
 
               <p className="mt-1 text-xs text-slate-400">
-                Create the first official Arena above.
+                {search.trim()
+                  ? 'No official competition matches that name or room code.'
+                  : 'Create the first official Arena above.'}
               </p>
             </div>
           ) : (
+
+            // ================================================
+            // ROOM CARDS
+            // ================================================
+
             <div className="mt-5 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {rooms.map(
-                (
-                  room
-                ) => (
+                room => (
                   <article
                     key={
                       room.id
@@ -2444,12 +2459,17 @@ export default function AdminExamArenaPage() {
                     className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                   >
                     <div className="p-5">
+
+                      {/* STATUS + TITLE */}
+
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${roomStatusClass(
-                              room.status
-                            )}`}>
+                            <span
+                              className={`rounded-full border px-2 py-1 text-[10px] font-black ${roomStatusClass(
+                                room.status
+                              )}`}
+                            >
                               {statusLabel(
                                 room.status
                               )}
@@ -2466,12 +2486,12 @@ export default function AdminExamArenaPage() {
                         </div>
 
                         <Trophy
-                          size={
-                            20
-                          }
+                          size={20}
                           className="shrink-0 text-amber-500"
                         />
                       </div>
+
+                      {/* ROOM CODE */}
 
                       <div className="mt-4 flex items-center gap-2">
                         <code className="rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-black tracking-widest text-white">
@@ -2485,15 +2505,16 @@ export default function AdminExamArenaPage() {
                               room.roomCode
                             )
                           }
+                          title="Copy room code"
                           className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
                         >
                           <Copy
-                            size={
-                              14
-                            }
+                            size={14}
                           />
                         </button>
                       </div>
+
+                      {/* QUICK STATS */}
 
                       <div className="mt-4 grid grid-cols-3 gap-2">
                         <div className="rounded-xl bg-slate-50 p-2.5 text-center">
@@ -2546,15 +2567,13 @@ export default function AdminExamArenaPage() {
                               width:
                                 `${room.preparation.percentage}%`,
                             }}
-                            className="h-full rounded-full bg-blue-600"
+                            className="h-full rounded-full bg-blue-600 transition-all"
                           />
                         </div>
 
                         <div className="mt-3 space-y-1.5">
                           {room.subjects.map(
-                            (
-                              subject
-                            ) => (
+                            subject => (
                               <div
                                 key={`${room.id}-${subject.index}`}
                                 className="flex items-center justify-between gap-3 text-[11px]"
@@ -2563,32 +2582,24 @@ export default function AdminExamArenaPage() {
                                   {subject.generationStatus ===
                                   'ready' ? (
                                     <CheckCircle2
-                                      size={
-                                        13
-                                      }
+                                      size={13}
                                       className="shrink-0 text-emerald-500"
                                     />
                                   ) : subject.generationStatus ===
                                     'generating' ? (
                                     <Loader2
-                                      size={
-                                        13
-                                      }
+                                      size={13}
                                       className="shrink-0 animate-spin text-blue-500"
                                     />
                                   ) : subject.generationStatus ===
                                     'failed' ? (
                                     <AlertCircle
-                                      size={
-                                        13
-                                      }
+                                      size={13}
                                       className="shrink-0 text-red-500"
                                     />
                                   ) : (
                                     <Circle
-                                      size={
-                                        12
-                                      }
+                                      size={12}
                                       className="shrink-0 text-slate-300"
                                     />
                                   )}
@@ -2608,29 +2619,27 @@ export default function AdminExamArenaPage() {
                         </div>
                       </div>
 
+                      {/* ROOM DETAILS */}
+
                       <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-[10px] text-slate-400">
                         <span className="flex items-center gap-1">
                           <Users
-                            size={
-                              12
-                            }
+                            size={12}
                           />
-                          Capacity {room.maxParticipants}
+
+                          Capacity{' '}
+                          {room.maxParticipants}
                         </span>
 
                         <span className="flex items-center gap-1">
                           {room.visibility ===
                           'public' ? (
                             <Globe2
-                              size={
-                                12
-                              }
+                              size={12}
                             />
                           ) : (
                             <Lock
-                              size={
-                                12
-                              }
+                              size={12}
                             />
                           )}
 
@@ -2639,6 +2648,21 @@ export default function AdminExamArenaPage() {
                           </span>
                         </span>
                       </div>
+
+                      {/* MONITOR */}
+
+                      <Link
+                        href={`/admin/exam-arena/${encodeURIComponent(
+                          room.roomCode
+                        )}`}
+                        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white transition hover:bg-blue-600"
+                      >
+                        <Eye
+                          size={14}
+                        />
+
+                        Monitor Competition
+                      </Link>
                     </div>
                   </article>
                 )
