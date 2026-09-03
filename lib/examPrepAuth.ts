@@ -1,3 +1,4 @@
+// lib/examPrepAuth.ts
 import crypto from 'crypto'
 import { promisify } from 'util'
 import { NextRequest, NextResponse } from 'next/server'

@@ -11,6 +11,7 @@ import {
   History,
   LogOut,
   Menu,
+  MessageCircle,
   Target,
   Trophy,
   X,
@@ -38,20 +39,27 @@ type SubscriptionState = {
 
   subscription: {
     wasFreeAtRegistration: boolean
+
     planDuration:
       | '1month'
       | '2months'
       | '3months'
       | 'life'
       | null
+
     planLabel:
       string | null
+
     amountPaid: number
+
     startDate:
       string | null
+
     endDate:
       string | null
+
     isLifetime: boolean
+
     daysRemaining:
       number | null
   }
@@ -65,8 +73,10 @@ const links = [
   {
     href:
       '/exam-prep/dashboard',
+
     label:
       'Overview',
+
     icon:
       BarChart3,
   },
@@ -74,8 +84,10 @@ const links = [
   {
     href:
       '/exam-prep/dashboard/take',
+
     label:
       'Practice Exam',
+
     icon:
       ClipboardList,
   },
@@ -83,8 +95,10 @@ const links = [
   {
     href:
       '/exam-prep/dashboard/analytics',
+
     label:
       'AI Performance',
+
     icon:
       BrainCircuit,
   },
@@ -92,17 +106,32 @@ const links = [
   {
     href:
       '/exam-prep/dashboard/live-exams',
+
     label:
       'Exam Arena',
+
     icon:
       Trophy,
   },
 
   {
     href:
+      '/exam-prep/dashboard/discord',
+
+    label:
+      'Community',
+
+    icon:
+      MessageCircle,
+  },
+
+  {
+    href:
       '/exam-prep/dashboard/mistakes',
+
     label:
       'Mistake Bank',
+
     icon:
       Target,
   },
@@ -110,8 +139,10 @@ const links = [
   {
     href:
       '/exam-prep/dashboard/history',
+
     label:
       'History',
+
     icon:
       History,
   },
@@ -289,6 +320,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             'Checking...',
+
           className:
             'text-slate-500',
         }
@@ -300,6 +332,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             '',
+
           className:
             'text-slate-500',
         }
@@ -311,6 +344,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             'Free access',
+
           className:
             'text-emerald-400',
         }
@@ -324,6 +358,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             'Free access',
+
           className:
             'text-emerald-400',
         }
@@ -337,6 +372,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             'Lifetime',
+
           className:
             'text-amber-400',
         }
@@ -352,7 +388,7 @@ export default function ExamPrepSidebar() {
 
         if (
           typeof days ===
-            'number'
+          'number'
         ) {
           if (
             days <=
@@ -366,6 +402,7 @@ export default function ExamPrepSidebar() {
                     ? ''
                     : 's'
                 } left`,
+
               className:
                 'text-amber-400',
             }
@@ -374,6 +411,7 @@ export default function ExamPrepSidebar() {
           return {
             text:
               `${days} days left`,
+
             className:
               'text-emerald-400',
           }
@@ -382,6 +420,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             'Active',
+
           className:
             'text-emerald-400',
         }
@@ -393,6 +432,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             'Expired',
+
           className:
             'text-red-400',
         }
@@ -404,6 +444,7 @@ export default function ExamPrepSidebar() {
         return {
           text:
             'Payment required',
+
           className:
             'text-red-400',
         }
@@ -412,6 +453,7 @@ export default function ExamPrepSidebar() {
       return {
         text:
           'Inactive',
+
         className:
           'text-slate-500',
       }
@@ -519,10 +561,61 @@ export default function ExamPrepSidebar() {
                   <span>
                     {label}
                   </span>
+
+                  {label ===
+                    'Community' && (
+                    <span
+                      className={`ml-auto rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                        active
+                          ? 'bg-white/15 text-white'
+                          : 'bg-[#5865F2]/15 text-indigo-300'
+                      }`}
+                    >
+                      Discord
+                    </span>
+                  )}
                 </Link>
               )
             }
           )}
+        </div>
+
+        {/* ====================================================
+            COMMUNITY INFO
+        ===================================================== */}
+
+        <div className="mx-1 mt-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-3">
+          <div className="flex items-start gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#5865F2] text-white">
+              <MessageCircle
+                size={
+                  15
+                }
+              />
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-xs font-black text-white">
+                Academic Community
+              </p>
+
+              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                Ask tutors questions and learn with other Exam Prep students.
+              </p>
+
+              <Link
+                href="/exam-prep/dashboard/discord"
+                onClick={() =>
+                  setOpen(
+                    false
+                  )
+                }
+                className="mt-2 inline-flex text-[10px] font-black text-indigo-300 transition hover:text-indigo-200"
+              >
+                Open Community →
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* ====================================================
