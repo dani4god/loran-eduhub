@@ -18,9 +18,9 @@ import {
   buildExamPrepAnalytics,
 } from '@/lib/examPrepAnalytics'
 
-import {
-  generatePerformanceCoach,
-} from '@/lib/examAI'
+// ============================================================
+// GET ANALYTICS
+// ============================================================
 
 export async function GET(
   req: NextRequest
@@ -35,7 +35,9 @@ export async function GET(
         req
       )
 
-    if (!auth.ok) {
+    if (
+      !auth.ok
+    ) {
       return auth.response
     }
 
@@ -46,22 +48,62 @@ export async function GET(
     await connectDB()
 
     // ========================================================
-    // 3. LOAD STUDENT ATTEMPTS
+    // 3. LOAD ATTEMPTS + EXISTING AI ANALYSIS IN PARALLEL
     // ========================================================
 
-    const attempts =
-      await ExamPrepAttempt.find({
-        examPrepStudentId:
-          auth.student._id,
-      })
-        .sort({
-          createdAt: 1,
-        })
-        .lean()
+    /*
+     * Important:
+     *
+     * This route must remain fast.
+     *
+     * We deliberately DO NOT call Groq from this GET route.
+     *
+     * The analytics page should never have to wait for:
+     *
+     * - Groq rate limits
+     * - AI retries
+     * - token-per-minute recovery
+     * - network delays
+     *
+     * The page loads deterministic analytics immediately and
+     * uses the most recently cached AI coach if one exists.
+     */
+
+    const [
+      attempts,
+      cached,
+    ] =
+      await Promise.all([
+        ExamPrepAttempt
+          .find({
+            examPrepStudentId:
+              auth.student._id,
+          })
+          .sort({
+            createdAt:
+              1,
+          })
+          .lean(),
+
+        ExamPrepAIAnalysis
+          .findOne({
+            examPrepStudentId:
+              auth.student._id,
+          })
+          .lean(),
+      ])
 
     // ========================================================
     // 4. BUILD DETERMINISTIC ANALYTICS
     // ========================================================
+
+    /*
+     * This does not use Groq.
+     *
+     * Scores, averages, strengths, weaknesses and other normal
+     * analytics are calculated directly from the student's
+     * examination history.
+     */
 
     const stats =
       buildExamPrepAnalytics(
@@ -83,110 +125,72 @@ export async function GET(
 
         aiGeneratedAt:
           null,
+
+        aiBasedOnAttemptCount:
+          0,
+
+        aiNeedsRefresh:
+          false,
       })
     }
 
     // ========================================================
-    // 6. CHECK CACHE
+    // 6. EXISTING AI COACH
     // ========================================================
 
-    const url =
-      new URL(req.url)
+    /*
+     * We only read the cached AI coach here.
+     *
+     * We do NOT regenerate it during GET.
+     */
 
-    const force =
-      url.searchParams.get(
-        'refresh'
-      ) === '1'
-
-    let cached =
-      await ExamPrepAIAnalysis.findOne({
-        examPrepStudentId:
-          auth.student._id,
-      })
-
-    let aiCoach =
+    const aiCoach =
       cached?.aiCoach ||
       null
 
-    // ========================================================
-    // 7. DETERMINE IF AI ANALYSIS SHOULD RUN
-    // ========================================================
-
-    const lastAttemptCount =
+    const aiBasedOnAttemptCount =
       Number(
-        cached?.basedOnAttemptCount ||
+        cached
+          ?.basedOnAttemptCount ||
         0
       )
 
-    const newAttemptCount =
-      stats.totalAttempts -
-      lastAttemptCount
+    // ========================================================
+    // 7. DETERMINE WHETHER AI ANALYSIS IS STALE
+    // ========================================================
 
-    const shouldGenerateAI =
-      Boolean(
-        process.env.GROQ_API_KEY
-      ) &&
-      (
-        force ||
-        !cached ||
-        newAttemptCount >= 3
+    /*
+     * This tells the frontend whether enough new examination
+     * attempts have occurred to justify generating a new AI
+     * coaching report.
+     *
+     * Previously this route automatically called Groq once
+     * there were 3 new attempts.
+     *
+     * That caused analytics page loads to take 40–50 seconds
+     * whenever Groq was rate-limited.
+     *
+     * We now only REPORT that the coach needs refreshing.
+     *
+     * Another route can perform the actual AI generation.
+     */
+
+    const newAttemptCount =
+      Math.max(
+        0,
+        Number(
+          stats.totalAttempts
+        ) -
+          aiBasedOnAttemptCount
       )
 
-    // ========================================================
-    // 8. GENERATE AI COACH
-    // ========================================================
-
-    if (shouldGenerateAI) {
-      try {
-        aiCoach =
-          await generatePerformanceCoach(
-            stats
-          )
-
-        cached =
-          await ExamPrepAIAnalysis.findOneAndUpdate(
-            {
-              examPrepStudentId:
-                auth.student._id,
-            },
-            {
-              $set: {
-                basedOnAttemptCount:
-                  stats.totalAttempts,
-
-                deterministicSnapshot:
-                  stats,
-
-                aiCoach,
-
-                generatedAt:
-                  new Date(),
-              },
-            },
-            {
-              upsert:
-                true,
-
-              returnDocument:
-                'after',
-            }
-          )
-      } catch (error) {
-        /*
-         * AI coaching is supplementary.
-         * Analytics should still work when Groq is unavailable
-         * or rate-limited.
-         */
-
-        console.error(
-          'AI analytics:',
-          error
-        )
-      }
-    }
+    const aiNeedsRefresh =
+      !aiCoach ||
+      newAttemptCount >=
+        3
 
     // ========================================================
-    // 9. RESPONSE
+    // 8. RESPONSE
     // ========================================================
 
     return NextResponse.json({
@@ -197,8 +201,17 @@ export async function GET(
       aiGeneratedAt:
         cached?.generatedAt ||
         null,
+
+      aiBasedOnAttemptCount,
+
+      newAttemptsSinceAIAnalysis:
+        newAttemptCount,
+
+      aiNeedsRefresh,
     })
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'Analytics:',
       error
@@ -210,7 +223,8 @@ export async function GET(
           'Could not load analytics.',
       },
       {
-        status: 500,
+        status:
+          500,
       }
     )
   }

@@ -16,10 +16,24 @@ const GROQ_MODEL =
   process.env.GROQ_MODEL ||
   'openai/gpt-oss-20b'
 
-const AI_QUESTION_BATCH_SIZE = 3
+const AI_QUESTION_BATCH_SIZE = 8
 const CLASSIFICATION_BATCH_SIZE = 8
-const MAX_GENERATION_ATTEMPTS = 12
-const MAX_AI_REQUEST_RETRIES = 3
+
+/*
+ * Thirty questions with batches of eight normally needs four
+ * successful generations:
+ *
+ * 8 + 8 + 8 + 6 = 30
+ *
+ * Seven attempts leaves room for a few truncated, duplicate or
+ * temporarily failed generations without allowing the request to
+ * loop forever.
+ */
+const MAX_GENERATION_ATTEMPTS = 7
+
+const DEFAULT_AI_REQUEST_RETRIES = 1
+const GROQ_REQUEST_TIMEOUT_MS = 25_000
+const MAX_RATE_LIMIT_WAIT_MS = 20_000
 
 // ============================================================
 // TYPES
@@ -111,6 +125,16 @@ export type GetAIQuestionsInput = {
   topic?: string
 
   excludeFingerprints?: string[]
+
+  /**
+   * When true, skip the shared question-bank lookup and go
+   * directly to fresh AI generation.
+   *
+   * exam/start uses this after it has already followed:
+   *
+   * ALOC -> Question Bank -> AI
+   */
+  skipBank?: boolean
 }
 
 export type GetQuestionBankInput = {
@@ -495,6 +519,217 @@ function sanitizeCommonLatexEscapes(
     )
 }
 
+// ============================================================
+// RECOVER COMPLETE OBJECTS FROM A TRUNCATED JSON ARRAY
+// ============================================================
+
+/**
+ * Groq may occasionally stop with finish_reason = "length".
+ *
+ * When that happens, the response may contain several complete
+ * objects followed by one unfinished object. JSON.parse() cannot
+ * parse the whole response, but the completed objects are still
+ * useful.
+ *
+ * This helper walks a named JSON array and recovers only complete
+ * top-level objects. It safely handles nested objects, strings and
+ * escaped quotes. Any unfinished final object is ignored.
+ */
+function extractCompleteObjectsFromArray(
+  raw: string,
+  arrayKey: string
+): any[] {
+  const text =
+    sanitizeCommonLatexEscapes(
+      String(
+        raw || ''
+      )
+    )
+
+  const keyToken =
+    `"${arrayKey}"`
+
+  const keyIndex =
+    text.indexOf(
+      keyToken
+    )
+
+  if (
+    keyIndex ===
+    -1
+  ) {
+    return []
+  }
+
+  const arrayStart =
+    text.indexOf(
+      '[',
+      keyIndex +
+        keyToken.length
+    )
+
+  if (
+    arrayStart ===
+    -1
+  ) {
+    return []
+  }
+
+  const recovered:
+    any[] =
+    []
+
+  let objectStart =
+    -1
+
+  let objectDepth =
+    0
+
+  let inString =
+    false
+
+  let escaped =
+    false
+
+  for (
+    let index =
+      arrayStart + 1;
+    index <
+      text.length;
+    index +=
+      1
+  ) {
+    const character =
+      text[index]
+
+    if (
+      inString
+    ) {
+      if (
+        escaped
+      ) {
+        escaped =
+          false
+
+        continue
+      }
+
+      if (
+        character ===
+        '\\'
+      ) {
+        escaped =
+          true
+
+        continue
+      }
+
+      if (
+        character ===
+        '"'
+      ) {
+        inString =
+          false
+      }
+
+      continue
+    }
+
+    if (
+      character ===
+      '"'
+    ) {
+      inString =
+        true
+
+      continue
+    }
+
+    if (
+      character ===
+      '{'
+    ) {
+      if (
+        objectDepth ===
+        0
+      ) {
+        objectStart =
+          index
+      }
+
+      objectDepth +=
+        1
+
+      continue
+    }
+
+    if (
+      character ===
+        '}' &&
+      objectDepth >
+        0
+    ) {
+      objectDepth -=
+        1
+
+      if (
+        objectDepth ===
+          0 &&
+        objectStart !==
+          -1
+      ) {
+        const candidate =
+          text.slice(
+            objectStart,
+            index + 1
+          )
+
+        try {
+          const parsed =
+            JSON.parse(
+              candidate
+            )
+
+          if (
+            parsed &&
+            typeof parsed ===
+              'object' &&
+            !Array.isArray(
+              parsed
+            )
+          ) {
+            recovered.push(
+              parsed
+            )
+          }
+        } catch {
+          // Ignore this object and keep scanning.
+        }
+
+        objectStart =
+          -1
+      }
+
+      continue
+    }
+
+    if (
+      character ===
+        ']' &&
+      objectDepth ===
+        0
+    ) {
+      break
+    }
+  }
+
+  return recovered
+}
+
+// ============================================================
+// JSON EXTRACTION
+// ============================================================
+
 function extractJSON(
   raw: string
 ):
@@ -505,7 +740,9 @@ function extractJSON(
     )
       .trim()
 
-  if (!text) {
+  if (
+    !text
+  ) {
     throw new Error(
       'AI returned empty content.'
     )
@@ -527,6 +764,7 @@ function extractJSON(
       )
       .trim()
 
+  // 1. Try the response exactly as returned.
   try {
     return JSON.parse(
       text
@@ -535,6 +773,7 @@ function extractJSON(
     // Continue.
   }
 
+  // 2. Repair common LaTeX escape sequences, then retry.
   const sanitized =
     sanitizeCommonLatexEscapes(
       text
@@ -548,6 +787,7 @@ function extractJSON(
     // Continue.
   }
 
+  // 3. Try a complete outer object if extra text was added.
   const objectStart =
     sanitized.indexOf(
       '{'
@@ -579,6 +819,7 @@ function extractJSON(
     }
   }
 
+  // 4. Try a complete array if the model returned one directly.
   const arrayStart =
     sanitized.indexOf(
       '['
@@ -607,6 +848,31 @@ function extractJSON(
       )
     } catch {
       // Continue.
+    }
+  }
+
+  // 5. Salvage complete questions from a truncated response.
+  const recoveredQuestions =
+    extractCompleteObjectsFromArray(
+      sanitized,
+      'questions'
+    )
+
+  if (
+    recoveredQuestions.length >
+    0
+  ) {
+    console.warn(
+      '[QUESTION GENERATION] Recovered complete questions from truncated JSON:',
+      {
+        recovered:
+          recoveredQuestions.length,
+      }
+    )
+
+    return {
+      questions:
+        recoveredQuestions,
     }
   }
 
@@ -693,9 +959,17 @@ function getRetryDelayFromHeader(
 // GROQ JSON REQUEST
 // ============================================================
 
+type AIJSONOptions = {
+  label?: string
+  maxRetries?: number
+  maxCompletionTokens?: number
+  timeoutMs?: number
+}
+
 async function aiJSON(
   systemPrompt: string,
   userPrompt: string,
+  options: AIJSONOptions = {},
   retryCount = 0
 ):
   Promise<any> {
@@ -708,6 +982,74 @@ async function aiJSON(
       'GROQ_API_KEY is not configured.'
     )
   }
+
+  const label =
+    normalizeText(
+      options.label
+    ) ||
+    'Groq request'
+
+  const maxRetries =
+    Math.max(
+      0,
+      Math.min(
+        2,
+        Number.isFinite(
+          Number(
+            options.maxRetries
+          )
+        )
+          ? Number(
+              options.maxRetries
+            )
+          : DEFAULT_AI_REQUEST_RETRIES
+      )
+    )
+
+  const maxCompletionTokens =
+    Math.max(
+      200,
+      Math.min(
+        4000,
+        Number.isFinite(
+          Number(
+            options.maxCompletionTokens
+          )
+        )
+          ? Number(
+              options.maxCompletionTokens
+            )
+          : 1800
+      )
+    )
+
+  const timeoutMs =
+    Math.max(
+      5000,
+      Math.min(
+        60_000,
+        Number.isFinite(
+          Number(
+            options.timeoutMs
+          )
+        )
+          ? Number(
+              options.timeoutMs
+            )
+          : GROQ_REQUEST_TIMEOUT_MS
+      )
+    )
+
+  const controller =
+    new AbortController()
+
+  const timeoutHandle =
+    setTimeout(
+      () => {
+        controller.abort()
+      },
+      timeoutMs
+    )
 
   let response:
     Response
@@ -727,6 +1069,9 @@ async function aiJSON(
             'Content-Type':
               'application/json',
           },
+
+          signal:
+            controller.signal,
 
           body:
             JSON.stringify(
@@ -795,6 +1140,9 @@ The entire response must be directly parseable by JSON.parse().
 
                 temperature:
                   0.2,
+
+                max_completion_tokens:
+                  maxCompletionTokens,
               }
             ),
         }
@@ -802,21 +1150,33 @@ The entire response must be directly parseable by JSON.parse().
   } catch (
     error
   ) {
+    clearTimeout(
+      timeoutHandle
+    )
+
     if (
       retryCount <
-      MAX_AI_REQUEST_RETRIES
+      maxRetries
     ) {
+      const waitMs =
+        750 *
+        (
+          retryCount +
+          1
+        )
+
+      console.warn(
+        `[${label}] Request failed. Retrying in ${waitMs}ms.`
+      )
+
       await sleep(
-        1500 *
-          (
-            retryCount +
-            1
-          )
+        waitMs
       )
 
       return aiJSON(
         systemPrompt,
         userPrompt,
+        options,
         retryCount +
           1
       )
@@ -824,6 +1184,10 @@ The entire response must be directly parseable by JSON.parse().
 
     throw error
   }
+
+  clearTimeout(
+    timeoutHandle
+  )
 
   // ==========================================================
   // RATE LIMIT
@@ -838,10 +1202,10 @@ The entire response must be directly parseable by JSON.parse().
 
     if (
       retryCount >=
-      MAX_AI_REQUEST_RETRIES
+      maxRetries
     ) {
       throw new Error(
-        `Groq rate limit remained active after ${MAX_AI_REQUEST_RETRIES} retries: ${body}`
+        `Groq rate limit remained active after ${maxRetries} retr${maxRetries === 1 ? 'y' : 'ies'}: ${body}`
       )
     }
 
@@ -858,23 +1222,29 @@ The entire response must be directly parseable by JSON.parse().
       )
 
     const fallbackDelay =
-      10000 +
+      8000 +
       retryCount *
-        5000
+        3000
 
-    const waitMs =
+    const requestedWait =
       headerDelay ||
       bodyDelay ||
       fallbackDelay
 
+    const waitMs =
+      Math.min(
+        requestedWait,
+        MAX_RATE_LIMIT_WAIT_MS
+      )
+
     console.warn(
-      `Groq rate limit reached. Waiting ${Math.ceil(
+      `[${label}] Groq rate limit reached. Waiting ${Math.ceil(
         waitMs /
           1000
       )} seconds before retry ${
         retryCount +
         1
-      }/${MAX_AI_REQUEST_RETRIES}...`
+      }/${maxRetries}...`
     )
 
     await sleep(
@@ -884,6 +1254,7 @@ The entire response must be directly parseable by JSON.parse().
     return aiJSON(
       systemPrompt,
       userPrompt,
+      options,
       retryCount +
         1
     )
@@ -908,17 +1279,17 @@ The entire response must be directly parseable by JSON.parse().
 
     if (
       retryCount <
-      MAX_AI_REQUEST_RETRIES
+      maxRetries
     ) {
       const waitMs =
-        2000 *
+        1000 *
         (
           retryCount +
           1
         )
 
       console.warn(
-        `Groq temporary error ${response.status}. Retrying in ${waitMs}ms.`
+        `[${label}] Groq temporary error ${response.status}. Retrying in ${waitMs}ms.`
       )
 
       await sleep(
@@ -928,6 +1299,7 @@ The entire response must be directly parseable by JSON.parse().
       return aiJSON(
         systemPrompt,
         userPrompt,
+        options,
         retryCount +
           1
       )
@@ -980,7 +1352,7 @@ The entire response must be directly parseable by JSON.parse().
       'stop'
   ) {
     console.warn(
-      'Groq finish reason:',
+      `[${label}] Groq finish reason:`,
       finishReason
     )
   }
@@ -1206,9 +1578,7 @@ async function generateBatch({
   const systemPrompt = `
 You are Loran EduHub's professional examination question writer.
 
-Create original, high-quality senior secondary school multiple-choice questions.
-
-The questions must be academically accurate.
+Create original, academically accurate senior secondary school multiple-choice questions.
 
 Every question must have exactly four options:
 
@@ -1219,15 +1589,15 @@ d
 
 Exactly one option must be correct.
 
-Avoid ambiguous questions.
-
-Avoid trick wording unless academically appropriate.
+Avoid ambiguous wording.
 
 Avoid duplicated questions.
 
 Use difficulty suitable for ${cleanClass.toUpperCase()} students.
 
-If the examination standard is "mixed", create questions comparable in style and difficulty to a balanced mixture of:
+Match the requested examination standard appropriately.
+
+If the examination standard is "mixed", use a balanced style comparable to:
 
 WAEC
 NECO
@@ -1236,9 +1606,17 @@ IGCSE
 
 Do not copy copyrighted past examination questions word-for-word.
 
-Generate original questions that test the same curriculum skills.
+Generate original questions that test the same curriculum knowledge and skills.
 
-Use plain-text mathematical notation instead of LaTeX.
+Use plain-text mathematical notation.
+
+Do not use LaTeX.
+
+Keep question text concise.
+
+Keep option text concise.
+
+Do not generate explanations.
   `.trim()
 
   const topicInstruction =
@@ -1277,8 +1655,7 @@ Return exactly this JSON structure:
       "correctAnswer": "a",
       "topic": "Topic name",
       "subtopic": "Subtopic name",
-      "difficulty": "medium",
-      "explanation": "Short explanation"
+      "difficulty": "medium"
     }
   ]
 }
@@ -1287,14 +1664,25 @@ Rules:
 
 Return exactly ${safeCount} questions.
 
-correctAnswer must be one of:
+Every question must contain:
+
+"text"
+"options"
+"correctAnswer"
+"topic"
+"subtopic"
+"difficulty"
+
+Do NOT include an "explanation" field.
+
+correctAnswer must be exactly one of:
 
 "a"
 "b"
 "c"
 "d"
 
-difficulty must be one of:
+difficulty must be exactly one of:
 
 "easy"
 "medium"
@@ -1304,7 +1692,11 @@ Every question must contain all four options.
 
 Do not put question numbers inside question text.
 
-Keep explanations concise.
+Keep every question concise.
+
+Keep every option concise.
+
+Use plain-text mathematical expressions.
 
 Do not use Markdown.
 
@@ -1312,19 +1704,41 @@ Do not use LaTeX.
 
 Do not use backslash-based mathematics.
 
+Do not include commentary.
+
 Return only JSON.
   `.trim()
 
   const result =
     await aiJSON(
       systemPrompt,
-      userPrompt
+      userPrompt,
+      {
+        label:
+          'QUESTION GENERATION',
+
+        /*
+         * getAIQuestions() already performs multiple generation
+         * attempts, so one provider-level retry is sufficient.
+         */
+        maxRetries:
+          1,
+
+        /*
+         * Eight compact questions without explanations should fit
+         * comfortably while keeping Groq token pressure lower.
+         */
+        maxCompletionTokens:
+          2000,
+
+        timeoutMs:
+          25_000,
+      }
     )
 
   const rawQuestions =
     Array.isArray(
-      result
-        ?.questions
+      result?.questions
     )
       ? result.questions
       : Array.isArray(
@@ -1355,6 +1769,26 @@ Return only JSON.
         question
       )
     }
+  }
+
+  if (
+    normalized.length <
+    safeCount
+  ) {
+    console.warn(
+      '[QUESTION GENERATION] Batch returned fewer usable questions than requested:',
+      {
+        requested:
+          safeCount,
+
+        usable:
+          normalized.length,
+
+        shortage:
+          safeCount -
+          normalized.length,
+      }
+    )
   }
 
   return normalized
@@ -1586,7 +2020,6 @@ export async function classifyQuestionTopics(
                 1500
               ),
 
-          // Additional metadata may help classification.
           category:
             normalizeText(
               question.category
@@ -1732,7 +2165,20 @@ difficulty must be exactly:
 "hard"
 
 Return JSON only.
-          `.trim()
+          `.trim(),
+          {
+            label:
+              'QUESTION CLASSIFICATION',
+
+            maxRetries:
+              0,
+
+            maxCompletionTokens:
+              1000,
+
+            timeoutMs:
+              15_000,
+          }
         )
 
       const classifications =
@@ -1821,12 +2267,6 @@ Return JSON only.
     } catch (
       error
     ) {
-      /*
-       * Classification is enrichment.
-       *
-       * It must never stop the exam itself.
-       */
-
       console.error(
         'Question topic classification batch failed:',
         error
@@ -2025,14 +2465,6 @@ function bankRecordToQuestion(
 
     standard,
 
-    /*
-     * IMPORTANT:
-     *
-     * Do not hard-code this to "ai".
-     *
-     * ALOC questions stored in the bank must remain ALOC
-     * questions when reused.
-     */
     source,
 
     explanation:
@@ -2164,10 +2596,6 @@ async function incrementQuestionUsage(
   } catch (
     error
   ) {
-    /*
-     * Usage tracking must never prevent an exam.
-     */
-
     console.error(
       'Question bank usage update failed:',
       error
@@ -2189,7 +2617,9 @@ async function incrementQuestionUsage(
  *
  * depending on what is available.
  *
- * start/route.ts can use this BEFORE calling ALOC.
+ * Exam Prep routes can call this whenever they need reusable
+ * cached questions. The exam/start route currently uses it after
+ * the live ALOC attempt for JAMB, WAEC and NECO.
  */
 export async function getQuestionBankQuestions({
   subject,
@@ -2245,9 +2675,6 @@ export async function getQuestionBankQuestions({
       cleanSubject,
   }
 
-  /*
-   * Mixed examinations can draw from every standard.
-   */
   if (
     cleanStandard !==
     'mixed'
@@ -2298,10 +2725,6 @@ export async function getQuestionBankQuestions({
     }
   }
 
-  /*
-   * Prefer least-used questions so students do not constantly
-   * receive the same bank questions.
-   */
   const records =
     await AIQuestionBank
       .find(
@@ -2353,9 +2776,6 @@ export async function getQuestionBankQuestions({
     questions.length >
       0
   ) {
-    /*
-     * Do not block exam creation for usage tracking.
-     */
     void incrementQuestionUsage(
       questions.map(
         (
@@ -2374,35 +2794,11 @@ export async function getQuestionBankQuestions({
 // PUBLIC: SAVE AI OR ALOC QUESTIONS TO BANK
 // ============================================================
 
-/**
- * Stores both AI and ALOC questions.
- *
- * Questions are deduplicated by fingerprint.
- *
- * Existing questions are enriched/updated when we encounter
- * better metadata later.
- *
- * IMPORTANT:
- *
- * A MongoDB update field must not appear in both $set and
- * $setOnInsert in the same operation. Therefore:
- *
- * $setOnInsert:
- *   fingerprint
- *   usageCount
- *
- * $set:
- *   all question/content/metadata fields
- */
 export async function saveQuestionsToBank(
   questions:
     AIExamQuestion[] |
     any[]
 ) {
-  // ==========================================================
-  // 1. BASIC VALIDATION
-  // ==========================================================
-
   if (
     !Array.isArray(
       questions
@@ -2416,10 +2812,6 @@ export async function saveQuestionsToBank(
 
   const operations:
     any[] = []
-
-  // ==========================================================
-  // 2. NORMALIZE QUESTIONS
-  // ==========================================================
 
   for (
     const raw of
@@ -2448,10 +2840,6 @@ export async function saveQuestionsToBank(
       normalizeCorrectAnswer(
         raw?.correctAnswer
       )
-
-    // --------------------------------------------------------
-    // REQUIRED FIELDS
-    // --------------------------------------------------------
 
     if (
       !subject ||
@@ -2491,10 +2879,6 @@ export async function saveQuestionsToBank(
       continue
     }
 
-    // ========================================================
-    // 3. QUESTION IDENTITY
-    // ========================================================
-
     const fingerprint =
       normalizeText(
         raw?.fingerprint
@@ -2515,10 +2899,6 @@ export async function saveQuestionsToBank(
         raw?.source
       )
 
-    // ========================================================
-    // 4. CLASSIFICATION
-    // ========================================================
-
     const topic =
       normalizeText(
         raw?.topic
@@ -2534,10 +2914,6 @@ export async function saveQuestionsToBank(
       normalizeDifficulty(
         raw?.difficulty
       )
-
-    // ========================================================
-    // 5. OPTIONAL METADATA
-    // ========================================================
 
     const providerQuestionId =
       normalizeText(
@@ -2599,20 +2975,6 @@ export async function saveQuestionsToBank(
         raw?.year
       )
 
-    // ========================================================
-    // 6. $SET DATA
-    // ========================================================
-
-    /*
-     * These fields are written using $set.
-     *
-     * $set also runs when MongoDB performs an upsert, so there
-     * is no reason to repeat these same fields under
-     * $setOnInsert.
-     *
-     * Existing bank records can also gain improved metadata.
-     */
-
     const setData:
       Record<
         string,
@@ -2672,21 +3034,12 @@ export async function saveQuestionsToBank(
       curriculumMapping,
     }
 
-    /*
-     * Don't write undefined into MongoDB.
-     *
-     * AI-generated questions normally have no exam year.
-     */
     if (
       year !== undefined
     ) {
       setData.year =
         year
     }
-
-    // ========================================================
-    // 7. UPSERT
-    // ========================================================
 
     operations.push({
       updateOne: {
@@ -2695,11 +3048,6 @@ export async function saveQuestionsToBank(
         },
 
         update: {
-          /*
-           * ONLY insert-only properties belong here.
-           *
-           * Do not repeat topic, subject, standard, etc.
-           */
           $setOnInsert: {
             fingerprint,
 
@@ -2707,12 +3055,6 @@ export async function saveQuestionsToBank(
               0,
           },
 
-          /*
-           * These fields work for both:
-           *
-           * - new documents
-           * - existing documents
-           */
           $set:
             setData,
         },
@@ -2723,19 +3065,11 @@ export async function saveQuestionsToBank(
     })
   }
 
-  // ==========================================================
-  // 8. NOTHING VALID TO SAVE
-  // ==========================================================
-
   if (
     operations.length === 0
   ) {
     return
   }
-
-  // ==========================================================
-  // 9. BULK SAVE
-  // ==========================================================
 
   try {
     const result =
@@ -2779,17 +3113,6 @@ export async function saveQuestionsToBank(
     error:
       any
   ) {
-    /*
-     * Duplicate-key races are harmless.
-     *
-     * Example:
-     *
-     * Student A and Student B both receive the same newly
-     * generated question at almost the same time.
-     *
-     * Both attempt to upsert the fingerprint.
-     */
-
     if (
       error?.code ===
       11000
@@ -2812,18 +3135,29 @@ export async function saveQuestionsToBank(
     )
   }
 }
+
 // ============================================================
 // PUBLIC GET AI QUESTIONS
 // ============================================================
 
 /**
- * This function now means:
+ * Returns questions for an AI fallback stage.
+ *
+ * Default behaviour:
  *
  * 1. Reuse compatible shared-bank questions first.
  * 2. Generate with Groq only for the shortage.
  * 3. Save newly generated AI questions back into the bank.
  *
- * Shared-bank questions may originally be ALOC questions.
+ * When skipBank=true:
+ *
+ * 1. Skip the shared bank completely.
+ * 2. Generate fresh AI questions for the requested count.
+ * 3. Save newly generated AI questions back into the bank.
+ *
+ * exam/start uses skipBank=true only after it has already followed:
+ *
+ * ALOC -> Question Bank -> AI
  */
 export async function getAIQuestions({
   subject,
@@ -2832,6 +3166,7 @@ export async function getAIQuestions({
   count,
   topic,
   excludeFingerprints = [],
+  skipBank = false,
 }: GetAIQuestionsInput):
   Promise<
     AIExamQuestion[]
@@ -2883,13 +3218,15 @@ export async function getAIQuestions({
     []
 
   // ==========================================================
-  // 1. REUSE SHARED QUESTION BANK FIRST
+  // OPTIONAL QUESTION BANK LOOKUP
   // ==========================================================
 
-  try {
-    const bankQuestions =
-      await getQuestionBankQuestions(
-        {
+  if (
+    !skipBank
+  ) {
+    try {
+      const bankQuestions =
+        await getQuestionBankQuestions({
           subject:
             cleanSubject,
 
@@ -2919,49 +3256,49 @@ export async function getAIQuestions({
 
           incrementUsage:
             true,
-        }
-      )
+        })
 
-    for (
-      const question of
-        bankQuestions
-    ) {
-      if (
-        result.length >=
-        requestedCount
+      for (
+        const question of
+          bankQuestions
       ) {
-        break
-      }
+        if (
+          result.length >=
+          requestedCount
+        ) {
+          break
+        }
 
-      if (
-        excluded.has(
+        if (
+          excluded.has(
+            question
+              .fingerprint
+          )
+        ) {
+          continue
+        }
+
+        excluded.add(
           question
             .fingerprint
         )
-      ) {
-        continue
+
+        result.push(
+          question
+        )
       }
-
-      excluded.add(
-        question
-          .fingerprint
-      )
-
-      result.push(
-        question
+    } catch (
+      error
+    ) {
+      console.error(
+        'Question bank fetch failed:',
+        error
       )
     }
-  } catch (
-    error
-  ) {
-    console.error(
-      'Question bank fetch failed:',
-      error
-    )
   }
 
   // ==========================================================
-  // 2. GENERATE ONLY WHAT IS STILL MISSING
+  // GENERATE ONLY WHAT IS STILL MISSING
   // ==========================================================
 
   let attempts =
@@ -2992,28 +3329,26 @@ export async function getAIQuestions({
 
     try {
       generated =
-        await generateBatch(
-          {
-            subject:
-              cleanSubject,
+        await generateBatch({
+          subject:
+            cleanSubject,
 
-            standard:
-              cleanStandard,
+          standard:
+            cleanStandard,
 
-            studentClass:
-              cleanClass,
+          studentClass:
+            cleanClass,
 
-            count:
-              batchSize,
+          count:
+            batchSize,
 
-            topic:
-              topic
-                ? normalizeText(
-                    topic
-                  )
-                : undefined,
-          }
-        )
+          topic:
+            topic
+              ? normalizeText(
+                  topic
+                )
+              : undefined,
+        })
     } catch (
       error
     ) {
@@ -3023,7 +3358,7 @@ export async function getAIQuestions({
       )
 
       await sleep(
-        1000
+        250
       )
 
       continue
@@ -3034,7 +3369,7 @@ export async function getAIQuestions({
       0
     ) {
       await sleep(
-        750
+        150
       )
 
       continue
@@ -3089,10 +3424,6 @@ export async function getAIQuestions({
       } catch (
         error
       ) {
-        /*
-         * Cache failure should not invalidate good questions.
-         */
-
         console.error(
           'Could not cache generated questions:',
           error
@@ -3105,14 +3436,10 @@ export async function getAIQuestions({
       requestedCount
     ) {
       await sleep(
-        750
+        150
       )
     }
   }
-
-  // ==========================================================
-  // 3. FINAL RESULT
-  // ==========================================================
 
   if (
     result.length ===
@@ -3480,10 +3807,6 @@ export async function generatePerformanceCoach(
     }
   }
 
-  // ==========================================================
-  // COMPACT ANALYTICS
-  // ==========================================================
-
   const compactStats = {
     totalAttempts:
       stats
@@ -3522,7 +3845,7 @@ export async function generatePerformanceCoach(
             .weakestSubjects
             .slice(
               0,
-              5
+              4
             )
         : [],
 
@@ -3535,7 +3858,7 @@ export async function generatePerformanceCoach(
             .strongestSubjects
             .slice(
               0,
-              5
+              4
             )
         : [],
 
@@ -3548,7 +3871,7 @@ export async function generatePerformanceCoach(
             .weakestTopics
             .slice(
               0,
-              8
+              6
             )
         : [],
 
@@ -3561,21 +3884,9 @@ export async function generatePerformanceCoach(
             .strongestTopics
             .slice(
               0,
-              8
+              6
             )
         : [],
-
-    subjectAverages:
-      stats
-        .subjectAverages,
-
-    subjectPerformance:
-      stats
-        .subjectPerformance,
-
-    topicPerformance:
-      stats
-        .topicPerformance,
 
     difficultyPerformance:
       stats
@@ -3692,28 +4003,35 @@ Return no more than 6 exam strategies.
 Do not use Markdown.
 
 Return only JSON.
-        `.trim()
+        `.trim(),
+        {
+          label:
+            'PERFORMANCE COACH',
+
+          maxRetries:
+            0,
+
+          maxCompletionTokens:
+            900,
+
+          timeoutMs:
+            15_000,
+        }
       )
   } catch (
     error
   ) {
-    /*
-     * Analytics should still work even when Groq is unavailable.
-     */
-
-    console.error(
-      'AI performance coach failed:',
-      error
+    console.warn(
+      '[PERFORMANCE COACH] Groq unavailable; using local fallback:',
+      error instanceof Error
+        ? error.message
+        : error
     )
 
     return buildPerformanceCoachFallback(
       stats
     )
   }
-
-  // ==========================================================
-  // NORMALIZE RESPONSE
-  // ==========================================================
 
   const allowedReadiness =
     new Set([
@@ -4177,7 +4495,7 @@ export async function generateTopicTutorLesson({
   }
 
   // ==========================================================
-  // BUILD PERFORMANCE CONTEXT
+  // PERFORMANCE CONTEXT
   // ==========================================================
 
   const performanceContext =
@@ -4354,7 +4672,20 @@ Create a useful, accurate and personalized lesson.
 If the exam standard is "mixed", use a balanced senior-secondary level suitable for WAEC, NECO, JAMB and IGCSE preparation.
 
 Do not present generated practice questions as copyrighted official past questions.
-      `.trim()
+      `.trim(),
+      {
+        label:
+          'AI TOPIC TUTOR',
+
+        maxRetries:
+          1,
+
+        maxCompletionTokens:
+          2600,
+
+        timeoutMs:
+          30_000,
+      }
     )
 
   // ==========================================================

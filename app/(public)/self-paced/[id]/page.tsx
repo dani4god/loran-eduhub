@@ -1,219 +1,987 @@
 // app/(public)/self-paced/[id]/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
 import CoursePublicReviews from '@/components/self-paced/CoursePublicReviews'
 import PreviewVideoEmbed from '@/components/self-paced/PreviewVideoEmbed'
-import { Layers, Clock, HelpCircle, MessageSquare, Calendar, User, Play, FileText } from 'lucide-react'
+
+import {
+  Layers,
+  MessageSquare,
+  Calendar,
+  User,
+  Play,
+  BookOpen,
+  CheckCircle2,
+  GraduationCap,
+  ChevronRight,
+} from 'lucide-react'
+
+// ============================================================
+// DESCRIPTION TYPES
+// ============================================================
+
+type DescriptionBlock =
+  | {
+      type: 'paragraph'
+      content: string
+    }
+  | {
+      type: 'bullet-list'
+      items: string[]
+    }
+  | {
+      type: 'number-list'
+      items: string[]
+    }
+  | {
+      type: 'heading'
+      content: string
+    }
+
+// ============================================================
+// DESCRIPTION HELPERS
+// ============================================================
+
+function cleanDescriptionText(value: unknown): string {
+  if (typeof value !== 'string') {
+    return ''
+  }
+
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim()
+}
+
+function parseDescription(
+  description: unknown
+): DescriptionBlock[] {
+  const text = cleanDescriptionText(description)
+
+  if (!text) {
+    return []
+  }
+
+  const lines = text.split('\n')
+  const blocks: DescriptionBlock[] = []
+
+  let paragraphLines: string[] = []
+  let bulletItems: string[] = []
+  let numberItems: string[] = []
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) {
+      return
+    }
+
+    blocks.push({
+      type: 'paragraph',
+      content: paragraphLines.join(' ').trim(),
+    })
+
+    paragraphLines = []
+  }
+
+  const flushBullets = () => {
+    if (!bulletItems.length) {
+      return
+    }
+
+    blocks.push({
+      type: 'bullet-list',
+      items: [...bulletItems],
+    })
+
+    bulletItems = []
+  }
+
+  const flushNumbers = () => {
+    if (!numberItems.length) {
+      return
+    }
+
+    blocks.push({
+      type: 'number-list',
+      items: [...numberItems],
+    })
+
+    numberItems = []
+  }
+
+  const flushLists = () => {
+    flushBullets()
+    flushNumbers()
+  }
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim()
+
+    if (!line) {
+      flushParagraph()
+      flushLists()
+      return
+    }
+
+    // Bullet:
+    // - Item
+    // * Item
+    // • Item
+    const bulletMatch = line.match(/^[-*•]\s+(.+)$/)
+
+    if (bulletMatch) {
+      flushParagraph()
+      flushNumbers()
+
+      bulletItems.push(bulletMatch[1].trim())
+      return
+    }
+
+    // Numbered:
+    // 1. Item
+    // 2) Item
+    const numberMatch = line.match(/^\d+[.)]\s+(.+)$/)
+
+    if (numberMatch) {
+      flushParagraph()
+      flushBullets()
+
+      numberItems.push(numberMatch[1].trim())
+      return
+    }
+
+    // Headings such as:
+    // What You Will Learn:
+    // COURSE OBJECTIVES
+    const looksLikeHeading =
+      line.length <= 80 &&
+      (
+        line.endsWith(':') ||
+        (
+          line === line.toUpperCase() &&
+          line.length >= 4 &&
+          /[A-Z]/.test(line)
+        )
+      )
+
+    if (looksLikeHeading) {
+      flushParagraph()
+      flushLists()
+
+      blocks.push({
+        type: 'heading',
+        content: line.replace(/:$/, ''),
+      })
+
+      return
+    }
+
+    flushLists()
+    paragraphLines.push(line)
+  })
+
+  flushParagraph()
+  flushLists()
+
+  return blocks
+}
+
+function getDescriptionPreview(
+  description: unknown,
+  maxLength = 210
+) {
+  const text = cleanDescriptionText(description)
+    .replace(/^[-*•]\s+/gm, '')
+    .replace(/^\d+[.)]\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!text) {
+    return 'Explore this self-paced course and learn through carefully structured lessons, practical activities, and assessments.'
+  }
+
+  if (text.length <= maxLength) {
+    return text
+  }
+
+  return `${text.slice(0, maxLength).trim()}...`
+}
+
+// ============================================================
+// COURSE DESCRIPTION COMPONENT
+// ============================================================
+
+function CourseDescription({
+  description,
+}: {
+  description: unknown
+}) {
+  const blocks = useMemo(
+    () => parseDescription(description),
+    [description]
+  )
+
+  if (!blocks.length) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-5">
+        <p className="text-sm leading-7 text-gray-500">
+          No detailed course description has been provided yet.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {blocks.map((block, index) => {
+        if (block.type === 'heading') {
+          return (
+            <h3
+              key={`heading-${index}`}
+              className="pt-2 text-base font-bold text-gray-900 sm:text-lg"
+            >
+              {block.content}
+            </h3>
+          )
+        }
+
+        if (block.type === 'paragraph') {
+          return (
+            <p
+              key={`paragraph-${index}`}
+              className="text-sm leading-7 text-gray-600 sm:text-[15px]"
+            >
+              {block.content}
+            </p>
+          )
+        }
+
+        if (block.type === 'bullet-list') {
+          return (
+            <div
+              key={`bullets-${index}`}
+              className="space-y-3"
+            >
+              {block.items.map((item, itemIndex) => (
+                <div
+                  key={itemIndex}
+                  className="flex items-start gap-3"
+                >
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-50">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                  </div>
+
+                  <p className="flex-1 text-sm leading-6 text-gray-600 sm:text-[15px]">
+                    {item}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )
+        }
+
+        return (
+          <div
+            key={`numbers-${index}`}
+            className="space-y-3"
+          >
+            {block.items.map((item, itemIndex) => (
+              <div
+                key={itemIndex}
+                className="flex items-start gap-3"
+              >
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-600">
+                  {itemIndex + 1}
+                </div>
+
+                <p className="flex-1 text-sm leading-6 text-gray-600 sm:text-[15px]">
+                  {item}
+                </p>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============================================================
+// MAIN PAGE
+// ============================================================
 
 export default function SelfPacedCourseDetailPage() {
   const params = useParams()
   const id = params.id as string
+
   const [course, setCourse] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
+  // ==========================================================
+  // FETCH PUBLIC COURSE
+  // ==========================================================
+
   useEffect(() => {
-    fetch(`/api/self-paced/courses/${id}/public`).then((r) => r.json()).then(setCourse).finally(() => setLoading(false))
+    if (!id) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadCourse = async () => {
+      setLoading(true)
+
+      try {
+        const response = await fetch(
+          `/api/self-paced/courses/${id}/public`,
+          {
+            cache: 'no-store',
+          }
+        )
+
+        const data = await response.json()
+
+        if (cancelled) {
+          return
+        }
+
+        if (!response.ok) {
+          setCourse({
+            error:
+              data?.error ||
+              'Course not found.',
+          })
+
+          return
+        }
+
+        setCourse(data)
+      } catch (error) {
+        console.error(
+          'Could not load public course:',
+          error
+        )
+
+        if (!cancelled) {
+          setCourse({
+            error: 'Could not load course.',
+          })
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadCourse()
+
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
-  // Calculate total pages across all weeks
-  const totalPages = course?.weeks?.reduce((acc: number, w: any) => acc + (w.pages?.length || 0), 0) || 0
-  const totalQuestions = course?.weeks?.reduce((acc: number, w: any) => acc + (w.exam?.questions?.length || 0), 0) || 0
+  // ==========================================================
+  // SAFE WEEKS
+  // ==========================================================
 
-  // Build modules data with page titles for the outline
-  const modules = course?.weeks?.map((week: any) => ({
-    weekNumber: week.weekNumber,
-    title: week.title,
-    questionCount: week.exam?.questions?.length || 0,
-    durationMinutes: week.exam?.durationMinutes || 0,
-    pageTitles: week.pages?.map((p: any) => p.title || `Page ${week.pages.indexOf(p) + 1}`) || []
-  })) || []
+  const weeks = useMemo(() => {
+    return Array.isArray(course?.weeks)
+      ? course.weeks
+      : []
+  }, [course?.weeks])
 
-  if (loading) return <><Navbar /><div className="min-h-screen flex items-center justify-center pt-16"><div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" /></div><Footer /></>
-  if (!course || course.error) return <><Navbar /><div className="min-h-screen flex items-center justify-center pt-16"><p className="text-gray-400 text-sm">Course not found.</p></div><Footer /></>
+  // ==========================================================
+  // STATISTICS
+  //
+  // Use stats from the API first.
+  // If unavailable, calculate from safe public data.
+  // ==========================================================
+
+  const totalWeeks = useMemo(() => {
+    if (
+      typeof course?.stats?.weeks === 'number'
+    ) {
+      return course.stats.weeks
+    }
+
+    return weeks.length
+  }, [course, weeks])
+
+  const totalPages = useMemo(() => {
+    if (
+      typeof course?.stats?.lessonPages === 'number'
+    ) {
+      return course.stats.lessonPages
+    }
+
+    return weeks.reduce(
+      (total: number, week: any) => {
+        const pages = Array.isArray(week?.pages)
+          ? week.pages
+          : []
+
+        return total + pages.length
+      },
+      0
+    )
+  }, [course, weeks])
+
+  const totalQuestions = useMemo(() => {
+    if (
+      typeof course?.stats?.questions === 'number'
+    ) {
+      return course.stats.questions
+    }
+
+    return weeks.reduce(
+      (total: number, week: any) => {
+        const count =
+          Number(
+            week?.exam?.questionCount
+          ) || 0
+
+        return total + count
+      },
+      0
+    )
+  }, [course, weeks])
+
+  const totalAssessments = useMemo(() => {
+    if (
+      typeof course?.stats?.assessments === 'number'
+    ) {
+      return course.stats.assessments
+    }
+
+    return weeks.filter(
+      (week: any) =>
+        Number(
+          week?.exam?.questionCount
+        ) > 0
+    ).length
+  }, [course, weeks])
+
+  // ==========================================================
+  // DESCRIPTION PREVIEW
+  // ==========================================================
+
+  const descriptionPreview = useMemo(
+    () =>
+      getDescriptionPreview(
+        course?.description
+      ),
+    [course?.description]
+  )
+
+  // ==========================================================
+  // LOADING
+  // ==========================================================
+
+  if (loading) {
+    return (
+      <>
+        <Navbar />
+
+        <div className="flex min-h-screen items-center justify-center pt-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+        </div>
+
+        <Footer />
+      </>
+    )
+  }
+
+  // ==========================================================
+  // COURSE NOT FOUND
+  // ==========================================================
+
+  if (!course || course.error) {
+    return (
+      <>
+        <Navbar />
+
+        <div className="flex min-h-screen items-center justify-center px-4 pt-16">
+          <div className="text-center">
+            <h1 className="mb-2 text-xl font-bold text-gray-900">
+              Course not found
+            </h1>
+
+            <p className="text-sm text-gray-500">
+              {course?.error ||
+                'This course is unavailable.'}
+            </p>
+          </div>
+        </div>
+
+        <Footer />
+      </>
+    )
+  }
+
+  // ==========================================================
+  // PAGE
+  // ==========================================================
 
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-gray-50 pt-24 pb-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          {/* Hero Card */}
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-6">
-            <div className="h-48 sm:h-64 bg-gray-100">
-              {course.coverImageUrl ? <img src={course.coverImageUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Layers className="w-10 h-10 text-gray-300" /></div>}
+
+      <main className="min-h-screen bg-gray-50 pb-16 pt-24">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+
+          {/* ====================================================
+              HERO
+          ==================================================== */}
+
+          <section className="mb-6 overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+
+            {/* Cover */}
+
+            <div className="relative h-52 bg-gray-100 sm:h-72 lg:h-80">
+              {course.coverImageUrl ? (
+                <img
+                  src={course.coverImageUrl}
+                  alt={course.title || 'Course cover'}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center">
+                  <Layers className="h-12 w-12 text-gray-300" />
+                </div>
+              )}
+
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/5 to-transparent" />
             </div>
-            <div className="p-5 sm:p-7">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{course.title}</h1>
-              <p className="text-gray-600 text-sm mb-4">{course.description}</p>
-              <div className="flex items-center gap-3 mb-5">
-                {course.tutor && (
-                  <div className="flex items-center gap-2">
-                    {course.tutor.profileImage ? <img src={course.tutor.profileImage} className="w-8 h-8 rounded-full object-cover" /> : <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center"><User size={14} className="text-blue-500" /></div>}
-                    <span className="text-sm text-gray-700">{course.tutor.firstName} {course.tutor.lastName}</span>
-                  </div>
-                )}
+
+            {/* Hero Content */}
+
+            <div className="p-5 sm:p-7 lg:p-8">
+
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                <GraduationCap className="h-3.5 w-3.5" />
+                Self-Paced Course
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-4">
+
+              <h1 className="mb-3 text-2xl font-bold leading-tight text-gray-900 sm:text-3xl lg:text-4xl">
+                {course.title}
+              </h1>
+
+              <p className="mb-6 max-w-3xl text-sm leading-7 text-gray-600 sm:text-base">
+                {descriptionPreview}
+              </p>
+
+              {/* Tutor */}
+
+              {course.tutor && (
+                <div className="mb-6 flex items-center gap-3">
+                  {course.tutor.profileImage ? (
+                    <img
+                      src={course.tutor.profileImage}
+                      alt={`${course.tutor.firstName || ''} ${course.tutor.lastName || ''}`}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <User
+                        size={16}
+                        className="text-blue-600"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-xs text-gray-400">
+                      Course Tutor
+                    </p>
+
+                    <p className="text-sm font-semibold text-gray-800">
+                      {course.tutor.firstName}{' '}
+                      {course.tutor.lastName}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Price + CTA */}
+
+              <div className="flex flex-col gap-5 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <span className={`text-lg font-bold ${course.isFree ? 'text-green-600' : 'text-blue-600'}`}>
-                    {course.isFree ? 'Free' : `₦${course.price.toLocaleString('en-NG')}`}
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">
+                    Course Access
+                  </p>
+
+                  <span
+                    className={`text-2xl font-bold ${
+                      course.isFree
+                        ? 'text-green-600'
+                        : 'text-blue-600'
+                    }`}
+                  >
+                    {course.isFree
+                      ? 'Free'
+                      : `₦${Number(
+                          course.price || 0
+                        ).toLocaleString('en-NG')}`}
                   </span>
-                  <p className="text-xs text-gray-400 mt-2">
-                    Want to know more about this course? <a href="#reviews" className="text-blue-600 underline">See what students say</a> before you purchase.
+
+                  <p className="mt-2 text-xs text-gray-400">
+                    Want to know what learners think?{' '}
+                    <a
+                      href="#reviews"
+                      className="font-medium text-blue-600 hover:underline"
+                    >
+                      Read student reviews
+                    </a>
                   </p>
                 </div>
-                <Link href={`/self-paced/${course._id}/purchase`} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0">
-                  {course.isFree ? 'Get This Course' : 'Purchase This Course'}
+
+                <Link
+                  href={`/self-paced/${course._id}/purchase`}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 sm:w-auto"
+                >
+                  {course.isFree
+                    ? 'Get This Course'
+                    : 'Purchase This Course'}
+
+                  <ChevronRight className="h-4 w-4" />
                 </Link>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Preview Video Card (if video URL exists) */}
-          {course.previewVideoUrl && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-7 mb-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <Play size={18} className="text-blue-600" /> Course Preview
-              </h2>
-              <PreviewVideoEmbed url={course.previewVideoUrl} />
+          {/* ====================================================
+              ABOUT THIS COURSE
+          ==================================================== */}
+
+          <section className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7 lg:p-8">
+
+            <div className="mb-6 flex items-start gap-3 border-b border-gray-100 pb-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                <BookOpen className="h-5 w-5 text-blue-600" />
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  About This Course
+                </h2>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Learn what this course covers, who it is designed
+                  for, and what you can expect as you progress.
+                </p>
+              </div>
             </div>
+
+            <div className="max-w-4xl">
+              <CourseDescription
+                description={course.description}
+              />
+            </div>
+          </section>
+
+          {/* ====================================================
+              COURSE PREVIEW
+          ==================================================== */}
+
+          {course.previewVideoUrl && (
+            <section className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
+
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
+                  <Play
+                    size={17}
+                    className="text-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    Course Preview
+                  </h2>
+
+                  <p className="text-xs text-gray-500">
+                    Watch a short preview before enrolling.
+                  </p>
+                </div>
+              </div>
+
+              <PreviewVideoEmbed
+                url={course.previewVideoUrl}
+              />
+            </section>
           )}
 
-          {/* Table of Contents Card */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-7 mb-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">What's Inside This Course</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 pb-5 border-b border-gray-100">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{course.weeks?.length || 0}</p>
-                <p className="text-xs text-gray-500">Weeks</p>
+          {/* ====================================================
+              WHAT'S INSIDE THIS COURSE
+          ==================================================== */}
+
+          <section className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm sm:p-7">
+
+            {/* Section Heading */}
+
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
+                What's Inside This Course
+              </h2>
+
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
+                Explore the complete course structure and see the
+                topics you will study from week to week.
+              </p>
+            </div>
+
+            {/* ==================================================
+                COURSE STATISTICS
+            ================================================== */}
+
+            <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+              {/* Weeks */}
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-center">
+                <p className="text-2xl font-bold text-blue-700">
+                  {totalWeeks}
+                </p>
+
+                <p className="mt-1 text-xs font-medium text-gray-500">
+                  {totalWeeks === 1
+                    ? 'Week'
+                    : 'Weeks'}
+                </p>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{totalPages}</p>
-                <p className="text-xs text-gray-500">Pages</p>
+
+              {/* Lessons */}
+
+              <div className="rounded-xl border border-green-100 bg-green-50/60 p-4 text-center">
+                <p className="text-2xl font-bold text-green-700">
+                  {totalPages}
+                </p>
+
+                <p className="mt-1 text-xs font-medium text-gray-500">
+                  {totalPages === 1
+                    ? 'Lesson'
+                    : 'Lessons'}
+                </p>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{totalQuestions}</p>
-                <p className="text-xs text-gray-500">Questions</p>
+
+              {/* Questions */}
+
+              <div className="rounded-xl border border-purple-100 bg-purple-50/60 p-4 text-center">
+                <p className="text-2xl font-bold text-purple-700">
+                  {totalQuestions}
+                </p>
+
+                <p className="mt-1 text-xs font-medium text-gray-500">
+                  {totalQuestions === 1
+                    ? 'Question'
+                    : 'Questions'}
+                </p>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{course.weeks?.length || 0}</p>
-                <p className="text-xs text-gray-500">Exams</p>
+
+              {/* Assessments */}
+
+              <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4 text-center">
+                <p className="text-2xl font-bold text-orange-700">
+                  {totalAssessments}
+                </p>
+
+                <p className="mt-1 text-xs font-medium text-gray-500">
+                  {totalAssessments === 1
+                    ? 'Assessment'
+                    : 'Assessments'}
+                </p>
               </div>
             </div>
 
-            <p className="text-sm text-gray-500 mb-4">This course is self-paced, structured week by week. Each week unlocks after you pass the previous week's exam with 70% or higher.</p>
-            
-            <div className="space-y-3">
-              {course.weeks?.map((week: any) => {
-                const weekPageCount = week.pages?.length || 0
-                const weekQuestionCount = week.exam?.questions?.length || 0
-                return (
-                  <div key={week._id || week.weekNumber} className="border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
-                            {week.weekNumber}
-                          </span>
-                          <h3 className="text-sm font-semibold text-gray-800 truncate">{week.title}</h3>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 ml-8 text-xs text-gray-400">
-                          <span className="flex items-center gap-1">
-                            <FileText size={11} /> {weekPageCount} page{weekPageCount !== 1 ? 's' : ''}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <HelpCircle size={11} /> {weekQuestionCount} question{weekQuestionCount !== 1 ? 's' : ''}
-                          </span>
-                          {week.exam?.durationMinutes && (
-                            <span className="flex items-center gap-1">
-                              <Clock size={11} /> {week.exam.durationMinutes}m exam
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="shrink-0">
-                        <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
-                          {weekPageCount} page{weekPageCount !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
-                    {week.pages?.length > 0 && (
-                      <div className="mt-2 ml-8 space-y-1">
-                        {week.pages.map((page: any, idx: number) => (
-                          <div key={page._id || idx} className="flex items-center gap-1.5 text-xs text-gray-400 pl-2">
-                            <span className="w-1 h-1 rounded-full bg-gray-300" />
-                            <span>Page {idx + 1}: {page.title || `Page ${idx + 1}`}</span>
+            {/* ==================================================
+                PROGRESSION NOTICE
+            ================================================== */}
+
+            <div className="mb-7 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+              <div className="flex items-start gap-3">
+
+                <GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+
+                <p className="text-sm leading-6 text-blue-900">
+                  This course is self-paced and structured week by
+                  week. Each week unlocks after you pass the previous
+                  week's assessment with a score of{' '}
+                  <strong>70% or higher.</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* ==================================================
+                SINGLE COURSE OUTLINE
+            ================================================== */}
+
+            <div>
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-gray-900">
+                  Course Outline
+                </h3>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Your learning journey across {totalWeeks}{' '}
+                  {totalWeeks === 1
+                    ? 'week'
+                    : 'weeks'}.
+                </p>
+              </div>
+
+              {weeks.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-gray-100">
+
+                  {weeks.map(
+                    (
+                      week: any,
+                      weekIndex: number
+                    ) => {
+                      const weekNumber =
+                        week?.weekNumber ||
+                        weekIndex + 1
+
+                      return (
+                        <div
+                          key={
+                            week?._id ||
+                            week?.weekNumber ||
+                            weekIndex
+                          }
+                          className="flex items-center gap-4 border-b border-gray-100 px-4 py-4 transition-colors last:border-b-0 hover:bg-gray-50 sm:px-5 sm:py-5"
+                        >
+                          {/* Week Number */}
+
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-bold text-blue-600">
+                            {weekNumber}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
 
-          {/* Course Outline (updated with page titles) */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 sm:p-7 mb-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Course Outline</h2>
-            <p className="text-sm text-gray-500 mb-4">This course is self-paced, structured week by week. Each week unlocks after you pass the previous week's exam with 70% or higher.</p>
-            <div className="space-y-3">
-              {modules.map((m: any) => (
-                <div key={m.weekNumber} className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">{m.weekNumber}</span>
-                    <p className="flex-1 text-sm font-semibold text-gray-800">{m.title}</p>
-                    <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0"><HelpCircle size={11} /> {m.questionCount}</span>
-                    <span className="flex items-center gap-1 text-xs text-gray-400 shrink-0"><Clock size={11} /> {m.durationMinutes}m</span>
-                  </div>
-                  {m.pageTitles?.length > 0 && (
-                    <ul className="pl-10 space-y-1">
-                      {m.pageTitles.map((pt: string, i: number) => (
-                        <li key={i} className="text-xs text-gray-500 flex items-center gap-1.5">
-                          <span className="w-1 h-1 rounded-full bg-gray-300 shrink-0" /> {pt}
-                        </li>
-                      ))}
-                    </ul>
+                          {/* Week Information */}
+
+                          <div className="min-w-0 flex-1">
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-blue-600">
+                              Week {weekNumber}
+                            </p>
+
+                            <h4 className="text-sm font-semibold leading-6 text-gray-900 sm:text-base">
+                              {week?.title ||
+                                `Week ${weekNumber}`}
+                            </h4>
+                          </div>
+
+                          <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
+                        </div>
+                      )
+                    }
                   )}
                 </div>
-              ))}
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+                  <Layers className="mx-auto mb-2 h-6 w-6 text-gray-300" />
+
+                  <p className="text-sm text-gray-500">
+                    The course outline is not available yet.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
+          </section>
 
-          {/* Course Reviews Section */}
-          <div id="reviews" className="mb-6 scroll-mt-24">
-            <CoursePublicReviews courseId={id} />
-          </div>
+          {/* ====================================================
+              REVIEWS
+          ==================================================== */}
 
-          {/* Extras (Coaching, Discord, Workshop) */}
-          {(course.coachingEnabled || course.discordEnabled || course.weeklyWorkshop?.enabled) && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <section
+            id="reviews"
+            className="mb-6 scroll-mt-24"
+          >
+            <CoursePublicReviews
+              courseId={id}
+            />
+          </section>
+
+          {/* ====================================================
+              COURSE EXTRAS
+          ==================================================== */}
+
+          {(
+            course.coachingEnabled ||
+            course.discordEnabled ||
+            course.weeklyWorkshop?.enabled
+          ) && (
+            <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+
+              {/* Coaching */}
+
               {course.coachingEnabled && (
-                <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-                  <User size={18} className="text-blue-500 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-gray-800">1-on-1 Coaching Available</p>
+                <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm">
+
+                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-blue-50">
+                    <User className="h-5 w-5 text-blue-500" />
+                  </div>
+
+                  <p className="text-sm font-semibold text-gray-800">
+                    1-on-1 Coaching Available
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Get additional personal support from your
+                    instructor.
+                  </p>
                 </div>
               )}
+
+              {/* Discord */}
+
               {course.discordEnabled && (
-                <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-                  <MessageSquare size={18} className="text-indigo-500 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-gray-800">Discord Community Included</p>
+                <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm">
+
+                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50">
+                    <MessageSquare className="h-5 w-5 text-indigo-500" />
+                  </div>
+
+                  <p className="text-sm font-semibold text-gray-800">
+                    Discord Community Included
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Connect with your course community and continue
+                    learning together.
+                  </p>
                 </div>
               )}
+
+              {/* Weekly Workshop */}
+
               {course.weeklyWorkshop?.enabled && (
-                <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
-                  <Calendar size={18} className="text-purple-500 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-gray-800">Free Weekly Workshop: {course.weeklyWorkshop.dayOfWeek} {course.weeklyWorkshop.time}</p>
+                <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm">
+
+                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-purple-50">
+                    <Calendar className="h-5 w-5 text-purple-500" />
+                  </div>
+
+                  <p className="text-sm font-semibold text-gray-800">
+                    Free Weekly Workshop
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    {course.weeklyWorkshop.dayOfWeek}{' '}
+                    {course.weeklyWorkshop.time}
+                  </p>
                 </div>
               )}
-            </div>
+            </section>
           )}
         </div>
-      </div>
+      </main>
+
       <Footer />
     </>
   )

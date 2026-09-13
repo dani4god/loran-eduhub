@@ -118,7 +118,7 @@ type PreparedQuestion = {
 }
 
 // ============================================================
-// HELPERS
+// NORMALIZATION HELPERS
 // ============================================================
 
 function normalizeAnswer(
@@ -243,6 +243,10 @@ function normalizeSource(
     : 'ai'
 }
 
+// ============================================================
+// VALIDATION HELPERS
+// ============================================================
+
 function hasValidOptions(
   options: any
 ) {
@@ -275,6 +279,276 @@ function questionAlreadyIncluded(
         .fingerprint ===
       fingerprint
   )
+}
+
+// ============================================================
+// BUILD A PREPARED QUESTION
+// ============================================================
+
+function buildPreparedQuestion({
+  raw,
+  canonical,
+  standard,
+  source,
+  idPrefix,
+  fingerprint,
+  topic,
+  subtopic,
+  difficulty,
+}: {
+  raw: any
+  canonical: string
+  standard: string
+  source: QuestionSource
+  idPrefix: string
+  fingerprint?: string
+  topic?: string
+  subtopic?: string
+  difficulty?: unknown
+}):
+  PreparedQuestion |
+  null {
+  const text =
+    normalizeText(
+      raw?.text ||
+      raw?.question
+    )
+
+  if (!text) {
+    return null
+  }
+
+  const options =
+    raw?.options
+
+  if (
+    !hasValidOptions(
+      options
+    )
+  ) {
+    return null
+  }
+
+  const correctAnswer =
+    normalizeAnswer(
+      raw?.correctAnswer
+    )
+
+  if (
+    !correctAnswer
+  ) {
+    return null
+  }
+
+  const safeFingerprint =
+    normalizeText(
+      fingerprint ||
+      raw?.fingerprint
+    ) ||
+    questionFingerprint(
+      canonical,
+      text
+    )
+
+  /*
+   * providerQuestionId should identify the external provider's
+   * question, not our own locally generated question ID.
+   *
+   * ALOC questions may use raw.id as their provider ID.
+   * AI questions must not accidentally expose their local ID as
+   * though it came from an external provider.
+   */
+  const providerQuestionId =
+    normalizeText(
+      raw?.providerQuestionId
+    ) ||
+    (
+      source ===
+      'aloc'
+        ? normalizeText(
+            raw?.id
+          )
+        : ''
+    )
+
+  const rawId =
+    normalizeText(
+      raw?.id
+    )
+
+  const generatedId =
+    `${idPrefix}-${crypto
+      .randomBytes(
+        8
+      )
+      .toString(
+        'hex'
+      )}`
+
+  const safeId =
+    rawId ||
+    generatedId
+
+  /*
+   * Do not create IDs such as:
+   *
+   * ALOC-BANK-ALOC-123
+   * AI-BANK-AI-123
+   *
+   * If the question already carries one of our recognised
+   * prefixes, preserve it. Otherwise attach the requested prefix.
+   */
+  const preparedId =
+    safeId.startsWith(
+      'ALOC-'
+    ) ||
+    safeId.startsWith(
+      'AI-'
+    )
+      ? safeId
+      : `${idPrefix}-${safeId}`
+
+  return {
+    id:
+      preparedId,
+
+    fingerprint:
+      safeFingerprint,
+
+    text,
+
+    options: {
+      a:
+        normalizeText(
+          options.a
+        ),
+
+      b:
+        normalizeText(
+          options.b
+        ),
+
+      c:
+        normalizeText(
+          options.c
+        ),
+
+      d:
+        normalizeText(
+          options.d
+        ),
+    },
+
+    correctAnswer,
+
+    subject:
+      canonical,
+
+    topic:
+      normalizeText(
+        topic ||
+        raw?.topic
+      ) ||
+      'General',
+
+    subtopic:
+      normalizeText(
+        subtopic ||
+        raw?.subtopic
+      ) ||
+      undefined,
+
+    difficulty:
+      normalizeDifficulty(
+        difficulty ||
+        raw?.difficulty
+      ),
+
+    standard:
+      normalizeText(
+        raw?.standard
+      ) ||
+      standard,
+
+    source,
+
+    explanation:
+      normalizeText(
+        raw?.explanation
+      ) ||
+      undefined,
+
+    section:
+      normalizeText(
+        raw?.section
+      ) ||
+      undefined,
+
+    imageUrl:
+      normalizeText(
+        raw?.imageUrl
+      ) ||
+      undefined,
+
+    providerQuestionId:
+      providerQuestionId ||
+      undefined,
+
+    year:
+      Number.isFinite(
+        Number(
+          raw?.year
+        )
+      )
+        ? Number(
+            raw?.year
+          )
+        : undefined,
+
+    category:
+      normalizeText(
+        raw?.category
+      ) ||
+      undefined,
+
+    educationLevel:
+      normalizeText(
+        raw?.educationLevel
+      ) ||
+      undefined,
+
+    classLevel:
+      normalizeText(
+        raw?.classLevel
+      ) ||
+      undefined,
+
+    country:
+      normalizeText(
+        raw?.country
+      ) ||
+      undefined,
+
+    publisher:
+      normalizeText(
+        raw?.publisher
+      ) ||
+      undefined,
+
+    authorised:
+      normalizeText(
+        raw?.authorised
+      ) ||
+      undefined,
+
+    curriculumMapping:
+      normalizeText(
+        raw?.curriculumMapping ||
+        raw?.provenance
+          ?.curriculumMapping
+      ) ||
+      undefined,
+  }
 }
 
 // ============================================================
@@ -371,12 +645,12 @@ export async function POST(
     await connectDB()
 
     // ========================================================
-    // 5. RECENT QUESTION FINGERPRINTS
+    // 5. RECENT QUESTIONS
     // ========================================================
 
     /*
-     * Prevent the student from receiving questions that appeared
-     * in their most recent exams for this subject.
+     * Prevent a student from repeatedly receiving questions
+     * from their most recent attempts for the same subject.
      */
 
     const recent =
@@ -435,12 +709,19 @@ export async function POST(
       )
 
     // ========================================================
-    // 6. PREPARED QUESTIONS
+    // 6. PREPARED QUESTION STATE
     // ========================================================
 
     const questions:
       PreparedQuestion[] =
       []
+
+    /*
+     * These counters describe HOW questions were obtained.
+     */
+
+    let freshAlocLoaded =
+      0
 
     let bankLoaded =
       0
@@ -451,399 +732,29 @@ export async function POST(
     let bankAiLoaded =
       0
 
-    let freshAlocLoaded =
-      0
-
-    let freshAiLoaded =
+    let aiFallbackLoaded =
       0
 
     let alocWorked =
       false
 
     // ========================================================
-    // 7. QUESTION BANK FIRST
+    // 7. ALOC FIRST
     // ========================================================
 
     /*
-     * This is the important optimisation.
+     * Desired priority:
      *
-     * Before spending an ALOC credit or making a Groq request,
-     * try to satisfy the exam from our own database.
+     * JAMB / WAEC / NECO
      *
-     * The bank can contain both:
+     * 1. ALOC
+     * 2. Question Bank
+     * 3. AI
      *
-     * source = "aloc"
-     * source = "ai"
-     */
-
-    try {
-      const bankQuestions =
-        await getQuestionBankQuestions(
-          {
-            subject:
-              canonical,
-
-            standard:
-              standard as
-                ExamStandard,
-
-            studentClass:
-              normalizedClass,
-
-            count:
-              COUNT,
-
-            source:
-              'any',
-
-            excludeFingerprints:
-              recentFingerprints,
-
-            incrementUsage:
-              true,
-          }
-        )
-
-      for (
-        const bankQuestion of
-          Array.isArray(
-            bankQuestions
-          )
-            ? bankQuestions
-            : []
-      ) {
-        if (
-          questions.length >=
-          COUNT
-        ) {
-          break
-        }
-
-        const text =
-          normalizeText(
-            bankQuestion
-              ?.text
-          )
-
-        if (
-          !text
-        ) {
-          continue
-        }
-
-        const fingerprint =
-          normalizeText(
-            bankQuestion
-              ?.fingerprint
-          ) ||
-          questionFingerprint(
-            canonical,
-            text
-          )
-
-        if (
-          recentFingerprints
-            .includes(
-              fingerprint
-            )
-        ) {
-          continue
-        }
-
-        if (
-          questionAlreadyIncluded(
-            questions,
-            fingerprint
-          )
-        ) {
-          continue
-        }
-
-        const correctAnswer =
-          normalizeAnswer(
-            bankQuestion
-              ?.correctAnswer
-          )
-
-        if (
-          !correctAnswer
-        ) {
-          continue
-        }
-
-        if (
-          !hasValidOptions(
-            bankQuestion
-              ?.options
-          )
-        ) {
-          continue
-        }
-
-        const source =
-          normalizeSource(
-            bankQuestion
-              ?.source
-          )
-
-        const prepared:
-          PreparedQuestion =
-          {
-            id:
-              normalizeText(
-                bankQuestion
-                  ?.id
-              ) ||
-              `${
-                source ===
-                'aloc'
-                  ? 'ALOC-BANK'
-                  : 'AI-BANK'
-              }-${crypto
-                .randomBytes(
-                  8
-                )
-                .toString(
-                  'hex'
-                )}`,
-
-            fingerprint,
-
-            text,
-
-            options: {
-              a:
-                normalizeText(
-                  bankQuestion
-                    .options
-                    .a
-                ),
-
-              b:
-                normalizeText(
-                  bankQuestion
-                    .options
-                    .b
-                ),
-
-              c:
-                normalizeText(
-                  bankQuestion
-                    .options
-                    .c
-                ),
-
-              d:
-                normalizeText(
-                  bankQuestion
-                    .options
-                    .d
-                ),
-            },
-
-            correctAnswer,
-
-            subject:
-              canonical,
-
-            topic:
-              normalizeText(
-                bankQuestion
-                  ?.topic
-              ) ||
-              'General',
-
-            subtopic:
-              normalizeText(
-                bankQuestion
-                  ?.subtopic
-              ) ||
-              undefined,
-
-            difficulty:
-              normalizeDifficulty(
-                bankQuestion
-                  ?.difficulty
-              ),
-
-            standard:
-              normalizeText(
-                bankQuestion
-                  ?.standard
-              ) ||
-              standard,
-
-            source,
-
-            explanation:
-              normalizeText(
-                bankQuestion
-                  ?.explanation
-              ) ||
-              undefined,
-
-            section:
-              normalizeText(
-                bankQuestion
-                  ?.section
-              ) ||
-              undefined,
-
-            imageUrl:
-              normalizeText(
-                bankQuestion
-                  ?.imageUrl
-              ) ||
-              undefined,
-
-            providerQuestionId:
-              normalizeText(
-                bankQuestion
-                  ?.providerQuestionId
-              ) ||
-              undefined,
-
-            year:
-              Number.isFinite(
-                Number(
-                  bankQuestion
-                    ?.year
-                )
-              )
-                ? Number(
-                    bankQuestion
-                      ?.year
-                  )
-                : undefined,
-
-            category:
-              normalizeText(
-                bankQuestion
-                  ?.category
-              ) ||
-              undefined,
-
-            educationLevel:
-              normalizeText(
-                bankQuestion
-                  ?.educationLevel
-              ) ||
-              undefined,
-
-            classLevel:
-              normalizeText(
-                bankQuestion
-                  ?.classLevel
-              ) ||
-              undefined,
-
-            country:
-              normalizeText(
-                bankQuestion
-                  ?.country
-              ) ||
-              undefined,
-
-            publisher:
-              normalizeText(
-                bankQuestion
-                  ?.publisher
-              ) ||
-              undefined,
-
-            authorised:
-              normalizeText(
-                bankQuestion
-                  ?.authorised
-              ) ||
-              undefined,
-
-            curriculumMapping:
-              normalizeText(
-                bankQuestion
-                  ?.curriculumMapping
-              ) ||
-              undefined,
-          }
-
-        questions.push(
-          prepared
-        )
-
-        bankLoaded +=
-          1
-
-        if (
-          source ===
-          'aloc'
-        ) {
-          bankAlocLoaded +=
-            1
-        } else {
-          bankAiLoaded +=
-            1
-        }
-      }
-
-      if (
-        process.env
-          .NODE_ENV !==
-        'production'
-      ) {
-        console.log(
-          '[QUESTION BANK] Loaded:',
-          {
-            subject:
-              canonical,
-
-            standard,
-
-            requested:
-              COUNT,
-
-            loaded:
-              bankLoaded,
-
-            aloc:
-              bankAlocLoaded,
-
-            ai:
-              bankAiLoaded,
-
-            remaining:
-              COUNT -
-              questions.length,
-          }
-        )
-      }
-    } catch (
-      bankError
-    ) {
-      /*
-       * Bank failure must not prevent the exam.
-       *
-       * ALOC / AI can still supply questions.
-       */
-
-      console.error(
-        'Question bank lookup failed:',
-        bankError
-      )
-    }
-
-    // ========================================================
-    // 8. ALOC FOR SHORTAGE ONLY
-    // ========================================================
-
-    /*
-     * ALOC only applies directly to:
+     * IGCSE / Mixed do not use ALOC directly, therefore:
      *
-     * JAMB
-     * WAEC
-     * NECO
-     *
-     * If the bank already gave us 24 questions, for example,
-     * we only request the remaining 6.
+     * 1. Question Bank
+     * 2. AI
      */
 
     const usesAloc =
@@ -856,54 +767,39 @@ export async function POST(
       )
 
     if (
-      usesAloc &&
-      questions.length <
-        COUNT
+      usesAloc
     ) {
-      const alocNeeded =
-        COUNT -
-        questions.length
-
       try {
+        // ----------------------------------------------------
+        // ASK ALOC FOR THE FULL EXAM FIRST
+        // ----------------------------------------------------
+
         const raw =
-          await fetchExamQuestions(
-            {
-              examType:
-                standard as
-                  | 'jamb'
-                  | 'waec'
-                  | 'neco',
+          await fetchExamQuestions({
+            examType:
+              standard as
+                | 'jamb'
+                | 'waec'
+                | 'neco',
 
-              /*
-               * lib/alocApi.ts performs the ALOC subject mapping.
-               */
-              subject:
-                canonical,
+            subject:
+              canonical,
 
-              year:
-                cleanYear,
+            year:
+              cleanYear,
 
-              count:
-                alocNeeded,
-            }
+            count:
+              COUNT,
+          })
+
+        // ----------------------------------------------------
+        // VALIDATE ALOC RESPONSE
+        // ----------------------------------------------------
+
+        const seen =
+          new Set<string>(
+            recentFingerprints
           )
-
-        // ====================================================
-        // 8A. VALIDATE + REMOVE DUPLICATES
-        // ====================================================
-
-        const excludedNow =
-          new Set<string>([
-            ...recentFingerprints,
-
-            ...questions.map(
-              (
-                question
-              ) =>
-                question
-                  .fingerprint
-            ),
-          ])
 
         const usable =
           (
@@ -924,20 +820,15 @@ export async function POST(
                       ?.text
                   )
 
-                if (
-                  !text
-                ) {
+                if (!text) {
                   return false
                 }
 
-                const correctAnswer =
-                  normalizeAnswer(
+                if (
+                  !normalizeAnswer(
                     question
                       ?.correctAnswer
                   )
-
-                if (
-                  !correctAnswer
                 ) {
                   return false
                 }
@@ -957,25 +848,40 @@ export async function POST(
                     text
                   )
 
-                return !excludedNow.has(
+                if (
+                  seen.has(
+                    fingerprint
+                  )
+                ) {
+                  return false
+                }
+
+                seen.add(
                   fingerprint
                 )
+
+                return true
               }
             )
             .slice(
               0,
-              alocNeeded
+              COUNT
             )
 
         // ====================================================
-        // 8B. CLASSIFY NEW ALOC QUESTIONS
+        // 7A. CLASSIFY ALOC QUESTIONS
         // ====================================================
 
         /*
-         * Only fresh ALOC questions need this.
+         * AI classification does not generate replacement questions.
          *
-         * ALOC questions retrieved from our bank were classified
-         * when they originally entered the bank.
+         * It only gives the real ALOC questions:
+         *
+         * - topic
+         * - subtopic
+         * - difficulty
+         *
+         * If classification fails, the ALOC questions remain usable.
          */
 
         let classified:
@@ -987,7 +893,7 @@ export async function POST(
           0
         ) {
           try {
-            classified =
+            const result =
               await classifyQuestionTopics(
                 canonical,
 
@@ -1017,10 +923,6 @@ export async function POST(
                           ?.text
                       ),
 
-                    /*
-                     * Do not convert category such as passage-a
-                     * into an academic topic.
-                     */
                     topic:
                       normalizeText(
                         question
@@ -1039,9 +941,6 @@ export async function POST(
                           ?.difficulty
                       ),
 
-                    /*
-                     * Context only.
-                     */
                     category:
                       normalizeText(
                         question
@@ -1066,73 +965,15 @@ export async function POST(
                 )
               )
 
-            if (
-              !Array.isArray(
-                classified
+            classified =
+              Array.isArray(
+                result
               )
-            ) {
-              classified =
-                []
-            }
-
-            if (
-              process.env
-                .NODE_ENV !==
-              'production'
-            ) {
-              console.log(
-                '[ALOC AI Classification]',
-                {
-                  subject:
-                    canonical,
-
-                  received:
-                    usable.length,
-
-                  classified:
-                    classified.length,
-
-                  sample:
-                    classified
-                      .slice(
-                        0,
-                        5
-                      )
-                      .map(
-                        (
-                          item:
-                            any
-                        ) => ({
-                          id:
-                            item
-                              ?.id,
-
-                          topic:
-                            item
-                              ?.topic,
-
-                          subtopic:
-                            item
-                              ?.subtopic,
-
-                          difficulty:
-                            item
-                              ?.difficulty,
-                        })
-                      ),
-                }
-              )
-            }
+                ? result
+                : []
           } catch (
             classificationError
           ) {
-            /*
-             * Topic classification is enrichment.
-             *
-             * A temporary Groq problem must not throw away valid
-             * ALOC examination questions.
-             */
-
             console.error(
               'ALOC topic classification failed:',
               classificationError
@@ -1144,7 +985,7 @@ export async function POST(
         }
 
         // ====================================================
-        // 8C. NORMALIZE FRESH ALOC QUESTIONS
+        // 7B. NORMALIZE ALOC QUESTIONS
         // ====================================================
 
         const freshAlocQuestions:
@@ -1164,44 +1005,18 @@ export async function POST(
             break
           }
 
-          const q =
+          const rawQuestion =
             usable[
               index
             ]
 
           const text =
             normalizeText(
-              q
+              rawQuestion
                 ?.text
             )
 
-          if (
-            !text
-          ) {
-            continue
-          }
-
-          const correctAnswer =
-            normalizeAnswer(
-              q
-                ?.correctAnswer
-            )
-
-          if (
-            !correctAnswer
-          ) {
-            continue
-          }
-
-          const options =
-            q
-              ?.options
-
-          if (
-            !hasValidOptions(
-              options
-            )
-          ) {
+          if (!text) {
             continue
           }
 
@@ -1229,13 +1044,13 @@ export async function POST(
             continue
           }
 
-          // ================================================
-          // CLASSIFICATION METADATA
-          // ================================================
+          // --------------------------------------------------
+          // FIND AI CLASSIFICATION FOR THIS ALOC QUESTION
+          // --------------------------------------------------
 
           const questionId =
             normalizeText(
-              q
+              rawQuestion
                 ?.id
             )
 
@@ -1245,13 +1060,13 @@ export async function POST(
                 item:
                   any
               ) => {
-                const classifiedId =
+                const itemId =
                   normalizeText(
                     item
                       ?.id
                   )
 
-                const classifiedFingerprint =
+                const itemFingerprint =
                   normalizeText(
                     item
                       ?.fingerprint
@@ -1260,12 +1075,12 @@ export async function POST(
                 return (
                   (
                     questionId &&
-                    classifiedId ===
+                    itemId ===
                       questionId
                   ) ||
                   (
-                    classifiedFingerprint &&
-                    classifiedFingerprint ===
+                    itemFingerprint &&
+                    itemFingerprint ===
                       fingerprint
                   )
                 )
@@ -1276,201 +1091,52 @@ export async function POST(
             ] ||
             {}
 
-          /*
-           * AI topic classification has first priority.
-           *
-           * ALOC's own topic is the fallback.
-           *
-           * ALOC category is never treated as the topic.
-           */
+          const prepared =
+            buildPreparedQuestion({
+              raw:
+                rawQuestion,
 
-          const topic =
-            normalizeText(
-              classifiedMeta
-                ?.topic ||
-              q
-                ?.topic
-            ) ||
-            'General'
-
-          const subtopic =
-            normalizeText(
-              classifiedMeta
-                ?.subtopic ||
-              q
-                ?.subtopic
-            )
-
-          const difficulty =
-            normalizeDifficulty(
-              classifiedMeta
-                ?.difficulty ||
-              q
-                ?.difficulty ||
-              'medium'
-            )
-
-          const prepared:
-            PreparedQuestion =
-            {
-              id:
-                `ALOC-${String(
-                  q
-                    ?.id ||
-                  crypto
-                    .randomBytes(
-                      8
-                    )
-                    .toString(
-                      'hex'
-                    )
-                )}`,
-
-              /*
-               * Keep the actual ALOC ID separately because the
-               * session question ID has the ALOC- prefix.
-               */
-              providerQuestionId:
-                normalizeText(
-                  q
-                    ?.id
-                ) ||
-                undefined,
-
-              fingerprint,
-
-              text,
-
-              options: {
-                a:
-                  normalizeText(
-                    options
-                      .a
-                  ),
-
-                b:
-                  normalizeText(
-                    options
-                      .b
-                  ),
-
-                c:
-                  normalizeText(
-                    options
-                      .c
-                  ),
-
-                d:
-                  normalizeText(
-                    options
-                      .d
-                  ),
-              },
-
-              correctAnswer,
-
-              subject:
-                canonical,
-
-              topic,
-
-              subtopic:
-                subtopic ||
-                undefined,
-
-              difficulty,
+              canonical,
 
               standard,
 
               source:
                 'aloc',
 
-              explanation:
-                normalizeText(
-                  q
-                    ?.explanation
-                ) ||
-                undefined,
+              idPrefix:
+                'ALOC',
 
-              section:
-                normalizeText(
-                  q
-                    ?.section
-                ) ||
-                undefined,
+              fingerprint,
 
-              imageUrl:
+              topic:
                 normalizeText(
-                  q
-                    ?.imageUrl
+                  classifiedMeta
+                    ?.topic ||
+                  rawQuestion
+                    ?.topic
                 ) ||
-                undefined,
+                'General',
 
-              category:
+              subtopic:
                 normalizeText(
-                  q
-                    ?.category
-                ) ||
-                undefined,
+                  classifiedMeta
+                    ?.subtopic ||
+                  rawQuestion
+                    ?.subtopic
+                ),
 
-              year:
-                Number.isFinite(
-                  Number(
-                    q
-                      ?.year
-                  )
-                )
-                  ? Number(
-                      q
-                        ?.year
-                    )
-                  : undefined,
+              difficulty:
+                classifiedMeta
+                  ?.difficulty ||
+                rawQuestion
+                  ?.difficulty,
+            })
 
-              educationLevel:
-                normalizeText(
-                  q
-                    ?.educationLevel
-                ) ||
-                undefined,
-
-              classLevel:
-                normalizeText(
-                  q
-                    ?.classLevel
-                ) ||
-                undefined,
-
-              country:
-                normalizeText(
-                  q
-                    ?.country
-                ) ||
-                undefined,
-
-              publisher:
-                normalizeText(
-                  q
-                    ?.publisher
-                ) ||
-                undefined,
-
-              authorised:
-                normalizeText(
-                  q
-                    ?.authorised
-                ) ||
-                undefined,
-
-              curriculumMapping:
-                normalizeText(
-                  q
-                    ?.curriculumMapping ||
-                  q
-                    ?.provenance
-                    ?.curriculumMapping
-                ) ||
-                undefined,
-            }
+          if (
+            !prepared
+          ) {
+            continue
+          }
 
           questions.push(
             prepared
@@ -1490,14 +1156,15 @@ export async function POST(
           0
 
         // ====================================================
-        // 8D. SAVE NEW ALOC QUESTIONS TO SHARED BANK
+        // 7C. SAVE FRESH ALOC QUESTIONS TO BANK
         // ====================================================
 
         /*
-         * This is what makes the next student's exam cheaper.
+         * Even though ALOC is always attempted first,
+         * saving fresh questions to MongoDB is still useful.
          *
-         * These questions now become reusable without another
-         * ALOC request or another classification request.
+         * They can be used whenever ALOC later fails or does not
+         * provide enough questions.
          */
 
         if (
@@ -1509,34 +1176,13 @@ export async function POST(
             await saveQuestionsToBank(
               freshAlocQuestions
             )
-
-            if (
-              process.env
-                .NODE_ENV !==
-              'production'
-            ) {
-              console.log(
-                '[ALOC BANK] Saved:',
-                {
-                  subject:
-                    canonical,
-
-                  standard,
-
-                  saved:
-                    freshAlocQuestions
-                      .length,
-                }
-              )
-            }
           } catch (
             bankSaveError
           ) {
             /*
-             * Saving is optimisation only.
+             * Bank saving is only caching.
              *
-             * Valid questions must still be usable even when Mongo
-             * caching fails.
+             * It must never destroy the current exam.
              */
 
             console.error(
@@ -1552,13 +1198,15 @@ export async function POST(
           'production'
         ) {
           console.log(
-            '[ALOC] Fresh questions:',
+            '[ALOC FIRST] Result:',
             {
               subject:
                 canonical,
 
+              standard,
+
               requested:
-                alocNeeded,
+                COUNT,
 
               received:
                 Array.isArray(
@@ -1575,115 +1223,357 @@ export async function POST(
                   .length,
 
               remaining:
-                COUNT -
-                questions.length,
-
-              topics:
-                freshAlocQuestions
-                  .slice(
-                    0,
-                    8
-                  )
-                  .map(
-                    (
-                      question
-                    ) => ({
-                      topic:
-                        question
-                          .topic,
-
-                      subtopic:
-                        question
-                          .subtopic,
-
-                      difficulty:
-                        question
-                          .difficulty,
-                    })
-                  ),
+                Math.max(
+                  0,
+                  COUNT -
+                    questions.length
+                ),
             }
           )
         }
       } catch (
-        error
+        alocError
       ) {
         /*
-         * ALOC failure should never destroy exam creation.
+         * This is the important fallback.
          *
-         * AI will attempt the remaining shortage.
+         * ALOC failure does NOT fail the exam.
+         *
+         * The next stage now checks our own question bank.
          */
 
         console.error(
-          'ALOC fallback:',
-          error
+          'ALOC failed. Checking question bank:',
+          alocError
         )
       }
     }
 
     // ========================================================
-    // 9. AI / SHARED BANK FINAL TOP-UP
+    // 8. QUESTION BANK SECOND
     // ========================================================
 
     /*
-     * At this point:
+     * This only runs when:
      *
-     * - existing bank was checked first
-     * - ALOC was used for any JAMB/WAEC/NECO shortage
+     * - ALOC failed
+     * - ALOC returned too few questions
+     * - ALOC questions were invalid/recent duplicates
+     * - standard is IGCSE or Mixed
      *
-     * getAIQuestions() will make one final bank check using the
-     * exclusions below, then Groq generates only what still does
-     * not exist.
+     * Examples:
      *
-     * Because every question already added here is excluded, it
-     * cannot return duplicates from the first bank lookup.
+     * ALOC = 30
+     * → Bank is not needed
+     *
+     * ALOC = 20
+     * → Bank is asked for 10
+     *
+     * ALOC = 0
+     * → Bank is asked for 30
      */
 
     if (
       questions.length <
       COUNT
     ) {
-      const missingCount =
+      const bankNeeded =
         COUNT -
         questions.length
 
       try {
-        const ai =
-          await getAIQuestions(
+        const bankQuestions =
+          await getQuestionBankQuestions({
+            subject:
+              canonical,
+
+            standard:
+              standard as
+                ExamStandard,
+
+            studentClass:
+              normalizedClass,
+
+            count:
+              bankNeeded,
+
+            source:
+              'any',
+
+            excludeFingerprints:
+              [
+                ...recentFingerprints,
+
+                ...questions.map(
+                  (
+                    question
+                  ) =>
+                    question
+                      .fingerprint
+                ),
+              ],
+
+            incrementUsage:
+              true,
+          })
+
+        for (
+          const rawBankQuestion of
+            Array.isArray(
+              bankQuestions
+            )
+              ? bankQuestions
+              : []
+        ) {
+          if (
+            questions.length >=
+            COUNT
+          ) {
+            break
+          }
+
+          const text =
+            normalizeText(
+              rawBankQuestion
+                ?.text
+            )
+
+          if (!text) {
+            continue
+          }
+
+          const fingerprint =
+            normalizeText(
+              rawBankQuestion
+                ?.fingerprint
+            ) ||
+            questionFingerprint(
+              canonical,
+              text
+            )
+
+          if (
+            recentFingerprints
+              .includes(
+                fingerprint
+              )
+          ) {
+            continue
+          }
+
+          if (
+            questionAlreadyIncluded(
+              questions,
+              fingerprint
+            )
+          ) {
+            continue
+          }
+
+          const source =
+            normalizeSource(
+              rawBankQuestion
+                ?.source
+            )
+
+          const prepared =
+            buildPreparedQuestion({
+              raw:
+                rawBankQuestion,
+
+              canonical,
+
+              standard,
+
+              source,
+
+              idPrefix:
+                source ===
+                'aloc'
+                  ? 'ALOC-BANK'
+                  : 'AI-BANK',
+
+              fingerprint,
+
+              topic:
+                normalizeText(
+                  rawBankQuestion
+                    ?.topic
+                ) ||
+                'General',
+
+              subtopic:
+                normalizeText(
+                  rawBankQuestion
+                    ?.subtopic
+                ),
+
+              difficulty:
+                rawBankQuestion
+                  ?.difficulty,
+            })
+
+          if (
+            !prepared
+          ) {
+            continue
+          }
+
+          questions.push(
+            prepared
+          )
+
+          bankLoaded +=
+            1
+
+          if (
+            source ===
+            'aloc'
+          ) {
+            bankAlocLoaded +=
+              1
+          } else {
+            bankAiLoaded +=
+              1
+          }
+        }
+
+        if (
+          process.env
+            .NODE_ENV !==
+          'production'
+        ) {
+          console.log(
+            '[QUESTION BANK SECOND] Result:',
             {
               subject:
                 canonical,
 
-              standard:
-                standard as
-                  ExamStandard,
+              standard,
 
-              studentClass:
-                normalizedClass,
+              requested:
+                bankNeeded,
 
-              count:
-                missingCount,
+              loaded:
+                bankLoaded,
 
-              excludeFingerprints:
-                [
-                  ...recentFingerprints,
+              alocOrigin:
+                bankAlocLoaded,
 
-                  ...questions.map(
-                    (
-                      question
-                    ) =>
-                      question
-                        .fingerprint
-                  ),
-                ],
+              aiOrigin:
+                bankAiLoaded,
+
+              remaining:
+                Math.max(
+                  0,
+                  COUNT -
+                    questions.length
+                ),
             }
           )
+        }
+      } catch (
+        bankError
+      ) {
+        /*
+         * Bank problems must not prevent the exam.
+         *
+         * AI is the final fallback.
+         */
+
+        console.error(
+          'Question bank failed. Falling back to AI:',
+          bankError
+        )
+      }
+    }
+
+    // ========================================================
+    // 9. AI FINAL FALLBACK
+    // ========================================================
+
+    /*
+     * AI is reached only after:
+     *
+     * 1. ALOC was attempted first for JAMB / WAEC / NECO.
+     * 2. The shared question bank was checked for the shortage.
+     *
+     * getAIQuestions() is called with skipBank=true here,
+     * so this final stage generates fresh AI questions only
+     * for whatever number of questions is still missing.
+     *
+     * Examples:
+     *
+     * ALOC 30
+     * → Bank skipped
+     * → AI skipped
+     *
+     * ALOC 20 + Bank 10
+     * → AI skipped
+     *
+     * ALOC 20 + Bank 6
+     * → AI generates 4
+     *
+     * ALOC 0 + Bank 18
+     * → AI generates 12
+     *
+     * ALOC 0 + Bank 0
+     * → AI generates 30
+     */
+
+    if (
+      questions.length <
+      COUNT
+    ) {
+      const aiNeeded =
+        COUNT -
+        questions.length
+
+      try {
+        const suppliedQuestions =
+          await getAIQuestions({
+            subject:
+              canonical,
+
+            standard:
+              standard as
+                ExamStandard,
+
+            studentClass:
+              normalizedClass,
+
+            count:
+              aiNeeded,
+
+            excludeFingerprints:
+              [
+                ...recentFingerprints,
+
+                ...questions.map(
+                  (
+                    question
+                  ) =>
+                    question
+                      .fingerprint
+                ),
+              ],
+
+            /*
+             * The shared bank was already checked in stage 8.
+             *
+             * Skip it here so this final stage performs only fresh
+             * AI generation for the remaining shortage.
+             */
+            skipBank:
+              true,
+          })
 
         for (
           const suppliedQuestion of
             Array.isArray(
-              ai
+              suppliedQuestions
             )
-              ? ai
+              ? suppliedQuestions
               : []
         ) {
           if (
@@ -1699,9 +1589,7 @@ export async function POST(
                 ?.text
             )
 
-          if (
-            !text
-          ) {
+          if (!text) {
             continue
           }
 
@@ -1733,98 +1621,35 @@ export async function POST(
             continue
           }
 
-          const correctAnswer =
-            normalizeAnswer(
-              suppliedQuestion
-                ?.correctAnswer
-            )
-
-          if (
-            !correctAnswer
-          ) {
-            continue
-          }
-
-          if (
-            !hasValidOptions(
-              suppliedQuestion
-                ?.options
-            )
-          ) {
-            continue
-          }
-
           /*
-           * Do not hard-code this to "ai".
-           *
-           * getAIQuestions() now uses the shared bank and may return
-           * a cached ALOC question if a matching unused one exists.
+           * skipBank=true means this stage should return fresh
+           * AI-generated questions only.
            */
+
           const source =
             normalizeSource(
               suppliedQuestion
                 ?.source
             )
 
-          const prepared:
-            PreparedQuestion =
-            {
-              id:
-                normalizeText(
-                  suppliedQuestion
-                    ?.id
-                ) ||
-                `${
-                  source ===
-                  'aloc'
-                    ? 'ALOC-BANK'
-                    : 'AI'
-                }-${crypto
-                  .randomBytes(
-                    8
-                  )
-                  .toString(
-                    'hex'
-                  )}`,
+          const prepared =
+            buildPreparedQuestion({
+              raw:
+                suppliedQuestion,
+
+              canonical,
+
+              standard,
+
+              source,
+
+              idPrefix:
+                source ===
+                'aloc'
+                  ? 'ALOC-BANK'
+                  : 'AI',
 
               fingerprint,
-
-              text,
-
-              options: {
-                a:
-                  normalizeText(
-                    suppliedQuestion
-                      .options
-                      .a
-                  ),
-
-                b:
-                  normalizeText(
-                    suppliedQuestion
-                      .options
-                      .b
-                  ),
-
-                c:
-                  normalizeText(
-                    suppliedQuestion
-                      .options
-                      .c
-                  ),
-
-                d:
-                  normalizeText(
-                    suppliedQuestion
-                      .options
-                      .d
-                  ),
-              },
-
-              correctAnswer,
-
-              subject:
-                canonical,
 
               topic:
                 normalizeText(
@@ -1837,142 +1662,80 @@ export async function POST(
                 normalizeText(
                   suppliedQuestion
                     ?.subtopic
-                ) ||
-                undefined,
-
-              difficulty:
-                normalizeDifficulty(
-                  suppliedQuestion
-                    ?.difficulty
                 ),
 
-              standard:
-                normalizeText(
-                  suppliedQuestion
-                    ?.standard
-                ) ||
-                standard,
+              difficulty:
+                suppliedQuestion
+                  ?.difficulty,
+            })
 
-              source,
-
-              explanation:
-                normalizeText(
-                  suppliedQuestion
-                    ?.explanation
-                ) ||
-                undefined,
-
-              section:
-                normalizeText(
-                  suppliedQuestion
-                    ?.section
-                ) ||
-                undefined,
-
-              imageUrl:
-                normalizeText(
-                  suppliedQuestion
-                    ?.imageUrl
-                ) ||
-                undefined,
-
-              providerQuestionId:
-                normalizeText(
-                  suppliedQuestion
-                    ?.providerQuestionId
-                ) ||
-                undefined,
-
-              year:
-                Number.isFinite(
-                  Number(
-                    suppliedQuestion
-                      ?.year
-                  )
-                )
-                  ? Number(
-                      suppliedQuestion
-                        ?.year
-                    )
-                  : undefined,
-
-              category:
-                normalizeText(
-                  suppliedQuestion
-                    ?.category
-                ) ||
-                undefined,
-
-              educationLevel:
-                normalizeText(
-                  suppliedQuestion
-                    ?.educationLevel
-                ) ||
-                undefined,
-
-              classLevel:
-                normalizeText(
-                  suppliedQuestion
-                    ?.classLevel
-                ) ||
-                undefined,
-
-              country:
-                normalizeText(
-                  suppliedQuestion
-                    ?.country
-                ) ||
-                undefined,
-
-              publisher:
-                normalizeText(
-                  suppliedQuestion
-                    ?.publisher
-                ) ||
-                undefined,
-
-              authorised:
-                normalizeText(
-                  suppliedQuestion
-                    ?.authorised
-                ) ||
-                undefined,
-
-              curriculumMapping:
-                normalizeText(
-                  suppliedQuestion
-                    ?.curriculumMapping
-                ) ||
-                undefined,
-            }
+          if (
+            !prepared
+          ) {
+            continue
+          }
 
           questions.push(
             prepared
           )
 
+          /*
+           * With skipBank=true this should normally be "ai".
+           * We still normalize the source defensively.
+           */
+
           if (
             source ===
             'ai'
           ) {
-            freshAiLoaded +=
+            aiFallbackLoaded +=
               1
           } else {
-            /*
-             * This can happen if getAIQuestions() found another
-             * eligible ALOC bank entry.
-             */
             bankAlocLoaded +=
               1
           }
         }
+
+        if (
+          process.env
+            .NODE_ENV !==
+          'production'
+        ) {
+          console.log(
+            '[AI FINAL FALLBACK] Result:',
+            {
+              subject:
+                canonical,
+
+              requested:
+                aiNeeded,
+
+              received:
+                Array.isArray(
+                  suppliedQuestions
+                )
+                  ? suppliedQuestions
+                      .length
+                  : 0,
+
+              aiAdded:
+                aiFallbackLoaded,
+
+              total:
+                questions.length,
+
+              remaining:
+                Math.max(
+                  0,
+                  COUNT -
+                    questions.length
+                ),
+            }
+          )
+        }
       } catch (
         aiError
       ) {
-        /*
-         * If bank or ALOC already supplied some questions, allow
-         * a partial exam rather than discarding valid questions.
-         */
-
         console.error(
           'AI exam question fallback failed:',
           aiError
@@ -1981,17 +1744,58 @@ export async function POST(
     }
 
     // ========================================================
-    // 10. ENSURE QUESTIONS EXIST
+    // 10. REQUIRE A COMPLETE QUESTION SET
     // ========================================================
 
+    /*
+     * Never create a 30-question exam with fewer than 30
+     * questions.
+     *
+     * Groq can occasionally return fewer questions than requested
+     * because of rate limits, timeouts or invalid generated items.
+     * In that case the student should receive a temporary error and
+     * retry rather than unknowingly starting an incomplete exam.
+     */
+
     if (
-      questions.length ===
-      0
+      questions.length <
+      COUNT
     ) {
+      const preparedCount =
+        questions.length
+
+      const shortage =
+        COUNT -
+        preparedCount
+
+      console.warn(
+        '[EXAM PREP] Incomplete question set:',
+        {
+          subject:
+            canonical,
+
+          standard,
+
+          required:
+            COUNT,
+
+          prepared:
+            preparedCount,
+
+          shortage,
+        }
+      )
+
       return NextResponse.json(
         {
           error:
-            'No exam questions could be prepared at this time. Please try again shortly.',
+            'We could not prepare the full exam at this time. Please wait a moment and try again.',
+
+          requiredQuestionCount:
+            COUNT,
+
+          preparedQuestionCount:
+            preparedCount,
         },
         {
           status:
@@ -2045,64 +1849,72 @@ export async function POST(
     // ========================================================
 
     /*
-     * Correct answers stay in the server-side session.
+     * Correct answers stay on the server.
      *
-     * topic/subtopic/difficulty/source are persisted so that the
-     * submit route can copy them into ExamPrepAttempt.breakdown.
+     * They are NOT returned to the browser before submission.
      *
-     * Therefore analytics works identically for ALOC and AI.
+     * topic/subtopic/difficulty/source are stored so the submit
+     * route can later create accurate performance analytics.
      */
 
-    await ExamPrepSession.create(
-      {
-        sessionToken,
+    await ExamPrepSession.create({
+      sessionToken,
 
-        examPrepStudentId:
-          access
-            .student
-            ._id,
+      examPrepStudentId:
+        access
+          .student
+          ._id,
 
-        examType:
-          standard,
+      examType:
+        standard,
 
-        subject:
-          canonical,
+      subject:
+        canonical,
 
-        studentClass:
-          normalizedClass,
+      studentClass:
+        normalizedClass,
 
-        questions:
-          finalQuestions,
+      questions:
+        finalQuestions,
 
-        durationMinutes:
-          safeDuration,
+      durationMinutes:
+        safeDuration,
 
-        used:
-          false,
+      used:
+        false,
 
-        expiresAt:
-          new Date(
-            Date.now() +
+      expiresAt:
+        new Date(
+          Date.now() +
             (
               safeDuration +
               15
             ) *
               60 *
               1000
-          ),
-      }
-    )
+        ),
+    })
 
     // ========================================================
-    // 15. SOURCE BREAKDOWN
+    // 15. ORIGINAL SOURCE BREAKDOWN
     // ========================================================
 
     /*
-     * "source" identifies where the question originally came
-     * from, not whether it was retrieved from our database.
+     * "source" means where the question originally came from.
      *
-     * An ALOC question reused from our MongoDB bank therefore
-     * remains source = "aloc".
+     * Therefore:
+     *
+     * ALOC question fetched live:
+     * source = aloc
+     *
+     * ALOC question reused from bank:
+     * source = aloc
+     *
+     * AI question reused from bank:
+     * source = ai
+     *
+     * Fresh AI question:
+     * source = ai
      */
 
     const alocCount =
@@ -2201,9 +2013,11 @@ export async function POST(
             finalQuestions
               .length,
 
-          /*
-           * Original provider breakdown.
-           */
+          flow:
+            usesAloc
+              ? 'ALOC -> BANK -> AI'
+              : 'BANK -> AI',
+
           sourceBreakdown: {
             aloc:
               alocCount,
@@ -2212,30 +2026,26 @@ export async function POST(
               aiCount,
           },
 
-          /*
-           * Infrastructure breakdown.
-           */
           preparationBreakdown: {
-            bankInitial:
-              bankLoaded,
-
-            bankInitialAloc:
-              bankAlocLoaded,
-
-            bankInitialAi:
-              bankAiLoaded,
-
             freshAloc:
               freshAlocLoaded,
 
-            freshAi:
-              freshAiLoaded,
+            bank:
+              bankLoaded,
+
+            bankAlocOrigin:
+              bankAlocLoaded,
+
+            bankAiOrigin:
+              bankAiLoaded,
+
+            aiFallback:
+              aiFallbackLoaded,
           },
 
           questionSource,
 
-          alocApiCalledSuccessfully:
-            alocWorked,
+          alocWorked,
 
           generalTopics,
 
@@ -2286,101 +2096,109 @@ export async function POST(
     // ========================================================
 
     /*
-     * NEVER return:
+     * SECURITY:
+     *
+     * Never expose:
      *
      * correctAnswer
-     * explanation containing the answer
+     * explanation
      *
-     * before the student submits.
+     * before the student submits the exam.
      */
 
-    return NextResponse.json(
-      {
-        success:
-          true,
+    return NextResponse.json({
+      success:
+        true,
 
-        sessionToken,
+      sessionToken,
 
-        durationMinutes:
-          safeDuration,
+      durationMinutes:
+        safeDuration,
 
-        questionSource,
+      questionSource,
 
-        requestedQuestionCount:
-          COUNT,
+      requestedQuestionCount:
+        COUNT,
 
-        questionCount:
-          finalQuestions
-            .length,
+      questionCount:
+        finalQuestions
+          .length,
 
-        /*
-         * Means a fresh ALOC request supplied at least one new
-         * question during this request.
-         *
-         * If the entire exam came from cached ALOC questions,
-         * this can correctly be false.
-         */
-        alocWorked,
+      /*
+       * True only when the live ALOC request produced at least
+       * one usable question during this request.
+       */
 
-        sourceBreakdown: {
-          aloc:
-            alocCount,
+      alocWorked,
 
-          ai:
-            aiCount,
-        },
+      /*
+       * Original question provenance.
+       */
 
-        /*
-         * Useful for development/UI diagnostics.
-         *
-         * This reveals no answers.
-         */
-        preparationBreakdown: {
-          fromInitialBank:
-            bankLoaded,
+      sourceBreakdown: {
+        aloc:
+          alocCount,
 
-          freshAloc:
-            freshAlocLoaded,
+        ai:
+          aiCount,
+      },
 
-          freshAi:
-            freshAiLoaded,
-        },
+      /*
+       * Shows which infrastructure actually supplied questions
+       * during this request.
+       */
 
-        questions:
-          finalQuestions
-            .map(
-              (
+      preparationBreakdown: {
+        freshAloc:
+          freshAlocLoaded,
+
+        fromBank:
+          bankLoaded,
+
+        bankAlocOrigin:
+          bankAlocLoaded,
+
+        bankAiOrigin:
+          bankAiLoaded,
+
+        aiFallback:
+          aiFallbackLoaded,
+      },
+
+      questions:
+        finalQuestions
+          .map(
+            (
+              question
+            ) => ({
+              id:
                 question
-              ) => ({
-                id:
-                  question
-                    .id,
+                  .id,
 
-                text:
-                  question
-                    .text,
+              text:
+                question
+                  .text,
 
-                options:
-                  question
-                    .options,
+              options:
+                question
+                  .options,
 
-                topic:
-                  question
-                    .topic,
+              topic:
+                question
+                  .topic,
 
-                section:
-                  question
-                    .section ||
-                  '',
+              section:
+                question
+                  .section ||
+                '',
 
-                imageUrl:
-                  question
-                    .imageUrl ||
-                  '',
-              })
-            ),
-      }
-    )
+              imageUrl:
+                question
+                  .imageUrl ||
+                '',
+            })
+          ),
+    })
   } catch (
     error
   ) {
