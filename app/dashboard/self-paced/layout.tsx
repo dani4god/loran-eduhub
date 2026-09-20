@@ -1,10 +1,19 @@
+// app/dashboard/self-paced/layout.tsx
+
 import SelfPacedSidebar from '@/components/self-paced/SelfPacedSidebar'
 
-export default function SelfPacedLayout({ children }: { children: React.ReactNode }) {
+export default function SelfPacedLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <div className="min-h-screen bg-gray-50">
       <SelfPacedSidebar />
-      <div className="lg:pl-60">{children}</div>
+
+      <main className="min-h-screen pt-14 lg:pl-60 lg:pt-0">
+        {children}
+      </main>
     </div>
   )
 }
