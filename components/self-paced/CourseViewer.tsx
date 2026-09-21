@@ -32,6 +32,10 @@ import {
   BookOpen,
 } from 'lucide-react'
 
+// ============================================================
+// TYPES
+// ============================================================
+
 interface CourseViewerProps {
   courseId: string
 }
@@ -88,9 +92,9 @@ interface CourseData {
   unlockedWeek: number
   isComplete: boolean
 
-  /*
-   * Kept optional for compatibility in case another version
-   * of the content endpoint returns a course-level lock.
+  /**
+   * Kept optional for compatibility in case the content
+   * endpoint returns a course-level lock.
    */
   locked?: boolean
 }
@@ -104,6 +108,15 @@ interface ExamResult {
   attemptsRemaining: number
   error?: string
 }
+
+type ActivityAction =
+  | 'course_open'
+  | 'page_view'
+  | 'page_complete'
+
+// ============================================================
+// COMPONENT
+// ============================================================
 
 export default function CourseViewer({
   courseId,
@@ -139,6 +152,18 @@ export default function CourseViewer({
   const contentRef = useRef<HTMLDivElement>(null)
 
   const submitLockRef = useRef(false)
+
+  /**
+   * Prevent duplicate page-view events caused by
+   * ordinary React re-renders.
+   */
+  const lastTrackedPageRef = useRef<string | null>(null)
+
+  /**
+   * Prevent duplicate course-open events during the
+   * lifetime of this mounted viewer.
+   */
+  const courseOpenTrackedRef = useRef(false)
 
   // ==========================================================
   // LOAD COURSE
@@ -229,13 +254,137 @@ export default function CourseViewer({
     activePage === week.pages.length - 1
 
   /*
-   * Your current content endpoint does not return a top-level
-   * "locked" property, so default this to false.
+   * The current content endpoint may not return a
+   * top-level "locked" property, so default to false.
    *
    * Individual future weeks are still protected by
    * currentWeek.locked.
    */
   const isLocked = data?.locked ?? false
+
+  // ==========================================================
+  // ACTIVITY TRACKING
+  // ==========================================================
+
+  const recordActivity = useCallback(
+    async (
+      action: ActivityAction,
+      weekNumber?: number,
+      pageId?: string
+    ) => {
+      try {
+        const response = await fetch(
+          `/api/self-paced/courses/${courseId}/activity`,
+          {
+            method: 'POST',
+
+            headers: {
+              'Content-Type': 'application/json',
+            },
+
+            body: JSON.stringify({
+              action,
+              weekNumber,
+              pageId,
+            }),
+
+            keepalive: true,
+          }
+        )
+
+        /*
+         * Activity tracking should never interrupt the
+         * student's learning experience.
+         *
+         * We log failures for development/debugging,
+         * but do not show an alert to the student.
+         */
+        if (!response.ok) {
+          const responseData = await response
+            .json()
+            .catch(() => null)
+
+          console.error(
+            'Failed to record course activity:',
+            responseData?.error ||
+              `Request failed with status ${response.status}`
+          )
+        }
+      } catch (error) {
+        console.error(
+          'Failed to record course activity:',
+          error
+        )
+      }
+    },
+    [courseId]
+  )
+
+  // ==========================================================
+  // RECORD COURSE OPEN
+  // ==========================================================
+
+  useEffect(() => {
+    /*
+     * Wait until the course has successfully loaded.
+     *
+     * This prevents failed/unauthorized course requests
+     * from being counted as valid learning activity.
+     */
+    if (!data || courseOpenTrackedRef.current) {
+      return
+    }
+
+    courseOpenTrackedRef.current = true
+
+    void recordActivity('course_open')
+  }, [data, recordActivity])
+
+  // ==========================================================
+  // RECORD PAGE VIEW
+  // ==========================================================
+
+  useEffect(() => {
+    if (
+      !data ||
+      !week ||
+      !page ||
+      !page._id ||
+      isLocked ||
+      inExam ||
+      result
+    ) {
+      return
+    }
+
+    /*
+     * A stable key prevents the same lesson from being
+     * recorded repeatedly because of unrelated re-renders.
+     */
+    const trackingKey =
+      `${courseId}:${week.weekNumber}:${page._id}`
+
+    if (lastTrackedPageRef.current === trackingKey) {
+      return
+    }
+
+    lastTrackedPageRef.current = trackingKey
+
+    void recordActivity(
+      'page_view',
+      week.weekNumber,
+      page._id
+    )
+  }, [
+    courseId,
+    data,
+    week,
+    page,
+    isLocked,
+    inExam,
+    result,
+    recordActivity,
+  ])
 
   // ==========================================================
   // KEEP PAGE INDEX VALID
@@ -276,10 +425,60 @@ export default function CourseViewer({
   ])
 
   // ==========================================================
+  // COMPLETE CURRENT PAGE
+  // ==========================================================
+
+  const completeCurrentPage = useCallback(async () => {
+    if (
+      !week ||
+      !page ||
+      !page._id
+    ) {
+      return
+    }
+
+    await recordActivity(
+      'page_complete',
+      week.weekNumber,
+      page._id
+    )
+  }, [
+    week,
+    page,
+    recordActivity,
+  ])
+
+  // ==========================================================
+  // NEXT PAGE
+  // ==========================================================
+
+  const goToNextPage = async () => {
+    if (
+      !week ||
+      !page ||
+      isLastPage
+    ) {
+      return
+    }
+
+    /*
+     * Mark the current page complete before moving forward.
+     *
+     * We intentionally wait for this request so that the
+     * progress event is less likely to be lost.
+     */
+    await completeCurrentPage()
+
+    setActivePage(
+      (current) => current + 1
+    )
+  }
+
+  // ==========================================================
   // START EXAM
   // ==========================================================
 
-  const startExam = () => {
+  const startExam = async () => {
     if (!week) {
       return
     }
@@ -295,6 +494,14 @@ export default function CourseViewer({
     if (!week.questions?.length) {
       alert('This exam does not contain any questions yet.')
       return
+    }
+
+    /*
+     * If the week has lesson pages, entering the assessment
+     * from the final page marks that final lesson complete.
+     */
+    if (page?._id) {
+      await completeCurrentPage()
     }
 
     submitLockRef.current = false
@@ -498,6 +705,7 @@ export default function CourseViewer({
     setResult(null)
     setAnswers({})
     setSecondsLeft(0)
+
     submitLockRef.current = false
   }
 
@@ -827,10 +1035,7 @@ export default function CourseViewer({
                           <button
                             type="button"
                             onClick={() =>
-                              setActivePage(
-                                (current) =>
-                                  current + 1
-                              )
+                              void goToNextPage()
                             }
                             className="flex items-center justify-center gap-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
                           >
@@ -848,7 +1053,9 @@ export default function CourseViewer({
                         ) : (
                           <button
                             type="button"
-                            onClick={startExam}
+                            onClick={() =>
+                              void startExam()
+                            }
                             disabled={
                               !week.durationMinutes ||
                               week.questions.length === 0
@@ -888,7 +1095,9 @@ export default function CourseViewer({
                         !!week.durationMinutes && (
                           <button
                             type="button"
-                            onClick={startExam}
+                            onClick={() =>
+                              void startExam()
+                            }
                             className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white"
                           >
                             Start Week{' '}

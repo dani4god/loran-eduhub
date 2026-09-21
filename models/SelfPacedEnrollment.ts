@@ -6,6 +6,10 @@ import mongoose, {
   Model,
 } from 'mongoose'
 
+// ============================================================
+// WEEK PROGRESS
+// ============================================================
+
 export interface IWeekProgress {
   weekNumber: number
   examScore: number
@@ -16,7 +20,27 @@ export interface IWeekProgress {
   attemptedAt: Date
 }
 
-export interface ISelfPacedEnrollment extends Document {
+// ============================================================
+// PAGE PROGRESS
+// ============================================================
+
+export interface IPageProgress {
+  weekNumber: number
+  pageId: mongoose.Types.ObjectId
+
+  firstViewedAt: Date
+  lastViewedAt: Date
+
+  completed: boolean
+  completedAt?: Date
+}
+
+// ============================================================
+// ENROLLMENT
+// ============================================================
+
+export interface ISelfPacedEnrollment
+  extends Document {
   selfPacedStudentId: mongoose.Types.ObjectId
   courseId: mongoose.Types.ObjectId
   tutorId: mongoose.Types.ObjectId
@@ -27,6 +51,23 @@ export interface ISelfPacedEnrollment extends Document {
   payoutLogged: boolean
 
   weekProgress: IWeekProgress[]
+
+  /**
+   * Tracks lesson-page activity.
+   *
+   * This allows the course and WhatsApp mentor systems
+   * to understand whether the student is actively
+   * studying, rather than relying only on exam attempts.
+   */
+  pageProgress: IPageProgress[]
+
+  /**
+   * Last meaningful course activity.
+   *
+   * Updated when the student studies course material
+   * or performs another meaningful learning action.
+   */
+  lastActivityAt: Date
 
   locked: boolean
   lockedAtWeek?: number
@@ -39,47 +80,97 @@ export interface ISelfPacedEnrollment extends Document {
   updatedAt: Date
 }
 
-const WeekProgressSchema = new Schema<IWeekProgress>(
-  {
-    weekNumber: {
-      type: Number,
-      required: true,
-    },
+// ============================================================
+// WEEK PROGRESS SCHEMA
+// ============================================================
 
-    examScore: {
-      type: Number,
-      required: true,
-    },
+const WeekProgressSchema =
+  new Schema<IWeekProgress>(
+    {
+      weekNumber: {
+        type: Number,
+        required: true,
+      },
 
-    examTotal: {
-      type: Number,
-      required: true,
-    },
+      examScore: {
+        type: Number,
+        required: true,
+      },
 
-    examPercentage: {
-      type: Number,
-      required: true,
-    },
+      examTotal: {
+        type: Number,
+        required: true,
+      },
 
-    passed: {
-      type: Boolean,
-      required: true,
-    },
+      examPercentage: {
+        type: Number,
+        required: true,
+      },
 
-    attemptsUsed: {
-      type: Number,
-      default: 0,
-    },
+      passed: {
+        type: Boolean,
+        required: true,
+      },
 
-    attemptedAt: {
-      type: Date,
-      default: Date.now,
+      attemptsUsed: {
+        type: Number,
+        default: 0,
+      },
+
+      attemptedAt: {
+        type: Date,
+        default: Date.now,
+      },
     },
-  },
-  {
-    _id: false,
-  }
-)
+    {
+      _id: false,
+    }
+  )
+
+// ============================================================
+// PAGE PROGRESS SCHEMA
+// ============================================================
+
+const PageProgressSchema =
+  new Schema<IPageProgress>(
+    {
+      weekNumber: {
+        type: Number,
+        required: true,
+      },
+
+      pageId: {
+        type: Schema.Types.ObjectId,
+        required: true,
+      },
+
+      firstViewedAt: {
+        type: Date,
+        default: Date.now,
+      },
+
+      lastViewedAt: {
+        type: Date,
+        default: Date.now,
+      },
+
+      completed: {
+        type: Boolean,
+        default: false,
+      },
+
+      completedAt: {
+        type: Date,
+      },
+    },
+    {
+      _id: false,
+    }
+  )
+
+// ============================================================
+// ENROLLMENT SCHEMA
+// ============================================================
 
 const SelfPacedEnrollmentSchema =
   new Schema<ISelfPacedEnrollment>(
@@ -122,13 +213,44 @@ const SelfPacedEnrollmentSchema =
         index: true,
       },
 
+      // ======================================================
+      // ASSESSMENT PROGRESS
+      // ======================================================
+
       weekProgress: [
         WeekProgressSchema,
       ],
 
+      // ======================================================
+      // LESSON / PAGE PROGRESS
+      // ======================================================
+
+      pageProgress: {
+        type: [
+          PageProgressSchema,
+        ],
+
+        default: [],
+      },
+
+      // ======================================================
+      // COURSE ACTIVITY
+      // ======================================================
+
+      lastActivityAt: {
+        type: Date,
+        default: Date.now,
+        index: true,
+      },
+
+      // ======================================================
+      // COURSE LOCKING
+      // ======================================================
+
       locked: {
         type: Boolean,
         default: false,
+        index: true,
       },
 
       lockedAtWeek: {
@@ -139,8 +261,13 @@ const SelfPacedEnrollmentSchema =
         type: Date,
       },
 
+      // ======================================================
+      // COMPLETION
+      // ======================================================
+
       completedAt: {
         type: Date,
+        index: true,
       },
 
       certificateId: {
@@ -152,6 +279,10 @@ const SelfPacedEnrollmentSchema =
       timestamps: true,
     }
   )
+
+// ============================================================
+// INDEXES
+// ============================================================
 
 /**
  * A self-paced student can only own
@@ -179,6 +310,7 @@ SelfPacedEnrollmentSchema.index(
   },
   {
     unique: true,
+
     partialFilterExpression: {
       paystackReference: {
         $type: 'string',
@@ -186,6 +318,23 @@ SelfPacedEnrollmentSchema.index(
     },
   }
 )
+
+/**
+ * Useful for mentor/inactivity queries.
+ *
+ * Allows the mentoring job to efficiently locate
+ * active, incomplete enrollments based on their
+ * most recent course activity.
+ */
+SelfPacedEnrollmentSchema.index({
+  completedAt: 1,
+  locked: 1,
+  lastActivityAt: 1,
+})
+
+// ============================================================
+// MODEL
+// ============================================================
 
 const SelfPacedEnrollment:
   Model<ISelfPacedEnrollment> =
