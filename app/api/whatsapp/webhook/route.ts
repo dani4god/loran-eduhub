@@ -1375,31 +1375,594 @@ function isHumanSupportRequest(
       messageText
     )
 
-  const phrases = [
+  /*
+   * Exact commands are intentionally separate from phrases.
+   *
+   * Previously we used value.includes('support'), which meant
+   * perfectly valid academic messages such as:
+   *
+   * "I need support understanding arrays"
+   *
+   * could accidentally create a human-support ticket.
+   */
+  const exactCommands = [
     'human',
     'agent',
     'support',
     'human support',
     'customer support',
+    'real person',
+  ]
+
+  if (
+    exactCommands.includes(
+      value
+    )
+  ) {
+    return true
+  }
+
+  const humanRequestPhrases = [
     'talk to a human',
     'talk to human',
     'speak to a human',
     'speak to human',
+    'talk with a human',
+    'speak with a human',
     'talk to an agent',
     'speak to an agent',
-    'real person',
+    'talk with an agent',
+    'speak with an agent',
+    'talk to support',
+    'speak to support',
+    'talk with support',
+    'speak with support',
+    'contact support',
+    'connect me to support',
+    'connect me with support',
     'someone from support',
+    'a real person',
+    'real human',
+    'human agent',
+    'support agent',
+    'customer service agent',
   ]
 
-  return phrases.some(
+  return humanRequestPhrases.some(
     (phrase) =>
-      value === phrase ||
       value.includes(
         phrase
       )
   )
 }
+
 // ============================================================
+// COURSE SWITCHING HELPERS
+// ============================================================
+
+function normalizeCourseMatchText(
+  value: string
+): string {
+  return value
+    .toLowerCase()
+    .replace(
+      /[^a-z0-9\s]/g,
+      ' '
+    )
+    .replace(
+      /\s+/g,
+      ' '
+    )
+    .trim()
+}
+
+function isCourseMenuRequest(
+  messageText: string
+): boolean {
+  const value =
+    normalizeCommandText(
+      messageText
+    )
+
+  /*
+   * These commands mean:
+   *
+   * "Show me the courses I can currently receive mentorship
+   * for."
+   *
+   * They can be used at any point in the conversation.
+   */
+  const exactCommands = [
+    'course',
+    'courses',
+    'my course',
+    'my courses',
+    'switch course',
+    'switch courses',
+    'change course',
+    'change courses',
+    'another course',
+    'other course',
+    'my other course',
+    'choose course',
+    'choose a course',
+    'select course',
+    'select a course',
+    'show courses',
+    'show my courses',
+    'list courses',
+    'list my courses',
+  ]
+
+  if (
+    exactCommands.includes(
+      value
+    )
+  ) {
+    return true
+  }
+
+  const phrases = [
+    'switch to another course',
+    'switch to my other course',
+    'change to another course',
+    'change my course',
+    'change the course',
+    'choose another course',
+    'select another course',
+    'pick another course',
+    'show me my courses',
+    'show me the courses',
+    'what courses am i taking',
+    'what courses am i enrolled in',
+    'i want another course',
+    'i want to change course',
+    'i want to switch course',
+    'i want to discuss another course',
+    'i want to ask about another course',
+    'can i switch course',
+    'can i change course',
+  ]
+
+  return phrases.some(
+    (phrase) =>
+      value.includes(
+        phrase
+      )
+  )
+}
+
+function getCourseMatchTokens(
+  value: string
+): string[] {
+  const ignored =
+    new Set([
+      'course',
+      'courses',
+      'self',
+      'paced',
+      'selfpaced',
+      'training',
+      'program',
+      'programme',
+      'class',
+      'classes',
+      'the',
+      'and',
+      'with',
+      'for',
+      'from',
+      'into',
+      'using',
+      'introduction',
+      'intro',
+    ])
+
+  return Array.from(
+    new Set(
+      normalizeCourseMatchText(
+        value
+      )
+        .split(' ')
+        .filter(
+          (token) =>
+            token.length >= 2 &&
+            !ignored.has(
+              token
+            )
+        )
+    )
+  )
+}
+
+function findMentionedCourseOptions(
+  messageText: string,
+  options:
+    ActiveEnrollmentOption[]
+): ActiveEnrollmentOption[] {
+  const normalizedMessage =
+    normalizeCourseMatchText(
+      messageText
+    )
+
+  if (!normalizedMessage) {
+    return []
+  }
+
+  /*
+   * First prefer a complete course-title match.
+   *
+   * Example:
+   *
+   * Course:
+   * "Data Analysis with SPSS"
+   *
+   * Student:
+   * "In Data Analysis with SPSS, explain correlation."
+   */
+  const exactTitleMatches =
+    options.filter(
+      (option) => {
+        const normalizedTitle =
+          normalizeCourseMatchText(
+            option.courseTitle
+          )
+
+        return (
+          normalizedTitle.length >
+            0 &&
+          normalizedMessage.includes(
+            normalizedTitle
+          )
+        )
+      }
+    )
+
+  if (
+    exactTitleMatches.length >
+    0
+  ) {
+    return exactTitleMatches
+  }
+
+  /*
+   * Students will not always type the full database title.
+   *
+   * Example:
+   *
+   * Stored title:
+   * "Data Analysis with SPSS"
+   *
+   * Student:
+   * "In my data analysis course..."
+   *
+   * We therefore compare meaningful title words.
+   */
+  const scored =
+    options
+      .map(
+        (option) => {
+          const titleTokens =
+            getCourseMatchTokens(
+              option.courseTitle
+            )
+
+          if (
+            titleTokens.length ===
+            0
+          ) {
+            return {
+              option,
+              score: 0,
+              ratio: 0,
+            }
+          }
+
+          const matchingTokens =
+            titleTokens.filter(
+              (token) =>
+                new RegExp(
+                  `\\b${token.replace(
+                    /[.*+?^${}()|[\]\\]/g,
+                    '\\$&'
+                  )}\\b`,
+                  'i'
+                ).test(
+                  normalizedMessage
+                )
+            )
+
+          const score =
+            matchingTokens.length
+
+          const ratio =
+            score /
+            titleTokens.length
+
+          return {
+            option,
+            score,
+            ratio,
+          }
+        }
+      )
+      .filter(
+        (item) => {
+          /*
+           * A one-word course such as "Python" can be identified
+           * by one exact word.
+           *
+           * Longer titles require at least two meaningful matching
+           * words. This prevents accidental switching because of
+           * generic words.
+           */
+          const tokenCount =
+            getCourseMatchTokens(
+              item.option
+                .courseTitle
+            ).length
+
+          if (
+            tokenCount === 1
+          ) {
+            return (
+              item.score === 1
+            )
+          }
+
+          return (
+            item.score >= 2 &&
+            item.ratio >= 0.5
+          )
+        }
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.score -
+            a.score ||
+          b.ratio -
+            a.ratio
+      )
+
+  if (
+    scored.length ===
+    0
+  ) {
+    return []
+  }
+
+  /*
+   * Keep all equally strong matches.
+   *
+   * If two courses genuinely match equally well, the webhook
+   * should ask the student to choose instead of guessing.
+   */
+  const bestScore =
+    scored[0].score
+
+  const bestRatio =
+    scored[0].ratio
+
+  return scored
+    .filter(
+      (item) =>
+        item.score ===
+          bestScore &&
+        item.ratio ===
+          bestRatio
+    )
+    .map(
+      (item) =>
+        item.option
+    )
+}
+
+function isExplicitNamedCourseSwitchRequest(
+  messageText: string
+): boolean {
+  const value =
+    normalizeCommandText(
+      messageText
+    )
+
+  const switchPhrases = [
+    'switch to',
+    'change to',
+    'move to',
+    'go to',
+    'continue with',
+    'talk about',
+    'discuss',
+    'ask about',
+  ]
+
+  return switchPhrases.some(
+    (phrase) =>
+      value.includes(
+        phrase
+      )
+  )
+}
+
+function isLikelySwitchOnlyMessage(
+  messageText: string
+): boolean {
+  const value =
+    normalizeCommandText(
+      messageText
+    )
+
+  /*
+   * A short message such as:
+   *
+   * "switch to data analysis"
+   *
+   * is primarily a navigation command. We switch and ask for the
+   * student's question rather than sending that command to the AI.
+   *
+   * A longer message such as:
+   *
+   * "In my data analysis course, explain correlation"
+   *
+   * will switch course and then continue directly to the AI.
+   */
+  const words =
+    value
+      .split(' ')
+      .filter(Boolean)
+
+  if (
+    words.length <= 7 &&
+    isExplicitNamedCourseSwitchRequest(
+      messageText
+    )
+  ) {
+    return true
+  }
+
+  return false
+}
+
+async function buildCourseContextFromOption({
+  studentId,
+  option,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  option:
+    ActiveEnrollmentOption
+}): Promise<CourseContext> {
+  const state =
+    await SelfPacedMentorState
+      .findOne({
+        selfPacedStudentId:
+          studentId,
+
+        enrollmentId:
+          option.enrollmentId,
+
+        courseId:
+          option.courseId,
+
+        status:
+          'active',
+      })
+
+  return {
+    enrollmentId:
+      option.enrollmentId,
+
+    courseId:
+      option.courseId,
+
+    state,
+  }
+}
+
+async function activateCourseOption({
+  studentId,
+  preference,
+  option,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  preference:
+    InstanceType<
+      typeof SelfPacedMentorPreference
+    >
+
+  option:
+    ActiveEnrollmentOption
+}): Promise<CourseContext> {
+  preference
+    .activeEnrollmentId =
+    option.enrollmentId
+
+  preference
+    .activeCourseId =
+    option.courseId
+
+  preference
+    .contextSelectedAt =
+    new Date()
+
+  preference
+    .awaitingCourseSelection =
+    false
+
+  await preference.save()
+
+  return buildCourseContextFromOption({
+    studentId,
+    option,
+  })
+}
+
+async function sendCourseSwitchConfirmation({
+  studentId,
+  firstName,
+  phone,
+  option,
+  context,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  firstName: string
+
+  phone: string
+
+  option:
+    ActiveEnrollmentOption
+
+  context:
+    CourseContext
+}) {
+  const message =
+    [
+      `Great, ${firstName}.`,
+      '',
+      `Your mentorship conversation is now focused on ${option.courseTitle}.`,
+      '',
+      'What would you like help with in this course?',
+    ].join('\n')
+
+  const result =
+    await sendAndLogText({
+      selfPacedStudentId:
+        studentId,
+
+      enrollmentId:
+        context.enrollmentId,
+
+      courseId:
+        context.courseId,
+
+      phone,
+
+      message,
+
+      metadata: {
+        purpose:
+          'course_switched',
+
+        courseTitle:
+          option.courseTitle,
+      },
+    })
+
+  if (!result.success) {
+    console.error(
+      'Failed to send course-switch confirmation:',
+      result.error
+    )
+  }
+}// ============================================================
 // CREATE HUMAN ESCALATION
 // ============================================================
 
@@ -1845,10 +2408,6 @@ async function handleInboundMessage(
   // DUPLICATE CHECK
   // ==========================================================
 
-  /*
-   * Check before doing any other work because Meta may retry
-   * delivery of the same webhook event.
-   */
   const duplicate =
     await SelfPacedMentorMessage
       .findOne({
@@ -1863,7 +2422,7 @@ async function handleInboundMessage(
   }
 
   // ==========================================================
-  // FIND MENTOR PREFERENCE BY WHATSAPP NUMBER
+  // FIND MENTOR PREFERENCE
   // ==========================================================
 
   const preference =
@@ -1887,10 +2446,8 @@ async function handleInboundMessage(
   // ==========================================================
 
   /*
-   * STOP must be processed before checking enabled/consent.
-   *
-   * This means a student can still send STOP even if their
-   * preference state is inconsistent or already disabled.
+   * STOP is deliberately handled before checking whether
+   * mentoring is enabled.
    */
   if (
     isOptOutRequest(
@@ -1916,10 +2473,6 @@ async function handleInboundMessage(
       return
     }
 
-    /*
-     * Save the inbound STOP before responding so webhook retries
-     * do not send multiple opt-out confirmations.
-     */
     const inbound =
       await saveInboundMessage({
         studentId:
@@ -2070,11 +2623,6 @@ async function handleInboundMessage(
       return
     }
 
-    /*
-     * A human request should still work even if the student has
-     * no active course. Human support may need to investigate an
-     * enrollment/account problem.
-     */
     if (
       isHumanSupportRequest(
         messageText
@@ -2105,28 +2653,35 @@ async function handleInboundMessage(
       return
     }
 
-    const result =
-      await sendAndLogText({
-        selfPacedStudentId:
-          studentId,
+    /*
+     * A student with no active course cannot receive normal
+     * academic mentorship. This is potentially an enrollment or
+     * course-access matter, so do not send them into the AI.
+     */
+    await sendHumanEscalationConfirmation({
+      studentId,
 
-        phone,
+      firstName,
 
-        message:
-          'I could not find an active self-paced course on your account. If you believe this is incorrect, reply "human" and I will refer your request to the Loran EduHub support team.',
+      phone,
 
-        metadata: {
-          purpose:
-            'no_active_course',
-        },
-      })
+      context:
+        null,
 
-    if (!result.success) {
-      console.error(
-        'Failed to send no-active-course response:',
-        result.error
-      )
-    }
+      sourceMessageId:
+        inbound
+          .savedMessage
+          ._id,
+
+      studentMessage:
+        messageText,
+
+      reason:
+        'course_access_issue',
+
+      aiSummary:
+        'No active unfinished self-paced enrollment was found for the student. Human support should verify their course enrollment/access.',
+    })
 
     return
   }
@@ -2140,8 +2695,8 @@ async function handleInboundMessage(
       .awaitingCourseSelection
   ) {
     /*
-     * Human support commands should work even while the bot is
-     * waiting for the student to choose a course.
+     * Explicit human requests always take priority over course
+     * selection.
      */
     if (
       isHumanSupportRequest(
@@ -2197,6 +2752,119 @@ async function handleInboundMessage(
       return
     }
 
+    /*
+     * If they type COURSES again while already choosing, simply
+     * display the current list again.
+     */
+    if (
+      isCourseMenuRequest(
+        messageText
+      )
+    ) {
+      const inbound =
+        await saveInboundMessage({
+          studentId,
+
+          context:
+            null,
+
+          phone,
+
+          messageText,
+
+          message,
+        })
+
+      if (!inbound) {
+        return
+      }
+
+      await requestCourseSelection({
+        studentId,
+
+        firstName,
+
+        phone,
+
+        preference,
+
+        options:
+          activeOptions,
+      })
+
+      return
+    }
+
+    /*
+     * They may type a course title instead of its number.
+     *
+     * Example:
+     *
+     * "Data Analysis"
+     *
+     * If exactly one enrolled course clearly matches, accept it
+     * directly.
+     */
+    const mentionedOptions =
+      findMentionedCourseOptions(
+        messageText,
+        activeOptions
+      )
+
+    if (
+      mentionedOptions.length ===
+      1
+    ) {
+      const selected =
+        mentionedOptions[0]
+
+      const inbound =
+        await saveInboundMessage({
+          studentId,
+
+          context:
+            null,
+
+          phone,
+
+          messageText,
+
+          message,
+        })
+
+      if (!inbound) {
+        return
+      }
+
+      const context =
+        await activateCourseOption({
+          studentId,
+
+          preference,
+
+          option:
+            selected,
+        })
+
+      await sendCourseSwitchConfirmation({
+        studentId,
+
+        firstName,
+
+        phone,
+
+        option:
+          selected,
+
+        context,
+      })
+
+      return
+    }
+
+    /*
+     * Otherwise keep the existing numeric-selection flow.
+     */
     const inbound =
       await saveInboundMessage({
         studentId,
@@ -2243,124 +2911,338 @@ async function handleInboundMessage(
     )
 
   // ==========================================================
-  // SAVED CONTEXT DOES NOT EXIST
+  // EXPLICIT HUMAN REQUEST BEFORE COURSE ROUTING
   // ==========================================================
 
-  if (!context) {
-    /*
-     * A human request does not require course selection first.
-     */
-    if (
-      isHumanSupportRequest(
-        messageText
-      )
-    ) {
-      const inbound =
-        await saveInboundMessage({
-          studentId,
-
-          context:
-            null,
-
-          phone,
-
-          messageText,
-
-          message,
-        })
-
-      if (!inbound) {
-        return
-      }
-
-      await sendHumanEscalationConfirmation({
+  /*
+   * A human request should never be interpreted as a course
+   * switch.
+   */
+  if (
+    isHumanSupportRequest(
+      messageText
+    )
+  ) {
+    const inbound =
+      await saveInboundMessage({
         studentId,
 
-        firstName,
+        context,
 
         phone,
 
-        context:
-          null,
+        messageText,
 
-        sourceMessageId:
-          inbound
-            .savedMessage
-            ._id,
-
-        studentMessage:
-          messageText,
-
-        reason:
-          'student_requested_human',
+        message,
       })
 
+    if (!inbound) {
       return
     }
 
-    // ========================================================
-    // ONLY ONE ACTIVE COURSE
-    // ========================================================
+    await sendHumanEscalationConfirmation({
+      studentId,
 
+      firstName,
+
+      phone,
+
+      context,
+
+      sourceMessageId:
+        inbound
+          .savedMessage
+          ._id,
+
+      studentMessage:
+        messageText,
+
+      reason:
+        'student_requested_human',
+    })
+
+    return
+  }
+
+  // ==========================================================
+  // STUDENT EXPLICITLY REQUESTED COURSE LIST / COURSE SWITCH
+  // ==========================================================
+
+  if (
+    isCourseMenuRequest(
+      messageText
+    )
+  ) {
+    const inbound =
+      await saveInboundMessage({
+        studentId,
+
+        context,
+
+        phone,
+
+        messageText,
+
+        message,
+      })
+
+    if (!inbound) {
+      return
+    }
+
+    /*
+     * If there is only one unfinished course, there is nothing
+     * to switch to.
+     */
     if (
       activeOptions.length ===
       1
     ) {
-      const selected =
+      const onlyCourse =
         activeOptions[0]
 
-      preference
-        .activeEnrollmentId =
-        selected.enrollmentId
+      /*
+       * Make sure the only course is also the saved context.
+       */
+      context =
+        await activateCourseOption({
+          studentId,
 
-      preference
-        .activeCourseId =
-        selected.courseId
+          preference,
 
-      preference
-        .contextSelectedAt =
-        new Date()
+          option:
+            onlyCourse,
+        })
 
-      preference
-        .awaitingCourseSelection =
-        false
+      const result =
+        await sendAndLogText({
+          selfPacedStudentId:
+            studentId,
 
-      await preference.save()
+          enrollmentId:
+            context.enrollmentId,
 
-      const state =
-        await SelfPacedMentorState
-          .findOne({
-            selfPacedStudentId:
-              studentId,
+          courseId:
+            context.courseId,
 
-            enrollmentId:
-              selected
-                .enrollmentId,
+          phone,
 
-            courseId:
-              selected
-                .courseId,
+          message:
+            `You currently have one active self-paced course available for mentorship: ${onlyCourse.courseTitle}. What would you like help with in this course?`,
 
-            status:
-              'active',
+          metadata: {
+            purpose:
+              'single_active_course',
+
+            courseTitle:
+              onlyCourse
+                .courseTitle,
+          },
+        })
+
+      if (!result.success) {
+        console.error(
+          'Failed to send single-course response:',
+          result.error
+        )
+      }
+
+      return
+    }
+
+    /*
+     * More than one active course: clear the current context and
+     * allow the student to choose.
+     */
+    await requestCourseSelection({
+      studentId,
+
+      firstName,
+
+      phone,
+
+      preference,
+
+      options:
+        activeOptions,
+    })
+
+    return
+  }
+
+  // ==========================================================
+  // DETECT ANOTHER ENROLLED COURSE IN THE MESSAGE
+  // ==========================================================
+
+  const mentionedOptions =
+    findMentionedCourseOptions(
+      messageText,
+      activeOptions
+    )
+
+  if (
+    mentionedOptions.length >
+    1
+  ) {
+    /*
+     * More than one enrolled course matched strongly enough.
+     * Never guess which one the student meant.
+     */
+    const inbound =
+      await saveInboundMessage({
+        studentId,
+
+        context,
+
+        phone,
+
+        messageText,
+
+        message,
+      })
+
+    if (!inbound) {
+      return
+    }
+
+    await requestCourseSelection({
+      studentId,
+
+      firstName,
+
+      phone,
+
+      preference,
+
+      options:
+        mentionedOptions,
+    })
+
+    return
+  }
+
+  if (
+    mentionedOptions.length ===
+    1
+  ) {
+    const mentioned =
+      mentionedOptions[0]
+
+    const currentCourseId =
+      context?.courseId
+        ?.toString()
+
+    const mentionedCourseId =
+      mentioned
+        .courseId
+        .toString()
+
+    /*
+     * Only switch when the mentioned course is different from
+     * the current conversation context.
+     */
+    if (
+      currentCourseId !==
+      mentionedCourseId
+    ) {
+      context =
+        await activateCourseOption({
+          studentId,
+
+          preference,
+
+          option:
+            mentioned,
+        })
+
+      /*
+       * A short command such as:
+       *
+       * "switch to data analysis"
+       *
+       * only changes context. Do not send that navigation command
+       * to the academic AI.
+       */
+      if (
+        isLikelySwitchOnlyMessage(
+          messageText
+        )
+      ) {
+        const inbound =
+          await saveInboundMessage({
+            studentId,
+
+            context,
+
+            phone,
+
+            messageText,
+
+            message,
           })
 
-      context = {
-        enrollmentId:
-          selected
-            .enrollmentId,
+        if (!inbound) {
+          return
+        }
 
-        courseId:
-          selected
-            .courseId,
+        await sendCourseSwitchConfirmation({
+          studentId,
 
-        state,
+          firstName,
+
+          phone,
+
+          option:
+            mentioned,
+
+          context,
+        })
+
+        return
       }
-    } else {
-      // ======================================================
-      // MULTIPLE ACTIVE COURSES
-      // ======================================================
 
+      /*
+       * Otherwise the message may already contain the actual
+       * academic question.
+       *
+       * Example:
+       *
+       * "In my Data Analysis course, explain correlation."
+       *
+       * We have now switched context BEFORE calling the AI, so
+       * the AI receives Data Analysis lessons/progress rather than
+       * the previous course.
+       */
+    }
+  }
+
+  // ==========================================================
+  // SAVED CONTEXT DOES NOT EXIST
+  // ==========================================================
+
+  if (!context) {
+    if (
+      activeOptions.length ===
+      1
+    ) {
+      /*
+       * One course requires no menu. Select it automatically.
+       */
+      context =
+        await activateCourseOption({
+          studentId,
+
+          preference,
+
+          option:
+            activeOptions[0],
+        })
+    } else {
+      /*
+       * Multiple courses and no existing context.
+       *
+       * Ask which one should become the active mentorship course.
+       */
       const inbound =
         await saveInboundMessage({
           studentId,
@@ -2418,42 +3300,26 @@ async function handleInboundMessage(
   }
 
   // ==========================================================
-  // EXPLICIT HUMAN SUPPORT REQUEST
+  // NORMAL ACADEMIC AI MENTOR FLOW
   // ==========================================================
 
-  if (
-    isHumanSupportRequest(
-      messageText
-    )
-  ) {
-    await sendHumanEscalationConfirmation({
-      studentId,
-
-      firstName,
-
-      phone,
-
-      context,
-
-      sourceMessageId:
-        inbound
-          .savedMessage
-          ._id,
-
-      studentMessage:
-        messageText,
-
-      reason:
-        'student_requested_human',
-    })
-
-    return
-  }
-
-  // ==========================================================
-  // NORMAL AI MENTOR FLOW
-  // ==========================================================
-
+  /*
+   * At this point:
+   *
+   * 1. STOP has already been handled.
+   * 2. Explicit human requests have already been handled.
+   * 3. Course-menu requests have already been handled.
+   * 4. A directly mentioned enrolled course has already become
+   *    the active context.
+   * 5. The AI receives only the resolved course context.
+   *
+   * The strict scope rules in selfPacedMentorAI.ts then decide
+   * whether this is academic coursework or a non-coursework
+   * support matter.
+   *
+   * Non-coursework -> escalation.
+   * Coursework     -> mentor answer.
+   */
   await sendAIMentorResponse({
     studentId,
 
@@ -2471,7 +3337,6 @@ async function handleInboundMessage(
         ._id,
   })
 }
-
 // ============================================================
 // POST WEBHOOK
 // ============================================================
