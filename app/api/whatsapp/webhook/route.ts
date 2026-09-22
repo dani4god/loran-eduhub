@@ -2,14 +2,21 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import mongoose from 'mongoose'
 
 import connectDB from '@/lib/mongodb'
 import {
   normalizeWhatsAppPhone,
+  sendWhatsAppText,
 } from '@/lib/whatsapp'
+
+import {
+  generateSelfPacedMentorReply,
+} from '@/lib/selfPacedMentorAI'
 
 import SelfPacedStudent from '@/models/SelfPacedStudent'
 import SelfPacedEnrollment from '@/models/SelfPacedEnrollment'
+import SelfPacedCourse from '@/models/SelfPacedCourse'
 import SelfPacedMentorPreference from '@/models/SelfPacedMentorPreference'
 import SelfPacedMentorState from '@/models/SelfPacedMentorState'
 import SelfPacedMentorMessage from '@/models/SelfPacedMentorMessage'
@@ -58,9 +65,7 @@ interface WhatsAppInboundMessage {
   type?: string
 
   text?: WhatsAppText
-
   button?: WhatsAppButton
-
   interactive?: WhatsAppInteractive
 }
 
@@ -81,6 +86,7 @@ interface WhatsAppStatus {
     code?: number
     title?: string
     message?: string
+
     error_data?: {
       details?: string
     }
@@ -117,6 +123,20 @@ interface WhatsAppEntry {
 interface WhatsAppWebhookPayload {
   object?: string
   entry?: WhatsAppEntry[]
+}
+
+interface ActiveEnrollmentOption {
+  enrollmentId: mongoose.Types.ObjectId
+  courseId: mongoose.Types.ObjectId
+  courseTitle: string
+}
+
+interface CourseContext {
+  enrollmentId: mongoose.Types.ObjectId
+  courseId: mongoose.Types.ObjectId
+  state: InstanceType<
+    typeof SelfPacedMentorState
+  > | null
 }
 
 // ============================================================
@@ -380,7 +400,8 @@ async function handleMessageStatus(
   if (
     status.status === 'read'
   ) {
-    update.readAt = eventDate
+    update.readAt =
+      eventDate
   }
 
   if (
@@ -396,213 +417,642 @@ async function handleMessageStatus(
       'WhatsApp message failed.'
   }
 
-  await SelfPacedMentorMessage.findOneAndUpdate(
-    {
-      whatsappMessageId:
-        status.id,
-    },
-    {
-      $set: update,
-    }
-  )
+  await SelfPacedMentorMessage
+    .findOneAndUpdate(
+      {
+        whatsappMessageId:
+          status.id,
+      },
+      {
+        $set:
+          update,
+      }
+    )
 }
 
 // ============================================================
-// FIND ACTIVE COURSE CONTEXT
+// ACTIVE ENROLLMENT OPTIONS
 // ============================================================
 
-async function findCourseContext(
-  selfPacedStudentId: string
-) {
-  /*
-   * First preference:
-   * use the course whose mentor state most recently
-   * communicated with the student.
-   */
-
-  const recentState =
-    await SelfPacedMentorState
-      .findOne({
-        selfPacedStudentId,
-        status: 'active',
-      })
-      .sort({
-        lastMentorMessageAt: -1,
-        updatedAt: -1,
-      })
-
-  if (recentState) {
-    return {
-      enrollmentId:
-        recentState.enrollmentId,
-
-      courseId:
-        recentState.courseId,
-
-      state:
-        recentState,
-    }
-  }
-
-  /*
-   * If no mentor state exists yet, check the student's
-   * actual enrollments.
-   *
-   * If exactly one unfinished enrollment exists,
-   * that course is unambiguous.
-   */
-
+async function getActiveEnrollmentOptions(
+  selfPacedStudentId:
+    mongoose.Types.ObjectId
+): Promise<
+  ActiveEnrollmentOption[]
+> {
   const enrollments =
     await SelfPacedEnrollment
       .find({
         selfPacedStudentId,
+
         completedAt: {
           $exists: false,
         },
       })
+      .select(
+        '_id courseId lastActivityAt updatedAt'
+      )
       .sort({
         lastActivityAt: -1,
         updatedAt: -1,
       })
-      .limit(2)
+      .lean()
 
-  if (enrollments.length === 1) {
-    return {
-      enrollmentId:
-        enrollments[0]._id,
-
-      courseId:
-        enrollments[0].courseId,
-
-      state: null,
-    }
+  if (
+    enrollments.length === 0
+  ) {
+    return []
   }
 
-  /*
-   * Zero active courses or multiple possible courses:
-   * do not guess.
-   */
-  return null
+  const courseIds =
+    enrollments.map(
+      (enrollment) =>
+        enrollment.courseId
+    )
+
+  const courses =
+    await SelfPacedCourse
+      .find({
+        _id: {
+          $in: courseIds,
+        },
+      })
+      .select(
+        '_id title'
+      )
+      .lean()
+
+  const courseTitleMap =
+    new Map<
+      string,
+      string
+    >()
+
+  for (
+    const course of courses
+  ) {
+    courseTitleMap.set(
+      course._id.toString(),
+      course.title
+    )
+  }
+
+  return enrollments
+    .map(
+      (
+        enrollment
+      ): ActiveEnrollmentOption | null => {
+        const courseTitle =
+          courseTitleMap.get(
+            enrollment.courseId.toString()
+          )
+
+        if (!courseTitle) {
+          return null
+        }
+
+        return {
+          enrollmentId:
+            enrollment._id,
+
+          courseId:
+            enrollment.courseId,
+
+          courseTitle,
+        }
+      }
+    )
+    .filter(
+      (
+        option
+      ): option is ActiveEnrollmentOption =>
+        option !== null
+    )
 }
 
 // ============================================================
-// HANDLE INBOUND MESSAGE
+// VALIDATE SAVED COURSE CONTEXT
 // ============================================================
 
-async function handleInboundMessage(
-  message: WhatsAppInboundMessage
-) {
+async function getSavedCourseContext(
+  preference:
+    InstanceType<
+      typeof SelfPacedMentorPreference
+    >
+): Promise<
+  CourseContext | null
+> {
   if (
-    !message.id ||
-    !message.from
+    !preference.activeEnrollmentId ||
+    !preference.activeCourseId
   ) {
-    return
+    return null
   }
 
-  const phone =
-    normalizeWhatsAppPhone(
-      message.from
-    )
+  const enrollment =
+    await SelfPacedEnrollment
+      .findOne({
+        _id:
+          preference.activeEnrollmentId,
 
-  const messageText =
-    extractMessageText(
+        selfPacedStudentId:
+          preference.selfPacedStudentId,
+
+        courseId:
+          preference.activeCourseId,
+
+        completedAt: {
+          $exists: false,
+        },
+      })
+      .select(
+        '_id courseId'
+      )
+      .lean()
+
+  if (!enrollment) {
+    preference.activeEnrollmentId =
+      undefined
+
+    preference.activeCourseId =
+      undefined
+
+    preference.contextSelectedAt =
+      undefined
+
+    preference.awaitingCourseSelection =
+      false
+
+    await preference.save()
+
+    return null
+  }
+
+  const state =
+    await SelfPacedMentorState
+      .findOne({
+        selfPacedStudentId:
+          preference.selfPacedStudentId,
+
+        enrollmentId:
+          enrollment._id,
+
+        courseId:
+          enrollment.courseId,
+
+        status:
+          'active',
+      })
+
+  return {
+    enrollmentId:
+      enrollment._id,
+
+    courseId:
+      enrollment.courseId,
+
+    state,
+  }
+}
+
+// ============================================================
+// SAVE OUTBOUND MESSAGE
+// ============================================================
+
+async function saveOutboundMessage({
+  selfPacedStudentId,
+  enrollmentId,
+  courseId,
+  phone,
+  message,
+  whatsappMessageId,
+  status,
+  errorMessage,
+  metadata,
+}: {
+  selfPacedStudentId:
+    mongoose.Types.ObjectId
+
+  enrollmentId?:
+    mongoose.Types.ObjectId
+
+  courseId?:
+    mongoose.Types.ObjectId
+
+  phone: string
+  message: string
+
+  whatsappMessageId?: string
+
+  status:
+    | 'sent'
+    | 'failed'
+
+  errorMessage?: string
+
+  metadata?: Record<
+    string,
+    unknown
+  >
+}) {
+  await SelfPacedMentorMessage.create({
+    selfPacedStudentId,
+    enrollmentId,
+    courseId,
+
+    direction:
+      'outbound',
+
+    type:
+      'manual',
+
+    phone,
+    message,
+
+    whatsappMessageId,
+
+    status,
+
+    errorMessage,
+
+    sentAt:
+      status === 'sent'
+        ? new Date()
+        : undefined,
+
+    metadata,
+  })
+}
+
+// ============================================================
+// SEND AND LOG WHATSAPP TEXT
+// ============================================================
+
+async function sendAndLogText({
+  selfPacedStudentId,
+  enrollmentId,
+  courseId,
+  phone,
+  message,
+  metadata,
+}: {
+  selfPacedStudentId:
+    mongoose.Types.ObjectId
+
+  enrollmentId?:
+    mongoose.Types.ObjectId
+
+  courseId?:
+    mongoose.Types.ObjectId
+
+  phone: string
+  message: string
+
+  metadata?: Record<
+    string,
+    unknown
+  >
+}) {
+  const result =
+    await sendWhatsAppText(
+      phone,
       message
     )
 
-  /*
-   * V1 supports text/button/list replies.
-   *
-   * Images, voice notes, documents, video, location,
-   * stickers, etc. can be added later.
-   */
-  if (!messageText) {
-    console.log(
-      'Ignoring unsupported WhatsApp message type:',
-      message.type
+  await saveOutboundMessage({
+    selfPacedStudentId,
+    enrollmentId,
+    courseId,
+    phone,
+    message,
+
+    whatsappMessageId:
+      result.messageId,
+
+    status:
+      result.success
+        ? 'sent'
+        : 'failed',
+
+    errorMessage:
+      result.success
+        ? undefined
+        : result.error,
+
+    metadata,
+  })
+
+  return result
+}
+
+// ============================================================
+// BUILD COURSE SELECTION MESSAGE
+// ============================================================
+
+function buildCourseSelectionMessage(
+  firstName: string,
+  options:
+    ActiveEnrollmentOption[]
+): string {
+  const courseLines =
+    options.map(
+      (
+        option,
+        index
+      ) =>
+        `${index + 1}. ${option.courseTitle}`
     )
 
-    return
-  }
+  return [
+    `Hi ${firstName} 👋`,
+    '',
+    'Welcome to your Loran EduHub WhatsApp Mentor.',
+    '',
+    'You are currently enrolled in multiple active courses.',
+    '',
+    'Which course would you like help with?',
+    '',
+    ...courseLines,
+    '',
+    `Reply with a number from 1 to ${options.length}.`,
+  ].join('\n')
+}
 
-  // ==========================================================
-  // DUPLICATE PROTECTION
-  // ==========================================================
+// ============================================================
+// SEND COURSE SELECTION
+// ============================================================
 
-  const existingMessage =
-    await SelfPacedMentorMessage.findOne({
-      whatsappMessageId:
-        message.id,
+async function requestCourseSelection({
+  studentId,
+  firstName,
+  phone,
+  preference,
+  options,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  firstName: string
+
+  phone: string
+
+  preference:
+    InstanceType<
+      typeof SelfPacedMentorPreference
+    >
+
+  options:
+    ActiveEnrollmentOption[]
+}) {
+  const message =
+    buildCourseSelectionMessage(
+      firstName,
+      options
+    )
+
+  const result =
+    await sendAndLogText({
+      selfPacedStudentId:
+        studentId,
+
+      phone,
+
+      message,
+
+      metadata: {
+        purpose:
+          'course_selection',
+
+        courseOptions:
+          options.map(
+            (
+              option,
+              index
+            ) => ({
+              number:
+                index + 1,
+
+              enrollmentId:
+                option.enrollmentId.toString(),
+
+              courseId:
+                option.courseId.toString(),
+
+              courseTitle:
+                option.courseTitle,
+            })
+          ),
+      },
     })
-      .select('_id')
-      .lean()
 
-  if (existingMessage) {
-    return
+  if (result.success) {
+    preference.awaitingCourseSelection =
+      true
+
+    preference.activeEnrollmentId =
+      undefined
+
+    preference.activeCourseId =
+      undefined
+
+    preference.contextSelectedAt =
+      undefined
+
+    await preference.save()
   }
+}
 
-  // ==========================================================
-  // FIND MENTOR PREFERENCE
-  // ==========================================================
+// ============================================================
+// HANDLE COURSE SELECTION RESPONSE
+// ============================================================
 
-  const preference =
-    await SelfPacedMentorPreference.findOne({
-      whatsappPhone: phone,
+async function handleCourseSelectionResponse({
+  studentId,
+  firstName,
+  phone,
+  messageText,
+  preference,
+  options,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  firstName: string
+
+  phone: string
+
+  messageText: string
+
+  preference:
+    InstanceType<
+      typeof SelfPacedMentorPreference
+    >
+
+  options:
+    ActiveEnrollmentOption[]
+}): Promise<
+  CourseContext | null
+> {
+  const trimmed =
+    messageText.trim()
+
+  const selection =
+    Number(trimmed)
+
+  if (
+    !Number.isInteger(
+      selection
+    ) ||
+    selection < 1 ||
+    selection >
+      options.length
+  ) {
+    const retryMessage =
+      [
+        `Hi ${firstName}, please choose one of your courses by replying with its number.`,
+        '',
+        ...options.map(
+          (
+            option,
+            index
+          ) =>
+            `${index + 1}. ${option.courseTitle}`
+        ),
+        '',
+        `Reply with a number from 1 to ${options.length}.`,
+      ].join('\n')
+
+    await sendAndLogText({
+      selfPacedStudentId:
+        studentId,
+
+      phone,
+
+      message:
+        retryMessage,
+
+      metadata: {
+        purpose:
+          'course_selection_retry',
+      },
     })
 
-  if (!preference) {
-    /*
-     * We deliberately do not create a student account or
-     * mentor preference from an unknown WhatsApp number.
-     */
-    console.warn(
-      'WhatsApp message received from an unknown number.'
-    )
-
-    return
+    return null
   }
 
-  // ==========================================================
-  // FIND STUDENT
-  // ==========================================================
+  const selected =
+    options[
+      selection - 1
+    ]
 
-  const student =
-    await SelfPacedStudent.findById(
-      preference.selfPacedStudentId
-    )
+  preference.activeEnrollmentId =
+    selected.enrollmentId
 
-  if (!student) {
-    console.error(
-      'Mentor preference references a missing student.'
-    )
+  preference.activeCourseId =
+    selected.courseId
 
-    return
+  preference.contextSelectedAt =
+    new Date()
+
+  preference.awaitingCourseSelection =
+    false
+
+  await preference.save()
+
+  const state =
+    await SelfPacedMentorState
+      .findOne({
+        selfPacedStudentId:
+          studentId,
+
+        enrollmentId:
+          selected.enrollmentId,
+
+        courseId:
+          selected.courseId,
+
+        status:
+          'active',
+      })
+
+  const confirmation =
+    [
+      `Great, ${firstName} 👍`,
+      '',
+      `We'll continue with *${selected.courseTitle}*.`,
+      '',
+      'You can now ask me about your progress, what to study next, or anything you need help understanding in this course.',
+    ].join('\n')
+
+  await sendAndLogText({
+    selfPacedStudentId:
+      studentId,
+
+    enrollmentId:
+      selected.enrollmentId,
+
+    courseId:
+      selected.courseId,
+
+    phone,
+
+    message:
+      confirmation,
+
+    metadata: {
+      purpose:
+        'course_selection_confirmed',
+
+      selectedCourseTitle:
+        selected.courseTitle,
+    },
+  })
+
+  return {
+    enrollmentId:
+      selected.enrollmentId,
+
+    courseId:
+      selected.courseId,
+
+    state,
   }
+}
 
-  // ==========================================================
-  // COURSE CONTEXT
-  // ==========================================================
+// ============================================================
+// SAVE INBOUND MESSAGE
+// ============================================================
 
-  const context =
-    await findCourseContext(
-      student._id.toString()
-    )
+async function saveInboundMessage({
+  studentId,
+  context,
+  phone,
+  messageText,
+  message,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
 
+  context:
+    CourseContext | null
+
+  phone: string
+
+  messageText: string
+
+  message:
+    WhatsAppInboundMessage
+}) {
   const receivedAt =
     whatsappTimestampToDate(
       message.timestamp
     )
 
-  // ==========================================================
-  // SAVE MESSAGE
-  // ==========================================================
-
-  let savedMessage
-
   try {
-    savedMessage =
+    const savedMessage =
       await SelfPacedMentorMessage.create({
         selfPacedStudentId:
-          student._id,
+          studentId,
 
         enrollmentId:
           context?.enrollmentId,
@@ -637,32 +1087,501 @@ async function handleInboundMessage(
             Boolean(context),
         },
       })
-  } catch (error: unknown) {
-    /*
-     * Meta may retry webhook deliveries.
-     *
-     * The unique whatsappMessageId index protects the
-     * database even if two deliveries race each other.
-     */
+
+    return {
+      savedMessage,
+      receivedAt,
+    }
+  } catch (
+    error: unknown
+  ) {
     if (
-      typeof error === 'object' &&
+      typeof error ===
+        'object' &&
       error !== null &&
       'code' in error &&
-      (error as { code?: number })
-        .code === 11000
+      (
+        error as {
+          code?: number
+        }
+      ).code === 11000
     ) {
-      return
+      return null
     }
 
     throw error
   }
+}
+
+// ============================================================
+// GENERATE AND SEND AI MENTOR RESPONSE
+// ============================================================
+
+async function sendAIMentorResponse({
+  studentId,
+  firstName,
+  phone,
+  messageText,
+  context,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  firstName: string
+
+  phone: string
+
+  messageText: string
+
+  context:
+    CourseContext
+}) {
+  try {
+    const mentorReply =
+      await generateSelfPacedMentorReply({
+        selfPacedStudentId:
+          studentId,
+
+        enrollmentId:
+          context.enrollmentId,
+
+        courseId:
+          context.courseId,
+
+        firstName,
+
+        studentMessage:
+          messageText,
+      })
+
+    const result =
+      await sendAndLogText({
+        selfPacedStudentId:
+          studentId,
+
+        enrollmentId:
+          context.enrollmentId,
+
+        courseId:
+          context.courseId,
+
+        phone,
+
+        message:
+          mentorReply,
+
+        metadata: {
+          purpose:
+            'ai_mentor_reply',
+
+          provider:
+            'groq',
+        },
+      })
+
+    if (!result.success) {
+      console.error(
+        'AI mentor response generated but WhatsApp delivery request failed:',
+        result.error
+      )
+    }
+  } catch (error) {
+    console.error(
+      'WhatsApp mentor AI error:',
+      error
+    )
+
+    const fallbackMessage =
+      [
+        `Thanks, ${firstName}.`,
+        '',
+        'I received your message, but I am having trouble preparing your mentor response right now.',
+        '',
+        'Please try again shortly.',
+      ].join('\n')
+
+    const fallbackResult =
+      await sendAndLogText({
+        selfPacedStudentId:
+          studentId,
+
+        enrollmentId:
+          context.enrollmentId,
+
+        courseId:
+          context.courseId,
+
+        phone,
+
+        message:
+          fallbackMessage,
+
+        metadata: {
+          purpose:
+            'ai_mentor_fallback',
+        },
+      })
+
+    if (
+      !fallbackResult.success
+    ) {
+      console.error(
+        'WhatsApp mentor fallback message also failed:',
+        fallbackResult.error
+      )
+    }
+  }
+}
+
+// ============================================================
+// HANDLE INBOUND MESSAGE
+// ============================================================
+
+async function handleInboundMessage(
+  message:
+    WhatsAppInboundMessage
+) {
+  if (
+    !message.id ||
+    !message.from
+  ) {
+    return
+  }
+
+  const phone =
+    normalizeWhatsAppPhone(
+      message.from
+    )
+
+  const messageText =
+    extractMessageText(
+      message
+    )
+
+  if (!messageText) {
+    console.log(
+      'Ignoring unsupported WhatsApp message type:',
+      message.type
+    )
+
+    return
+  }
 
   // ==========================================================
-  // UPDATE STUDENT-LEVEL MENTOR ACTIVITY
+  // DUPLICATE PROTECTION
+  // ==========================================================
+
+  const existingMessage =
+    await SelfPacedMentorMessage
+      .findOne({
+        whatsappMessageId:
+          message.id,
+      })
+      .select('_id')
+      .lean()
+
+  if (existingMessage) {
+    return
+  }
+
+  // ==========================================================
+  // FIND MENTOR PREFERENCE
+  // ==========================================================
+
+  const preference =
+    await SelfPacedMentorPreference
+      .findOne({
+        whatsappPhone:
+          phone,
+      })
+
+  if (!preference) {
+    console.warn(
+      'WhatsApp message received from an unknown number.'
+    )
+
+    return
+  }
+
+  // ==========================================================
+  // CHECK MENTOR ACCESS
+  // ==========================================================
+
+  if (
+    !preference.enabled ||
+    !preference.consentGiven
+  ) {
+    console.warn(
+      'WhatsApp message received for a disabled or non-consented mentor preference.'
+    )
+
+    return
+  }
+
+  // ==========================================================
+  // FIND STUDENT
+  // ==========================================================
+
+  const student =
+    await SelfPacedStudent
+      .findById(
+        preference.selfPacedStudentId
+      )
+
+  if (!student) {
+    console.error(
+      'Mentor preference references a missing student.'
+    )
+
+    return
+  }
+
+  const studentId =
+    student._id as
+      mongoose.Types.ObjectId
+
+  const firstName =
+    student.firstName
+      ?.trim() ||
+    'there'
+
+  // ==========================================================
+  // FIND ACTIVE ENROLLMENTS
+  // ==========================================================
+
+  const options =
+    await getActiveEnrollmentOptions(
+      studentId
+    )
+
+  // ==========================================================
+  // EXISTING SAVED CONTEXT
+  // ==========================================================
+
+  let context =
+    await getSavedCourseContext(
+      preference
+    )
+
+  // ==========================================================
+  // COURSE SELECTION RESPONSE
+  // ==========================================================
+
+  if (
+    !context &&
+    preference.awaitingCourseSelection
+  ) {
+    /*
+     * At this point the incoming message is a response to the
+     * course-selection question.
+     *
+     * We save it before trying to interpret the selection.
+     */
+    const inbound =
+      await saveInboundMessage({
+        studentId,
+        context: null,
+        phone,
+        messageText,
+        message,
+      })
+
+    if (!inbound) {
+      return
+    }
+
+    preference.lastStudentReplyAt =
+      inbound.receivedAt
+
+    preference.lastInboundPhone =
+      phone
+
+    await preference.save()
+
+    await handleCourseSelectionResponse({
+      studentId,
+      firstName,
+      phone,
+      messageText,
+      preference,
+      options,
+    })
+
+    return
+  }
+
+  // ==========================================================
+  // NO SAVED CONTEXT
+  // ==========================================================
+
+  if (!context) {
+    // --------------------------------------------------------
+    // EXACTLY ONE ACTIVE COURSE
+    // --------------------------------------------------------
+
+    if (
+      options.length === 1
+    ) {
+      const onlyCourse =
+        options[0]
+
+      preference.activeEnrollmentId =
+        onlyCourse.enrollmentId
+
+      preference.activeCourseId =
+        onlyCourse.courseId
+
+      preference.contextSelectedAt =
+        new Date()
+
+      preference.awaitingCourseSelection =
+        false
+
+      await preference.save()
+
+      const state =
+        await SelfPacedMentorState
+          .findOne({
+            selfPacedStudentId:
+              studentId,
+
+            enrollmentId:
+              onlyCourse.enrollmentId,
+
+            courseId:
+              onlyCourse.courseId,
+
+            status:
+              'active',
+          })
+
+      context = {
+        enrollmentId:
+          onlyCourse.enrollmentId,
+
+        courseId:
+          onlyCourse.courseId,
+
+        state,
+      }
+    }
+
+    // --------------------------------------------------------
+    // MULTIPLE ACTIVE COURSES
+    // --------------------------------------------------------
+
+    else if (
+      options.length > 1
+    ) {
+      const inbound =
+        await saveInboundMessage({
+          studentId,
+          context: null,
+          phone,
+          messageText,
+          message,
+        })
+
+      if (!inbound) {
+        return
+      }
+
+      preference.lastStudentReplyAt =
+        inbound.receivedAt
+
+      preference.lastInboundPhone =
+        phone
+
+      await preference.save()
+
+      await requestCourseSelection({
+        studentId,
+        firstName,
+        phone,
+        preference,
+        options,
+      })
+
+      return
+    }
+
+    // --------------------------------------------------------
+    // NO ACTIVE COURSE
+    // --------------------------------------------------------
+
+    else {
+      const inbound =
+        await saveInboundMessage({
+          studentId,
+          context: null,
+          phone,
+          messageText,
+          message,
+        })
+
+      if (!inbound) {
+        return
+      }
+
+      preference.lastStudentReplyAt =
+        inbound.receivedAt
+
+      preference.lastInboundPhone =
+        phone
+
+      await preference.save()
+
+      const noCourseMessage =
+        [
+          `Hi ${firstName} 👋`,
+          '',
+          'I received your message, but I could not find an active self-paced course on your account.',
+          '',
+          'Please open Loran EduHub and check your self-paced enrollments.',
+        ].join('\n')
+
+      await sendAndLogText({
+        selfPacedStudentId:
+          studentId,
+
+        phone,
+
+        message:
+          noCourseMessage,
+
+        metadata: {
+          purpose:
+            'no_active_course',
+        },
+      })
+
+      return
+    }
+  }
+
+  // ==========================================================
+  // SAVE NORMAL INBOUND MESSAGE
+  // ==========================================================
+
+  const inbound =
+    await saveInboundMessage({
+      studentId,
+      context,
+      phone,
+      messageText,
+      message,
+    })
+
+  if (!inbound) {
+    return
+  }
+
+  // ==========================================================
+  // UPDATE STUDENT-LEVEL ACTIVITY
   // ==========================================================
 
   preference.lastStudentReplyAt =
-    receivedAt
+    inbound.receivedAt
 
   preference.lastInboundPhone =
     phone
@@ -670,35 +1589,20 @@ async function handleInboundMessage(
   await preference.save()
 
   // ==========================================================
-  // UPDATE COURSE STATE
+  // ACTUAL AI MENTOR RESPONSE
   // ==========================================================
 
-  if (context?.state) {
-    context.state.updatedAt =
-      new Date()
-
-    await context.state.save()
-  }
-
-  /*
-   * IMPORTANT:
-   *
-   * We stop here for now.
-   *
-   * Do not call Groq directly from the webhook yet.
-   *
-   * First establish that:
-   * 1. Meta reaches this endpoint.
-   * 2. Signatures verify.
-   * 3. Replies are stored.
-   * 4. Status callbacks update messages.
-   *
-   * Then the next layer can safely process savedMessage.
-   */
+  await sendAIMentorResponse({
+    studentId,
+    firstName,
+    phone,
+    messageText,
+    context,
+  })
 
   console.log(
-    'WhatsApp inbound message stored:',
-    savedMessage._id.toString()
+    'WhatsApp inbound message stored and mentor response processed:',
+    inbound.savedMessage._id.toString()
   )
 }
 
@@ -715,8 +1619,8 @@ export async function POST(
     // ========================================================
 
     /*
-     * Signature verification must use the original request
-     * body, so do NOT call request.json() before this.
+     * Meta signature verification must use the exact original
+     * request body. Do not call request.json() before this.
      */
     const rawBody =
       await request.text()
@@ -783,10 +1687,6 @@ export async function POST(
       payload.object !==
       'whatsapp_business_account'
     ) {
-      /*
-       * Acknowledge payloads that are not relevant rather
-       * than repeatedly asking the provider to retry them.
-       */
       return NextResponse.json({
         received: true,
       })
