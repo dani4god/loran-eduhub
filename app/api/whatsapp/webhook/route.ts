@@ -1,10 +1,15 @@
 // app/api/whatsapp/webhook/route.ts
 
-import { NextRequest, NextResponse } from 'next/server'
+import {
+  NextRequest,
+  NextResponse,
+} from 'next/server'
+
 import crypto from 'crypto'
 import mongoose from 'mongoose'
 
 import connectDB from '@/lib/mongodb'
+
 import {
   normalizeWhatsAppPhone,
   sendWhatsAppText,
@@ -20,6 +25,7 @@ import SelfPacedCourse from '@/models/SelfPacedCourse'
 import SelfPacedMentorPreference from '@/models/SelfPacedMentorPreference'
 import SelfPacedMentorState from '@/models/SelfPacedMentorState'
 import SelfPacedMentorMessage from '@/models/SelfPacedMentorMessage'
+import SelfPacedMentorEscalation from '@/models/SelfPacedMentorEscalation'
 
 // ============================================================
 // TYPES
@@ -126,17 +132,26 @@ interface WhatsAppWebhookPayload {
 }
 
 interface ActiveEnrollmentOption {
-  enrollmentId: mongoose.Types.ObjectId
-  courseId: mongoose.Types.ObjectId
+  enrollmentId:
+    mongoose.Types.ObjectId
+
+  courseId:
+    mongoose.Types.ObjectId
+
   courseTitle: string
 }
 
 interface CourseContext {
-  enrollmentId: mongoose.Types.ObjectId
-  courseId: mongoose.Types.ObjectId
-  state: InstanceType<
-    typeof SelfPacedMentorState
-  > | null
+  enrollmentId:
+    mongoose.Types.ObjectId
+
+  courseId:
+    mongoose.Types.ObjectId
+
+  state:
+    InstanceType<
+      typeof SelfPacedMentorState
+    > | null
 }
 
 // ============================================================
@@ -147,22 +162,23 @@ export async function GET(
   request: NextRequest
 ) {
   const mode =
-    request.nextUrl.searchParams.get(
-      'hub.mode'
-    )
+    request.nextUrl
+      .searchParams
+      .get('hub.mode')
 
   const token =
-    request.nextUrl.searchParams.get(
-      'hub.verify_token'
-    )
+    request.nextUrl
+      .searchParams
+      .get('hub.verify_token')
 
   const challenge =
-    request.nextUrl.searchParams.get(
-      'hub.challenge'
-    )
+    request.nextUrl
+      .searchParams
+      .get('hub.challenge')
 
   const expectedToken =
-    process.env.WHATSAPP_VERIFY_TOKEN
+    process.env
+      .WHATSAPP_VERIFY_TOKEN
 
   if (!expectedToken) {
     console.error(
@@ -212,7 +228,8 @@ function verifyWebhookSignature(
   signatureHeader: string | null
 ): boolean {
   const appSecret =
-    process.env.WHATSAPP_APP_SECRET
+    process.env
+      .WHATSAPP_APP_SECRET
 
   if (!appSecret) {
     console.error(
@@ -226,10 +243,13 @@ function verifyWebhookSignature(
     return false
   }
 
-  const prefix = 'sha256='
+  const prefix =
+    'sha256='
 
   if (
-    !signatureHeader.startsWith(prefix)
+    !signatureHeader.startsWith(
+      prefix
+    )
   ) {
     return false
   }
@@ -279,10 +299,11 @@ function verifyWebhookSignature(
       return false
     }
 
-    return crypto.timingSafeEqual(
-      suppliedBuffer,
-      expectedBuffer
-    )
+    return crypto
+      .timingSafeEqual(
+        suppliedBuffer,
+        expectedBuffer
+      )
   } catch {
     return false
   }
@@ -303,7 +324,9 @@ function whatsappTimestampToDate(
     Number(timestamp)
 
   if (
-    !Number.isFinite(seconds)
+    !Number.isFinite(
+      seconds
+    )
   ) {
     return new Date()
   }
@@ -318,42 +341,56 @@ function whatsappTimestampToDate(
 // ============================================================
 
 function extractMessageText(
-  message: WhatsAppInboundMessage
+  message:
+    WhatsAppInboundMessage
 ): string | null {
   if (
-    message.type === 'text' &&
+    message.type ===
+      'text' &&
     message.text?.body
   ) {
     return message.text.body.trim()
   }
 
   if (
-    message.type === 'button'
+    message.type ===
+    'button'
   ) {
     return (
-      message.button?.text?.trim() ||
-      message.button?.payload?.trim() ||
+      message.button?.text
+        ?.trim() ||
+      message.button?.payload
+        ?.trim() ||
       null
     )
   }
 
   if (
-    message.type === 'interactive'
+    message.type ===
+    'interactive'
   ) {
     if (
       message.interactive
-        ?.button_reply?.title
+        ?.button_reply
+        ?.title
     ) {
-      return message.interactive
-        .button_reply.title.trim()
+      return message
+        .interactive
+        .button_reply
+        .title
+        .trim()
     }
 
     if (
       message.interactive
-        ?.list_reply?.title
+        ?.list_reply
+        ?.title
     ) {
-      return message.interactive
-        .list_reply.title.trim()
+      return message
+        .interactive
+        .list_reply
+        .title
+        .trim()
     }
   }
 
@@ -375,8 +412,12 @@ async function handleMessageStatus(
   }
 
   const update:
-    Record<string, unknown> = {
-      status: status.status,
+    Record<
+      string,
+      unknown
+    > = {
+      status:
+        status.status,
     }
 
   const eventDate =
@@ -385,33 +426,39 @@ async function handleMessageStatus(
     )
 
   if (
-    status.status === 'sent'
+    status.status ===
+    'sent'
   ) {
-    update.sentAt = eventDate
+    update.sentAt =
+      eventDate
   }
 
   if (
-    status.status === 'delivered'
+    status.status ===
+    'delivered'
   ) {
     update.deliveredAt =
       eventDate
   }
 
   if (
-    status.status === 'read'
+    status.status ===
+    'read'
   ) {
     update.readAt =
       eventDate
   }
 
   if (
-    status.status === 'failed'
+    status.status ===
+    'failed'
   ) {
     const error =
       status.errors?.[0]
 
     update.errorMessage =
-      error?.error_data?.details ||
+      error?.error_data
+        ?.details ||
       error?.message ||
       error?.title ||
       'WhatsApp message failed.'
@@ -423,6 +470,7 @@ async function handleMessageStatus(
         whatsappMessageId:
           status.id,
       },
+
       {
         $set:
           update,
@@ -459,7 +507,8 @@ async function getActiveEnrollmentOptions(
       .lean()
 
   if (
-    enrollments.length === 0
+    enrollments.length ===
+    0
   ) {
     return []
   }
@@ -474,7 +523,8 @@ async function getActiveEnrollmentOptions(
     await SelfPacedCourse
       .find({
         _id: {
-          $in: courseIds,
+          $in:
+            courseIds,
         },
       })
       .select(
@@ -489,7 +539,8 @@ async function getActiveEnrollmentOptions(
     >()
 
   for (
-    const course of courses
+    const course of
+    courses
   ) {
     courseTitleMap.set(
       course._id.toString(),
@@ -501,10 +552,14 @@ async function getActiveEnrollmentOptions(
     .map(
       (
         enrollment
-      ): ActiveEnrollmentOption | null => {
+      ):
+        ActiveEnrollmentOption |
+        null => {
         const courseTitle =
           courseTitleMap.get(
-            enrollment.courseId.toString()
+            enrollment
+              .courseId
+              .toString()
           )
 
         if (!courseTitle) {
@@ -525,7 +580,8 @@ async function getActiveEnrollmentOptions(
     .filter(
       (
         option
-      ): option is ActiveEnrollmentOption =>
+      ): option is
+        ActiveEnrollmentOption =>
         option !== null
     )
 }
@@ -543,8 +599,10 @@ async function getSavedCourseContext(
   CourseContext | null
 > {
   if (
-    !preference.activeEnrollmentId ||
-    !preference.activeCourseId
+    !preference
+      .activeEnrollmentId ||
+    !preference
+      .activeCourseId
   ) {
     return null
   }
@@ -553,13 +611,16 @@ async function getSavedCourseContext(
     await SelfPacedEnrollment
       .findOne({
         _id:
-          preference.activeEnrollmentId,
+          preference
+            .activeEnrollmentId,
 
         selfPacedStudentId:
-          preference.selfPacedStudentId,
+          preference
+            .selfPacedStudentId,
 
         courseId:
-          preference.activeCourseId,
+          preference
+            .activeCourseId,
 
         completedAt: {
           $exists: false,
@@ -571,16 +632,20 @@ async function getSavedCourseContext(
       .lean()
 
   if (!enrollment) {
-    preference.activeEnrollmentId =
+    preference
+      .activeEnrollmentId =
       undefined
 
-    preference.activeCourseId =
+    preference
+      .activeCourseId =
       undefined
 
-    preference.contextSelectedAt =
+    preference
+      .contextSelectedAt =
       undefined
 
-    preference.awaitingCourseSelection =
+    preference
+      .awaitingCourseSelection =
       false
 
     await preference.save()
@@ -592,7 +657,8 @@ async function getSavedCourseContext(
     await SelfPacedMentorState
       .findOne({
         selfPacedStudentId:
-          preference.selfPacedStudentId,
+          preference
+            .selfPacedStudentId,
 
         enrollmentId:
           enrollment._id,
@@ -640,6 +706,7 @@ async function saveOutboundMessage({
     mongoose.Types.ObjectId
 
   phone: string
+
   message: string
 
   whatsappMessageId?: string
@@ -650,42 +717,50 @@ async function saveOutboundMessage({
 
   errorMessage?: string
 
-  metadata?: Record<
-    string,
-    unknown
-  >
+  metadata?:
+    Record<
+      string,
+      unknown
+    >
 }) {
-  await SelfPacedMentorMessage.create({
-    selfPacedStudentId,
-    enrollmentId,
-    courseId,
+  const now =
+    new Date()
 
-    direction:
-      'outbound',
+  return SelfPacedMentorMessage
+    .create({
+      selfPacedStudentId,
 
-    type:
-      'manual',
+      enrollmentId,
 
-    phone,
-    message,
+      courseId,
 
-    whatsappMessageId,
+      direction:
+        'outbound',
 
-    status,
+      type:
+        'ai_reply',
 
-    errorMessage,
+      phone,
 
-    sentAt:
-      status === 'sent'
-        ? new Date()
-        : undefined,
+      message,
 
-    metadata,
-  })
+      whatsappMessageId,
+
+      status,
+
+      errorMessage,
+
+      metadata,
+
+      sentAt:
+        status === 'sent'
+          ? now
+          : undefined,
+    })
 }
 
 // ============================================================
-// SEND AND LOG WHATSAPP TEXT
+// SEND AND LOG TEXT
 // ============================================================
 
 async function sendAndLogText({
@@ -706,12 +781,14 @@ async function sendAndLogText({
     mongoose.Types.ObjectId
 
   phone: string
+
   message: string
 
-  metadata?: Record<
-    string,
-    unknown
-  >
+  metadata?:
+    Record<
+      string,
+      unknown
+    >
 }) {
   const result =
     await sendWhatsAppText(
@@ -719,25 +796,47 @@ async function sendAndLogText({
       message
     )
 
+  if (result.success) {
+    await saveOutboundMessage({
+      selfPacedStudentId,
+
+      enrollmentId,
+
+      courseId,
+
+      phone,
+
+      message,
+
+      whatsappMessageId:
+        result.messageId,
+
+      status:
+        'sent',
+
+      metadata,
+    })
+
+    return result
+  }
+
   await saveOutboundMessage({
     selfPacedStudentId,
+
     enrollmentId,
+
     courseId,
+
     phone,
+
     message,
 
-    whatsappMessageId:
-      result.messageId,
-
     status:
-      result.success
-        ? 'sent'
-        : 'failed',
+      'failed',
 
     errorMessage:
-      result.success
-        ? undefined
-        : result.error,
+      result.error ||
+      'WhatsApp send failed.',
 
     metadata,
   })
@@ -746,40 +845,7 @@ async function sendAndLogText({
 }
 
 // ============================================================
-// BUILD COURSE SELECTION MESSAGE
-// ============================================================
-
-function buildCourseSelectionMessage(
-  firstName: string,
-  options:
-    ActiveEnrollmentOption[]
-): string {
-  const courseLines =
-    options.map(
-      (
-        option,
-        index
-      ) =>
-        `${index + 1}. ${option.courseTitle}`
-    )
-
-  return [
-    `Hi ${firstName} 👋`,
-    '',
-    'Welcome to your Loran EduHub WhatsApp Mentor.',
-    '',
-    'You are currently enrolled in multiple active courses.',
-    '',
-    'Which course would you like help with?',
-    '',
-    ...courseLines,
-    '',
-    `Reply with a number from 1 to ${options.length}.`,
-  ].join('\n')
-}
-
-// ============================================================
-// SEND COURSE SELECTION
+// REQUEST COURSE SELECTION
 // ============================================================
 
 async function requestCourseSelection({
@@ -804,11 +870,45 @@ async function requestCourseSelection({
   options:
     ActiveEnrollmentOption[]
 }) {
-  const message =
-    buildCourseSelectionMessage(
-      firstName,
-      options
+  preference
+    .awaitingCourseSelection =
+    true
+
+  preference
+    .activeEnrollmentId =
+    undefined
+
+  preference
+    .activeCourseId =
+    undefined
+
+  preference
+    .contextSelectedAt =
+    undefined
+
+  await preference.save()
+
+  const lines =
+    options.map(
+      (
+        option,
+        index
+      ) =>
+        `${index + 1}. ${option.courseTitle}`
     )
+
+  const message =
+    [
+      `Hi ${firstName} 👋`,
+      '',
+      'You are currently enrolled in more than one self-paced course.',
+      '',
+      'Which course would you like help with?',
+      '',
+      ...lines,
+      '',
+      'Reply with the number of the course, for example: 1',
+    ].join('\n')
 
   const result =
     await sendAndLogText({
@@ -823,7 +923,10 @@ async function requestCourseSelection({
         purpose:
           'course_selection',
 
-        courseOptions:
+        optionCount:
+          options.length,
+
+        options:
           options.map(
             (
               option,
@@ -833,33 +936,83 @@ async function requestCourseSelection({
                 index + 1,
 
               enrollmentId:
-                option.enrollmentId.toString(),
+                option
+                  .enrollmentId
+                  .toString(),
 
               courseId:
-                option.courseId.toString(),
+                option
+                  .courseId
+                  .toString(),
 
               courseTitle:
-                option.courseTitle,
+                option
+                  .courseTitle,
             })
           ),
       },
     })
 
-  if (result.success) {
-    preference.awaitingCourseSelection =
-      true
-
-    preference.activeEnrollmentId =
-      undefined
-
-    preference.activeCourseId =
-      undefined
-
-    preference.contextSelectedAt =
-      undefined
-
-    await preference.save()
+  if (!result.success) {
+    console.error(
+      'Failed to send WhatsApp course selection:',
+      result.error
+    )
   }
+}
+
+// ============================================================
+// PARSE COURSE SELECTION
+// ============================================================
+
+function parseCourseSelection(
+  messageText: string,
+  optionCount: number
+): number | null {
+  const cleaned =
+    messageText
+      .trim()
+      .toLowerCase()
+
+  const directNumber =
+    Number(cleaned)
+
+  if (
+    Number.isInteger(
+      directNumber
+    ) &&
+    directNumber >= 1 &&
+    directNumber <=
+      optionCount
+  ) {
+    return (
+      directNumber - 1
+    )
+  }
+
+  const match =
+    cleaned.match(
+      /\b(\d+)\b/
+    )
+
+  if (!match) {
+    return null
+  }
+
+  const number =
+    Number(match[1])
+
+  if (
+    !Number.isInteger(
+      number
+    ) ||
+    number < 1 ||
+    number > optionCount
+  ) {
+    return null
+  }
+
+  return number - 1
 }
 
 // ============================================================
@@ -890,71 +1043,86 @@ async function handleCourseSelectionResponse({
 
   options:
     ActiveEnrollmentOption[]
-}): Promise<
-  CourseContext | null
-> {
-  const trimmed =
-    messageText.trim()
+}) {
+  /*
+   * The options are re-read from active enrollments before this
+   * function is called. Later, this can be upgraded to persist
+   * the exact option mapping or use interactive reply IDs.
+   */
+  if (
+    options.length === 0
+  ) {
+    preference
+      .awaitingCourseSelection =
+      false
 
-  const selection =
-    Number(trimmed)
+    await preference.save()
+
+    const result =
+      await sendAndLogText({
+        selfPacedStudentId:
+          studentId,
+
+        phone,
+
+        message:
+          'I could not find an active self-paced course on your account. Please check your Loran EduHub enrollments.',
+
+        metadata: {
+          purpose:
+            'no_active_course',
+        },
+      })
+
+    if (!result.success) {
+      console.error(
+        'Failed to send no-active-course message:',
+        result.error
+      )
+    }
+
+    return
+  }
+
+  const selectedIndex =
+    parseCourseSelection(
+      messageText,
+      options.length
+    )
 
   if (
-    !Number.isInteger(
-      selection
-    ) ||
-    selection < 1 ||
-    selection >
-      options.length
+    selectedIndex === null
   ) {
-    const retryMessage =
-      [
-        `Hi ${firstName}, please choose one of your courses by replying with its number.`,
-        '',
-        ...options.map(
-          (
-            option,
-            index
-          ) =>
-            `${index + 1}. ${option.courseTitle}`
-        ),
-        '',
-        `Reply with a number from 1 to ${options.length}.`,
-      ].join('\n')
-
-    await sendAndLogText({
-      selfPacedStudentId:
-        studentId,
-
+    await requestCourseSelection({
+      studentId,
+      firstName,
       phone,
-
-      message:
-        retryMessage,
-
-      metadata: {
-        purpose:
-          'course_selection_retry',
-      },
+      preference,
+      options,
     })
 
-    return null
+    return
   }
 
   const selected =
     options[
-      selection - 1
+      selectedIndex
     ]
 
-  preference.activeEnrollmentId =
+  preference
+    .activeEnrollmentId =
     selected.enrollmentId
 
-  preference.activeCourseId =
+  preference
+    .activeCourseId =
     selected.courseId
 
-  preference.contextSelectedAt =
+  preference
+    .contextSelectedAt =
     new Date()
 
-  preference.awaitingCourseSelection =
+  preference
+    .awaitingCourseSelection =
     false
 
   await preference.save()
@@ -966,56 +1134,72 @@ async function handleCourseSelectionResponse({
           studentId,
 
         enrollmentId:
-          selected.enrollmentId,
+          selected
+            .enrollmentId,
 
         courseId:
-          selected.courseId,
+          selected
+            .courseId,
 
         status:
           'active',
       })
 
+  const context:
+    CourseContext = {
+      enrollmentId:
+        selected
+          .enrollmentId,
+
+      courseId:
+        selected
+          .courseId,
+
+      state,
+    }
+
   const confirmation =
     [
-      `Great, ${firstName} 👍`,
+      `Great, ${firstName}.`,
       '',
-      `We'll continue with *${selected.courseTitle}*.`,
+      `We'll continue with ${selected.courseTitle}.`,
       '',
-      'You can now ask me about your progress, what to study next, or anything you need help understanding in this course.',
+      'What would you like help with?',
     ].join('\n')
 
-  await sendAndLogText({
-    selfPacedStudentId:
-      studentId,
+  const result =
+    await sendAndLogText({
+      selfPacedStudentId:
+        studentId,
 
-    enrollmentId:
-      selected.enrollmentId,
+      enrollmentId:
+        context
+          .enrollmentId,
 
-    courseId:
-      selected.courseId,
+      courseId:
+        context
+          .courseId,
 
-    phone,
+      phone,
 
-    message:
-      confirmation,
+      message:
+        confirmation,
 
-    metadata: {
-      purpose:
-        'course_selection_confirmed',
+      metadata: {
+        purpose:
+          'course_selected',
 
-      selectedCourseTitle:
-        selected.courseTitle,
-    },
-  })
+        courseTitle:
+          selected
+            .courseTitle,
+      },
+    })
 
-  return {
-    enrollmentId:
-      selected.enrollmentId,
-
-    courseId:
-      selected.courseId,
-
-    state,
+  if (!result.success) {
+    console.error(
+      'Failed to send WhatsApp course selection confirmation:',
+      result.error
+    )
   }
 }
 
@@ -1043,6 +1227,29 @@ async function saveInboundMessage({
   message:
     WhatsAppInboundMessage
 }) {
+  if (!message.id) {
+    return null
+  }
+
+  /*
+   * Meta can retry webhook events.
+   * whatsappMessageId is unique/sparse in the message model,
+   * but checking first also prevents us from generating a second
+   * mentor response for a webhook retry.
+   */
+  const existing =
+    await SelfPacedMentorMessage
+      .findOne({
+        whatsappMessageId:
+          message.id,
+      })
+      .select('_id')
+      .lean()
+
+  if (existing) {
+    return null
+  }
+
   const receivedAt =
     whatsappTimestampToDate(
       message.timestamp
@@ -1050,43 +1257,48 @@ async function saveInboundMessage({
 
   try {
     const savedMessage =
-      await SelfPacedMentorMessage.create({
-        selfPacedStudentId:
-          studentId,
+      await SelfPacedMentorMessage
+        .create({
+          selfPacedStudentId:
+            studentId,
 
-        enrollmentId:
-          context?.enrollmentId,
+          enrollmentId:
+            context
+              ?.enrollmentId,
 
-        courseId:
-          context?.courseId,
+          courseId:
+            context
+              ?.courseId,
 
-        direction:
-          'inbound',
+          direction:
+            'inbound',
 
-        type:
-          'student_reply',
+          type:
+            'student_reply',
 
-        phone,
+          phone,
 
-        message:
-          messageText,
+          message:
+            messageText,
 
-        whatsappMessageId:
-          message.id,
+          whatsappMessageId:
+            message.id,
 
-        status:
-          'received',
+          status:
+            'received',
 
-        receivedAt,
+          receivedAt,
 
-        metadata: {
-          whatsappType:
-            message.type,
+          metadata: {
+            whatsappType:
+              message.type,
 
-          contextResolved:
-            Boolean(context),
-        },
-      })
+            contextResolved:
+              Boolean(
+                context
+              ),
+          },
+        })
 
     return {
       savedMessage,
@@ -1095,10 +1307,15 @@ async function saveInboundMessage({
   } catch (
     error: unknown
   ) {
+    /*
+     * A concurrent webhook retry can still race between the
+     * existence check and create(). If the unique message ID
+     * wins in another request, treat this one as already handled.
+     */
     if (
+      error &&
       typeof error ===
         'object' &&
-      error !== null &&
       'code' in error &&
       (
         error as {
@@ -1114,6 +1331,271 @@ async function saveInboundMessage({
 }
 
 // ============================================================
+// HUMAN SUPPORT / OPT-OUT HELPERS
+// ============================================================
+
+function normalizeCommandText(
+  value: string
+): string {
+  return value
+    .toLowerCase()
+    .replace(
+      /[^\w\s]/g,
+      ' '
+    )
+    .replace(
+      /\s+/g,
+      ' '
+    )
+    .trim()
+}
+
+function isOptOutRequest(
+  messageText: string
+): boolean {
+  const value =
+    normalizeCommandText(
+      messageText
+    )
+
+  return [
+    'stop',
+    'unsubscribe',
+    'cancel',
+    'opt out',
+    'optout',
+  ].includes(value)
+}
+
+function isHumanSupportRequest(
+  messageText: string
+): boolean {
+  const value =
+    normalizeCommandText(
+      messageText
+    )
+
+  const phrases = [
+    'human',
+    'agent',
+    'support',
+    'human support',
+    'customer support',
+    'talk to a human',
+    'talk to human',
+    'speak to a human',
+    'speak to human',
+    'talk to an agent',
+    'speak to an agent',
+    'real person',
+    'someone from support',
+  ]
+
+  return phrases.some(
+    (phrase) =>
+      value === phrase ||
+      value.includes(
+        phrase
+      )
+  )
+}
+// ============================================================
+// CREATE HUMAN ESCALATION
+// ============================================================
+
+async function createHumanEscalation({
+  studentId,
+  context,
+  sourceMessageId,
+  phone,
+  studentMessage,
+  reason,
+  aiSummary,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  context:
+    CourseContext | null
+
+  sourceMessageId?:
+    mongoose.Types.ObjectId
+
+  phone: string
+
+  studentMessage: string
+
+  reason:
+    | 'student_requested_human'
+    | 'ai_cannot_answer'
+    | 'account_issue'
+    | 'payment_issue'
+    | 'technical_issue'
+    | 'course_access_issue'
+    | 'other'
+
+  aiSummary?: string
+}) {
+  /*
+   * Do not create several open support requests for the same
+   * student/course while an earlier one is still waiting for
+   * human attention.
+   */
+  const existing =
+    await SelfPacedMentorEscalation
+      .findOne({
+        selfPacedStudentId:
+          studentId,
+
+        enrollmentId:
+          context?.enrollmentId,
+
+        courseId:
+          context?.courseId,
+
+        status: {
+          $in: [
+            'open',
+            'in_progress',
+          ],
+        },
+      })
+      .sort({
+        createdAt: -1,
+      })
+
+  if (existing) {
+    return existing
+  }
+
+  return SelfPacedMentorEscalation
+    .create({
+      selfPacedStudentId:
+        studentId,
+
+      enrollmentId:
+        context?.enrollmentId,
+
+      courseId:
+        context?.courseId,
+
+      sourceMessageId,
+
+      phone,
+
+      studentMessage,
+
+      reason,
+
+      aiSummary,
+
+      status:
+        'open',
+    })
+}
+
+// ============================================================
+// SEND HUMAN ESCALATION CONFIRMATION
+// ============================================================
+
+async function sendHumanEscalationConfirmation({
+  studentId,
+  firstName,
+  phone,
+  context,
+  sourceMessageId,
+  studentMessage,
+  reason,
+  aiSummary,
+}: {
+  studentId:
+    mongoose.Types.ObjectId
+
+  firstName: string
+
+  phone: string
+
+  context:
+    CourseContext | null
+
+  sourceMessageId?:
+    mongoose.Types.ObjectId
+
+  studentMessage: string
+
+  reason:
+    | 'student_requested_human'
+    | 'ai_cannot_answer'
+    | 'account_issue'
+    | 'payment_issue'
+    | 'technical_issue'
+    | 'course_access_issue'
+    | 'other'
+
+  aiSummary?: string
+}) {
+  const escalation =
+    await createHumanEscalation({
+      studentId,
+
+      context,
+
+      sourceMessageId,
+
+      phone,
+
+      studentMessage,
+
+      reason,
+
+      aiSummary,
+    })
+
+  const message =
+    [
+      `Thanks, ${firstName}.`,
+      '',
+      'I have referred your message to the Loran EduHub support team for human assistance.',
+      '',
+      'A member of the team can review your request and continue with you here on WhatsApp. You do not need to repeat your question.',
+    ].join('\n')
+
+  const result =
+    await sendAndLogText({
+      selfPacedStudentId:
+        studentId,
+
+      enrollmentId:
+        context?.enrollmentId,
+
+      courseId:
+        context?.courseId,
+
+      phone,
+
+      message,
+
+      metadata: {
+        purpose:
+          'human_escalation_confirmation',
+
+        escalationId:
+          escalation._id.toString(),
+
+        escalationReason:
+          reason,
+      },
+    })
+
+  if (!result.success) {
+    console.error(
+      'Human escalation was created but WhatsApp confirmation failed:',
+      result.error
+    )
+  }
+}
+
+// ============================================================
 // GENERATE AND SEND AI MENTOR RESPONSE
 // ============================================================
 
@@ -1123,6 +1605,7 @@ async function sendAIMentorResponse({
   phone,
   messageText,
   context,
+  sourceMessageId,
 }: {
   studentId:
     mongoose.Types.ObjectId
@@ -1135,9 +1618,12 @@ async function sendAIMentorResponse({
 
   context:
     CourseContext
+
+  sourceMessageId?:
+    mongoose.Types.ObjectId
 }) {
   try {
-    const mentorReply =
+    const mentorResult =
       await generateSelfPacedMentorReply({
         selfPacedStudentId:
           studentId,
@@ -1154,6 +1640,43 @@ async function sendAIMentorResponse({
           messageText,
       })
 
+    // ========================================================
+    // AI DECIDED HUMAN SUPPORT IS REQUIRED
+    // ========================================================
+
+    if (
+      mentorResult.escalate
+    ) {
+      await sendHumanEscalationConfirmation({
+        studentId,
+
+        firstName,
+
+        phone,
+
+        context,
+
+        sourceMessageId,
+
+        studentMessage:
+          messageText,
+
+        reason:
+          mentorResult.reason ||
+          'ai_cannot_answer',
+
+        aiSummary:
+          mentorResult
+            .escalationSummary,
+      })
+
+      return
+    }
+
+    // ========================================================
+    // NORMAL AI RESPONSE
+    // ========================================================
+
     const result =
       await sendAndLogText({
         selfPacedStudentId:
@@ -1168,7 +1691,7 @@ async function sendAIMentorResponse({
         phone,
 
         message:
-          mentorReply,
+          mentorResult.reply,
 
         metadata: {
           purpose:
@@ -1185,50 +1708,92 @@ async function sendAIMentorResponse({
         result.error
       )
     }
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       'WhatsApp mentor AI error:',
       error
     )
 
-    const fallbackMessage =
-      [
-        `Thanks, ${firstName}.`,
-        '',
-        'I received your message, but I am having trouble preparing your mentor response right now.',
-        '',
-        'Please try again shortly.',
-      ].join('\n')
+    /*
+     * If Groq or the mentor engine itself fails, do not leave the
+     * student at a dead end.
+     *
+     * Preserve the request for human attention.
+     */
+    try {
+      await sendHumanEscalationConfirmation({
+        studentId,
 
-    const fallbackResult =
-      await sendAndLogText({
-        selfPacedStudentId:
-          studentId,
-
-        enrollmentId:
-          context.enrollmentId,
-
-        courseId:
-          context.courseId,
+        firstName,
 
         phone,
 
-        message:
-          fallbackMessage,
+        context,
 
-        metadata: {
-          purpose:
-            'ai_mentor_fallback',
-        },
+        sourceMessageId,
+
+        studentMessage:
+          messageText,
+
+        reason:
+          'ai_cannot_answer',
+
+        aiSummary:
+          'The automated WhatsApp mentor could not generate a response. Review the student message and assist manually.',
       })
-
-    if (
-      !fallbackResult.success
+    } catch (
+      escalationError
     ) {
       console.error(
-        'WhatsApp mentor fallback message also failed:',
-        fallbackResult.error
+        'AI mentor failed and human escalation also failed:',
+        escalationError
       )
+
+      /*
+       * This is the final fallback only when BOTH the AI response
+       * and escalation creation/confirmation fail.
+       */
+      const fallbackMessage =
+        [
+          `Thanks, ${firstName}.`,
+          '',
+          'I received your message, but the mentor service is temporarily unavailable.',
+          '',
+          'Please try again shortly or contact the Loran EduHub support team.',
+        ].join('\n')
+
+      const fallbackResult =
+        await sendAndLogText({
+          selfPacedStudentId:
+            studentId,
+
+          enrollmentId:
+            context.enrollmentId,
+
+          courseId:
+            context.courseId,
+
+          phone,
+
+          message:
+            fallbackMessage,
+
+          metadata: {
+            purpose:
+              'ai_mentor_fallback',
+          },
+        })
+
+      if (
+        !fallbackResult.success
+      ) {
+        console.error(
+          'WhatsApp mentor fallback message also failed:',
+          fallbackResult.error
+        )
+      }
     }
   }
 }
@@ -1248,30 +1813,43 @@ async function handleInboundMessage(
     return
   }
 
-  const phone =
-    normalizeWhatsAppPhone(
-      message.from
-    )
-
   const messageText =
     extractMessageText(
       message
     )
 
   if (!messageText) {
-    console.log(
-      'Ignoring unsupported WhatsApp message type:',
+    console.warn(
+      'Unsupported or empty WhatsApp message type:',
       message.type
     )
 
     return
   }
 
+  const phone =
+    normalizeWhatsAppPhone(
+      message.from
+    )
+
+  if (!phone) {
+    console.warn(
+      'Could not normalize inbound WhatsApp phone:',
+      message.from
+    )
+
+    return
+  }
+
   // ==========================================================
-  // DUPLICATE PROTECTION
+  // DUPLICATE CHECK
   // ==========================================================
 
-  const existingMessage =
+  /*
+   * Check before doing any other work because Meta may retry
+   * delivery of the same webhook event.
+   */
+  const duplicate =
     await SelfPacedMentorMessage
       .findOne({
         whatsappMessageId:
@@ -1280,12 +1858,12 @@ async function handleInboundMessage(
       .select('_id')
       .lean()
 
-  if (existingMessage) {
+  if (duplicate) {
     return
   }
 
   // ==========================================================
-  // FIND MENTOR PREFERENCE
+  // FIND MENTOR PREFERENCE BY WHATSAPP NUMBER
   // ==========================================================
 
   const preference =
@@ -1297,8 +1875,101 @@ async function handleInboundMessage(
 
   if (!preference) {
     console.warn(
-      'WhatsApp message received from an unknown number.'
+      'No WhatsApp mentor preference found for inbound phone:',
+      phone
     )
+
+    return
+  }
+
+  // ==========================================================
+  // OPT OUT
+  // ==========================================================
+
+  /*
+   * STOP must be processed before checking enabled/consent.
+   *
+   * This means a student can still send STOP even if their
+   * preference state is inconsistent or already disabled.
+   */
+  if (
+    isOptOutRequest(
+      messageText
+    )
+  ) {
+    const student =
+      await SelfPacedStudent
+        .findById(
+          preference
+            .selfPacedStudentId
+        )
+        .select(
+          '_id firstName'
+        )
+        .lean()
+
+    if (!student) {
+      console.warn(
+        'Mentor preference points to a missing self-paced student.'
+      )
+
+      return
+    }
+
+    /*
+     * Save the inbound STOP before responding so webhook retries
+     * do not send multiple opt-out confirmations.
+     */
+    const inbound =
+      await saveInboundMessage({
+        studentId:
+          student._id,
+
+        context:
+          null,
+
+        phone,
+
+        messageText,
+
+        message,
+      })
+
+    if (!inbound) {
+      return
+    }
+
+    preference.enabled =
+      false
+
+    preference
+      .awaitingCourseSelection =
+      false
+
+    await preference.save()
+
+    const result =
+      await sendAndLogText({
+        selfPacedStudentId:
+          student._id,
+
+        phone,
+
+        message:
+          'WhatsApp mentoring has been turned off for your Loran EduHub account. You can enable it again from your Mentor Settings page.',
+
+        metadata: {
+          purpose:
+            'mentor_opt_out',
+        },
+      })
+
+    if (!result.success) {
+      console.error(
+        'Failed to send mentor opt-out confirmation:',
+        result.error
+      )
+    }
 
     return
   }
@@ -1325,37 +1996,245 @@ async function handleInboundMessage(
   const student =
     await SelfPacedStudent
       .findById(
-        preference.selfPacedStudentId
+        preference
+          .selfPacedStudentId
       )
+      .select(
+        '_id firstName lastName'
+      )
+      .lean()
 
   if (!student) {
-    console.error(
-      'Mentor preference references a missing student.'
+    console.warn(
+      'Mentor preference points to a missing self-paced student.'
     )
 
     return
   }
 
   const studentId =
-    student._id as
-      mongoose.Types.ObjectId
+    student._id
 
   const firstName =
-    student.firstName
-      ?.trim() ||
+    student.firstName ||
     'there'
 
   // ==========================================================
-  // FIND ACTIVE ENROLLMENTS
+  // UPDATE LAST REPLY INFORMATION
   // ==========================================================
 
-  const options =
+  preference
+    .lastStudentReplyAt =
+    whatsappTimestampToDate(
+      message.timestamp
+    )
+
+  preference
+    .lastInboundPhone =
+    phone
+
+  await preference.save()
+
+  // ==========================================================
+  // GET ACTIVE ENROLLMENTS
+  // ==========================================================
+
+  const activeOptions =
     await getActiveEnrollmentOptions(
       studentId
     )
 
   // ==========================================================
-  // EXISTING SAVED CONTEXT
+  // NO ACTIVE COURSE
+  // ==========================================================
+
+  if (
+    activeOptions.length ===
+    0
+  ) {
+    const inbound =
+      await saveInboundMessage({
+        studentId,
+
+        context:
+          null,
+
+        phone,
+
+        messageText,
+
+        message,
+      })
+
+    if (!inbound) {
+      return
+    }
+
+    /*
+     * A human request should still work even if the student has
+     * no active course. Human support may need to investigate an
+     * enrollment/account problem.
+     */
+    if (
+      isHumanSupportRequest(
+        messageText
+      )
+    ) {
+      await sendHumanEscalationConfirmation({
+        studentId,
+
+        firstName,
+
+        phone,
+
+        context:
+          null,
+
+        sourceMessageId:
+          inbound
+            .savedMessage
+            ._id,
+
+        studentMessage:
+          messageText,
+
+        reason:
+          'student_requested_human',
+      })
+
+      return
+    }
+
+    const result =
+      await sendAndLogText({
+        selfPacedStudentId:
+          studentId,
+
+        phone,
+
+        message:
+          'I could not find an active self-paced course on your account. If you believe this is incorrect, reply "human" and I will refer your request to the Loran EduHub support team.',
+
+        metadata: {
+          purpose:
+            'no_active_course',
+        },
+      })
+
+    if (!result.success) {
+      console.error(
+        'Failed to send no-active-course response:',
+        result.error
+      )
+    }
+
+    return
+  }
+
+  // ==========================================================
+  // WAITING FOR COURSE SELECTION
+  // ==========================================================
+
+  if (
+    preference
+      .awaitingCourseSelection
+  ) {
+    /*
+     * Human support commands should work even while the bot is
+     * waiting for the student to choose a course.
+     */
+    if (
+      isHumanSupportRequest(
+        messageText
+      )
+    ) {
+      const inbound =
+        await saveInboundMessage({
+          studentId,
+
+          context:
+            null,
+
+          phone,
+
+          messageText,
+
+          message,
+        })
+
+      if (!inbound) {
+        return
+      }
+
+      preference
+        .awaitingCourseSelection =
+        false
+
+      await preference.save()
+
+      await sendHumanEscalationConfirmation({
+        studentId,
+
+        firstName,
+
+        phone,
+
+        context:
+          null,
+
+        sourceMessageId:
+          inbound
+            .savedMessage
+            ._id,
+
+        studentMessage:
+          messageText,
+
+        reason:
+          'student_requested_human',
+      })
+
+      return
+    }
+
+    const inbound =
+      await saveInboundMessage({
+        studentId,
+
+        context:
+          null,
+
+        phone,
+
+        messageText,
+
+        message,
+      })
+
+    if (!inbound) {
+      return
+    }
+
+    await handleCourseSelectionResponse({
+      studentId,
+
+      firstName,
+
+      phone,
+
+      messageText,
+
+      preference,
+
+      options:
+        activeOptions,
+    })
+
+    return
+  }
+
+  // ==========================================================
+  // TRY SAVED CONTEXT
   // ==========================================================
 
   let context =
@@ -1364,77 +2243,86 @@ async function handleInboundMessage(
     )
 
   // ==========================================================
-  // COURSE SELECTION RESPONSE
-  // ==========================================================
-
-  if (
-    !context &&
-    preference.awaitingCourseSelection
-  ) {
-    /*
-     * At this point the incoming message is a response to the
-     * course-selection question.
-     *
-     * We save it before trying to interpret the selection.
-     */
-    const inbound =
-      await saveInboundMessage({
-        studentId,
-        context: null,
-        phone,
-        messageText,
-        message,
-      })
-
-    if (!inbound) {
-      return
-    }
-
-    preference.lastStudentReplyAt =
-      inbound.receivedAt
-
-    preference.lastInboundPhone =
-      phone
-
-    await preference.save()
-
-    await handleCourseSelectionResponse({
-      studentId,
-      firstName,
-      phone,
-      messageText,
-      preference,
-      options,
-    })
-
-    return
-  }
-
-  // ==========================================================
-  // NO SAVED CONTEXT
+  // SAVED CONTEXT DOES NOT EXIST
   // ==========================================================
 
   if (!context) {
-    // --------------------------------------------------------
-    // EXACTLY ONE ACTIVE COURSE
-    // --------------------------------------------------------
+    /*
+     * A human request does not require course selection first.
+     */
+    if (
+      isHumanSupportRequest(
+        messageText
+      )
+    ) {
+      const inbound =
+        await saveInboundMessage({
+          studentId,
+
+          context:
+            null,
+
+          phone,
+
+          messageText,
+
+          message,
+        })
+
+      if (!inbound) {
+        return
+      }
+
+      await sendHumanEscalationConfirmation({
+        studentId,
+
+        firstName,
+
+        phone,
+
+        context:
+          null,
+
+        sourceMessageId:
+          inbound
+            .savedMessage
+            ._id,
+
+        studentMessage:
+          messageText,
+
+        reason:
+          'student_requested_human',
+      })
+
+      return
+    }
+
+    // ========================================================
+    // ONLY ONE ACTIVE COURSE
+    // ========================================================
 
     if (
-      options.length === 1
+      activeOptions.length ===
+      1
     ) {
-      const onlyCourse =
-        options[0]
+      const selected =
+        activeOptions[0]
 
-      preference.activeEnrollmentId =
-        onlyCourse.enrollmentId
+      preference
+        .activeEnrollmentId =
+        selected.enrollmentId
 
-      preference.activeCourseId =
-        onlyCourse.courseId
+      preference
+        .activeCourseId =
+        selected.courseId
 
-      preference.contextSelectedAt =
+      preference
+        .contextSelectedAt =
         new Date()
 
-      preference.awaitingCourseSelection =
+      preference
+        .awaitingCourseSelection =
         false
 
       await preference.save()
@@ -1446,10 +2334,12 @@ async function handleInboundMessage(
               studentId,
 
             enrollmentId:
-              onlyCourse.enrollmentId,
+              selected
+                .enrollmentId,
 
             courseId:
-              onlyCourse.courseId,
+              selected
+                .courseId,
 
             status:
               'active',
@@ -1457,102 +2347,49 @@ async function handleInboundMessage(
 
       context = {
         enrollmentId:
-          onlyCourse.enrollmentId,
+          selected
+            .enrollmentId,
 
         courseId:
-          onlyCourse.courseId,
+          selected
+            .courseId,
 
         state,
       }
-    }
+    } else {
+      // ======================================================
+      // MULTIPLE ACTIVE COURSES
+      // ======================================================
 
-    // --------------------------------------------------------
-    // MULTIPLE ACTIVE COURSES
-    // --------------------------------------------------------
-
-    else if (
-      options.length > 1
-    ) {
       const inbound =
         await saveInboundMessage({
           studentId,
-          context: null,
+
+          context:
+            null,
+
           phone,
+
           messageText,
+
           message,
         })
 
       if (!inbound) {
         return
       }
-
-      preference.lastStudentReplyAt =
-        inbound.receivedAt
-
-      preference.lastInboundPhone =
-        phone
-
-      await preference.save()
 
       await requestCourseSelection({
         studentId,
+
         firstName,
+
         phone,
+
         preference,
-        options,
-      })
 
-      return
-    }
-
-    // --------------------------------------------------------
-    // NO ACTIVE COURSE
-    // --------------------------------------------------------
-
-    else {
-      const inbound =
-        await saveInboundMessage({
-          studentId,
-          context: null,
-          phone,
-          messageText,
-          message,
-        })
-
-      if (!inbound) {
-        return
-      }
-
-      preference.lastStudentReplyAt =
-        inbound.receivedAt
-
-      preference.lastInboundPhone =
-        phone
-
-      await preference.save()
-
-      const noCourseMessage =
-        [
-          `Hi ${firstName} 👋`,
-          '',
-          'I received your message, but I could not find an active self-paced course on your account.',
-          '',
-          'Please open Loran EduHub and check your self-paced enrollments.',
-        ].join('\n')
-
-      await sendAndLogText({
-        selfPacedStudentId:
-          studentId,
-
-        phone,
-
-        message:
-          noCourseMessage,
-
-        metadata: {
-          purpose:
-            'no_active_course',
-        },
+        options:
+          activeOptions,
       })
 
       return
@@ -1566,9 +2403,13 @@ async function handleInboundMessage(
   const inbound =
     await saveInboundMessage({
       studentId,
+
       context,
+
       phone,
+
       messageText,
+
       message,
     })
 
@@ -1577,33 +2418,58 @@ async function handleInboundMessage(
   }
 
   // ==========================================================
-  // UPDATE STUDENT-LEVEL ACTIVITY
+  // EXPLICIT HUMAN SUPPORT REQUEST
   // ==========================================================
 
-  preference.lastStudentReplyAt =
-    inbound.receivedAt
+  if (
+    isHumanSupportRequest(
+      messageText
+    )
+  ) {
+    await sendHumanEscalationConfirmation({
+      studentId,
 
-  preference.lastInboundPhone =
-    phone
+      firstName,
 
-  await preference.save()
+      phone,
+
+      context,
+
+      sourceMessageId:
+        inbound
+          .savedMessage
+          ._id,
+
+      studentMessage:
+        messageText,
+
+      reason:
+        'student_requested_human',
+    })
+
+    return
+  }
 
   // ==========================================================
-  // ACTUAL AI MENTOR RESPONSE
+  // NORMAL AI MENTOR FLOW
   // ==========================================================
 
   await sendAIMentorResponse({
     studentId,
-    firstName,
-    phone,
-    messageText,
-    context,
-  })
 
-  console.log(
-    'WhatsApp inbound message stored and mentor response processed:',
-    inbound.savedMessage._id.toString()
-  )
+    firstName,
+
+    phone,
+
+    messageText,
+
+    context,
+
+    sourceMessageId:
+      inbound
+        .savedMessage
+        ._id,
+  })
 }
 
 // ============================================================
@@ -1613,95 +2479,154 @@ async function handleInboundMessage(
 export async function POST(
   request: NextRequest
 ) {
+  /*
+   * IMPORTANT:
+   *
+   * Read the raw body first.
+   *
+   * Meta signs the exact raw request body using the app secret,
+   * so parsing JSON before signature verification would make
+   * reliable signature verification impossible.
+   */
+  let rawBody: string
+
   try {
-    // ========================================================
-    // READ RAW BODY
-    // ========================================================
+    rawBody =
+      await request.text()
+  } catch (error) {
+    console.error(
+      'Could not read WhatsApp webhook body:',
+      error
+    )
+
+    return NextResponse.json(
+      {
+        error:
+          'Invalid webhook body.',
+      },
+      {
+        status: 400,
+      }
+    )
+  }
+
+  // ==========================================================
+  // VERIFY META SIGNATURE
+  // ==========================================================
+
+  const signatureHeader =
+    request.headers.get(
+      'x-hub-signature-256'
+    )
+
+  const signatureValid =
+    verifyWebhookSignature(
+      rawBody,
+      signatureHeader
+    )
+
+  if (!signatureValid) {
+    console.warn(
+      'Rejected WhatsApp webhook because signature verification failed.'
+    )
+
+    return NextResponse.json(
+      {
+        error:
+          'Invalid webhook signature.',
+      },
+      {
+        status: 401,
+      }
+    )
+  }
+
+  // ==========================================================
+  // PARSE JSON
+  // ==========================================================
+
+  let payload:
+    WhatsAppWebhookPayload
+
+  try {
+    payload =
+      JSON.parse(
+        rawBody
+      ) as
+        WhatsAppWebhookPayload
+  } catch (error) {
+    console.error(
+      'Could not parse WhatsApp webhook JSON:',
+      error
+    )
+
+    return NextResponse.json(
+      {
+        error:
+          'Invalid webhook JSON.',
+      },
+      {
+        status: 400,
+      }
+    )
+  }
+
+  // ==========================================================
+  // IGNORE NON-WHATSAPP PAYLOADS
+  // ==========================================================
+
+  if (
+    payload.object &&
+    payload.object !==
+      'whatsapp_business_account'
+  ) {
+    /*
+     * Meta expects webhook endpoints to acknowledge events.
+     * There is nothing for the mentor to process here.
+     */
+    return NextResponse.json(
+      {
+        received: true,
+      },
+      {
+        status: 200,
+      }
+    )
+  }
+
+  // ==========================================================
+  // CONNECT DATABASE
+  // ==========================================================
+
+  try {
+    await connectDB()
+  } catch (error) {
+    console.error(
+      'WhatsApp webhook database connection failed:',
+      error
+    )
 
     /*
-     * Meta signature verification must use the exact original
-     * request body. Do not call request.json() before this.
+     * Return a server error here because the event was not
+     * actually processed. This allows the provider to retry
+     * rather than silently losing the message.
      */
-    const rawBody =
-      await request.text()
+    return NextResponse.json(
+      {
+        error:
+          'Database connection failed.',
+      },
+      {
+        status: 500,
+      }
+    )
+  }
 
-    // ========================================================
-    // VERIFY SIGNATURE
-    // ========================================================
+  // ==========================================================
+  // PROCESS WEBHOOK ENTRIES
+  // ==========================================================
 
-    const signature =
-      request.headers.get(
-        'x-hub-signature-256'
-      )
-
-    if (
-      !verifyWebhookSignature(
-        rawBody,
-        signature
-      )
-    ) {
-      console.warn(
-        'Rejected WhatsApp webhook with invalid signature.'
-      )
-
-      return NextResponse.json(
-        {
-          error:
-            'Invalid webhook signature.',
-        },
-        {
-          status: 401,
-        }
-      )
-    }
-
-    // ========================================================
-    // PARSE JSON
-    // ========================================================
-
-    let payload:
-      WhatsAppWebhookPayload
-
-    try {
-      payload =
-        JSON.parse(
-          rawBody
-        ) as WhatsAppWebhookPayload
-    } catch {
-      return NextResponse.json(
-        {
-          error:
-            'Invalid JSON payload.',
-        },
-        {
-          status: 400,
-        }
-      )
-    }
-
-    // ========================================================
-    // BASIC PAYLOAD CHECK
-    // ========================================================
-
-    if (
-      payload.object !==
-      'whatsapp_business_account'
-    ) {
-      return NextResponse.json({
-        received: true,
-      })
-    }
-
-    // ========================================================
-    // DATABASE
-    // ========================================================
-
-    await connectDB()
-
-    // ========================================================
-    // PROCESS ENTRIES
-    // ========================================================
-
+  try {
     for (
       const entry of
       payload.entry || []
@@ -1710,6 +2635,9 @@ export async function POST(
         const change of
         entry.changes || []
       ) {
+        /*
+         * We only care about WhatsApp message changes.
+         */
         if (
           change.field &&
           change.field !==
@@ -1725,44 +2653,73 @@ export async function POST(
           continue
         }
 
-        // ----------------------------------------------------
-        // DELIVERY / READ / FAILURE STATUSES
-        // ----------------------------------------------------
+        // ====================================================
+        // DELIVERY / READ / FAILURE STATUS EVENTS
+        // ====================================================
 
         for (
           const status of
           value.statuses || []
         ) {
-          await handleMessageStatus(
-            status
-          )
+          try {
+            await handleMessageStatus(
+              status
+            )
+          } catch (error) {
+            /*
+             * One malformed status update should not prevent an
+             * inbound student message in the same webhook from
+             * being processed.
+             */
+            console.error(
+              'Failed to process WhatsApp message status:',
+              error
+            )
+          }
         }
 
-        // ----------------------------------------------------
+        // ====================================================
         // INBOUND STUDENT MESSAGES
-        // ----------------------------------------------------
+        // ====================================================
 
         for (
           const message of
           value.messages || []
         ) {
-          await handleInboundMessage(
-            message
-          )
+          try {
+            await handleInboundMessage(
+              message
+            )
+          } catch (error) {
+            /*
+             * Log the individual message failure and continue
+             * processing other messages contained in the same
+             * webhook payload.
+             */
+            console.error(
+              'Failed to process inbound WhatsApp mentor message:',
+              error
+            )
+          }
         }
       }
     }
 
     // ========================================================
-    // ACKNOWLEDGE
+    // ACKNOWLEDGE WEBHOOK
     // ========================================================
 
-    return NextResponse.json({
-      received: true,
-    })
+    return NextResponse.json(
+      {
+        received: true,
+      },
+      {
+        status: 200,
+      }
+    )
   } catch (error) {
     console.error(
-      'WhatsApp webhook processing error:',
+      'Unexpected WhatsApp webhook processing error:',
       error
     )
 

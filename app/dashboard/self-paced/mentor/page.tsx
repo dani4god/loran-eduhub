@@ -13,12 +13,14 @@ import {
   Bot,
   CheckCircle2,
   Clock,
+  ExternalLink,
   Loader2,
   MessageCircle,
   MessageSquareText,
   ShieldCheck,
   Sparkles,
   Target,
+  UserRoundCheck,
 } from 'lucide-react'
 
 // ============================================================
@@ -64,6 +66,19 @@ const DEFAULT_PREFERENCE:
 
     timezone: 'Africa/Lagos',
   }
+
+// ============================================================
+// WHATSAPP
+// ============================================================
+
+const LORAN_WHATSAPP_DISPLAY =
+  '08156164532'
+
+const LORAN_WHATSAPP_NUMBER =
+  '2348156164532'
+
+const WHATSAPP_START_MESSAGE =
+  'Hello'
 
 // ============================================================
 // PAGE
@@ -263,6 +278,23 @@ export default function WhatsAppMentorPage() {
   }
 
   // ==========================================================
+  // OPEN WHATSAPP
+  // ==========================================================
+
+  function openWhatsAppMentor() {
+    const message =
+      encodeURIComponent(
+        WHATSAPP_START_MESSAGE
+      )
+
+    window.open(
+      `https://wa.me/${LORAN_WHATSAPP_NUMBER}?text=${message}`,
+      '_blank',
+      'noopener,noreferrer'
+    )
+  }
+
+  // ==========================================================
   // LOADING
   // ==========================================================
 
@@ -347,7 +379,7 @@ export default function WhatsAppMentorPage() {
 
                 <p className="mt-1 text-xs leading-5 text-gray-500">
                   {preference.enabled
-                    ? 'Your mentor is enabled and can support you as you progress through your courses.'
+                    ? 'Your mentor is enabled. Send Hello to our WhatsApp number to start a mentoring conversation.'
                     : 'Enable mentoring to receive personalized course support on WhatsApp.'}
                 </p>
               </div>
@@ -386,6 +418,93 @@ export default function WhatsAppMentorPage() {
         </div>
 
         {/* ===================================================
+            START MENTORSHIP
+        ==================================================== */}
+
+        {preference.enabled && (
+          <section className="mb-5 overflow-hidden rounded-2xl border border-green-200 bg-white shadow-sm">
+            <div className="border-b border-green-100 bg-green-50 px-5 py-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-600 text-white">
+                  <MessageCircle size={20} />
+                </div>
+
+                <div>
+                  <h2 className="font-bold text-gray-900">
+                    Start your WhatsApp mentorship
+                  </h2>
+
+                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                    After saving your mentor settings,
+                    start the conversation with Loran
+                    EduHub on WhatsApp.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              <div className="space-y-4">
+                <StartStep
+                  number="1"
+                  title="Use your registered WhatsApp number"
+                  text="Open WhatsApp using the same phone number you entered above as your WhatsApp mentor number."
+                />
+
+                <StartStep
+                  number="2"
+                  title={`Message ${LORAN_WHATSAPP_DISPLAY}`}
+                  text='Send a simple "Hello" message to the Loran EduHub WhatsApp number.'
+                />
+
+                <StartStep
+                  number="3"
+                  title="Your mentor will respond"
+                  text="Your mentor will identify your course and use your course progress to provide relevant learning support."
+                />
+              </div>
+
+              <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-xs font-semibold leading-5 text-blue-800">
+                  Important
+                </p>
+
+                <p className="mt-1 text-[11px] leading-5 text-blue-700">
+                  You must message us from the same
+                  WhatsApp number saved in your mentor
+                  settings. This allows Loran EduHub to
+                  identify your mentorship account
+                  correctly.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  openWhatsAppMentor
+                }
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-green-700"
+              >
+                <MessageCircle
+                  size={17}
+                />
+
+                Send &quot;Hello&quot; on WhatsApp
+
+                <ExternalLink
+                  size={14}
+                />
+              </button>
+
+              <p className="mt-2 text-center text-[10px] leading-4 text-gray-400">
+                Loran EduHub WhatsApp:{' '}
+                {LORAN_WHATSAPP_DISPLAY}
+              </p>
+            </div>
+          </section>
+        )}
+
+        {/* ===================================================
             ERROR / SUCCESS
         ==================================================== */}
 
@@ -402,7 +521,9 @@ export default function WhatsAppMentorPage() {
               className="mt-0.5 shrink-0"
             />
 
-            <span>{success}</span>
+            <span>
+              {success}
+            </span>
           </div>
         )}
 
@@ -455,6 +576,19 @@ export default function WhatsAppMentorPage() {
                 numbers can also be entered in the
                 normal 080... format.
               </p>
+
+              <div className="mt-3 rounded-xl bg-green-50 px-3.5 py-3">
+                <p className="text-[11px] leading-5 text-green-700">
+                  After enabling mentoring, send
+                  &quot;Hello&quot; from this same
+                  WhatsApp number to{' '}
+                  <span className="font-bold">
+                    {LORAN_WHATSAPP_DISPLAY}
+                  </span>{' '}
+                  to start your conversation with
+                  the Loran Mentor.
+                </p>
+              </div>
             </section>
 
             {/* MESSAGE TYPES */}
@@ -559,7 +693,7 @@ export default function WhatsAppMentorPage() {
                   </h2>
 
                   <p className="mt-1 text-xs text-gray-500">
-                    We'll use this when scheduling
+                    We&apos;ll use this when scheduling
                     non-urgent mentoring messages.
                   </p>
                 </div>
@@ -688,6 +822,39 @@ export default function WhatsAppMentorPage() {
               </div>
             </section>
 
+            {/* HUMAN SUPPORT */}
+
+            <section className="rounded-2xl border border-purple-100 bg-purple-50 p-5">
+              <UserRoundCheck
+                size={23}
+                className="mb-3 text-purple-600"
+              />
+
+              <h2 className="font-bold text-gray-900">
+                Human support when needed
+              </h2>
+
+              <p className="mt-2 text-xs leading-6 text-gray-600">
+                Your AI mentor is designed to help
+                with course guidance, explanations
+                and study support. If it cannot
+                properly resolve your question, your
+                request can be referred to a human
+                member of the Loran EduHub team for
+                further assistance.
+              </p>
+
+              <div className="mt-3 rounded-xl border border-purple-100 bg-white/70 p-3">
+                <p className="text-[11px] leading-5 text-purple-700">
+                  You do not have to keep repeating
+                  a question the mentor cannot
+                  resolve. Human assistance can be
+                  used for issues that require
+                  additional support.
+                </p>
+              </div>
+            </section>
+
             <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <ShieldCheck
                 size={22}
@@ -695,7 +862,7 @@ export default function WhatsAppMentorPage() {
               />
 
               <h2 className="font-bold text-gray-900">
-                You're in control
+                You&apos;re in control
               </h2>
 
               <p className="mt-2 text-xs leading-6 text-gray-500">
@@ -800,6 +967,38 @@ function InfoRow({
       <span className="leading-5">
         {text}
       </span>
+    </div>
+  )
+}
+
+// ============================================================
+// START STEP
+// ============================================================
+
+function StartStep({
+  number,
+  title,
+  text,
+}: {
+  number: string
+  title: string
+  text: string
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-bold text-green-700">
+        {number}
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-gray-800">
+          {title}
+        </p>
+
+        <p className="mt-0.5 text-[11px] leading-5 text-gray-500">
+          {text}
+        </p>
+      </div>
     </div>
   )
 }

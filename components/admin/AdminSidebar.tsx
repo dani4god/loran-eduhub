@@ -28,6 +28,7 @@ import {
   Settings,
   Shield,
   Ticket,
+  MessageCircle,
   Menu,
   X,
   LogOut,
@@ -99,7 +100,7 @@ const navigationGroups: {
         label: "Live Courses",
         icon: BookOpen,
       },
-      
+
       {
         href: "/admin/self-paced-courses",
         label: "Self-Paced Courses",
@@ -121,7 +122,6 @@ const navigationGroups: {
         icon: FileQuestion,
         exact: true,
       },
-      
     ],
   },
 
@@ -148,6 +148,11 @@ const navigationGroups: {
         href: "/admin/tickets",
         label: "Support Tickets",
         icon: Ticket,
+      },
+      {
+        href: "/admin/whatsapp-support",
+        label: "WhatsApp Support",
+        icon: MessageCircle,
       },
       {
         href: "/admin/settings",
